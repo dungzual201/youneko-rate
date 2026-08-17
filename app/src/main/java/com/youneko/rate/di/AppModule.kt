@@ -12,6 +12,9 @@ import com.youneko.rate.data.local.dao.LibrarySearchFtsDao
 import com.youneko.rate.data.local.dao.RemoteMetadataCacheDao
 import com.youneko.rate.data.local.dao.SearchHistoryDao
 import com.youneko.rate.data.local.dao.TrackDao
+import com.youneko.rate.data.AlbumRepository
+import com.youneko.rate.data.RateRepository
+import com.youneko.rate.data.SettingsStore
 import com.youneko.rate.domain.usecase.CalculateAlbumScoreUseCase
 import dagger.Module
 import dagger.Provides
@@ -57,10 +60,14 @@ object AppModule {
         database.librarySearchFtsDao()
 
     @Provides
+    @Singleton
+    fun provideAlbumRepository(repository: RateRepository): AlbumRepository = repository
+
+    @Provides
     fun provideCalculateAlbumScoreUseCase(): CalculateAlbumScoreUseCase = CalculateAlbumScoreUseCase()
 
     @Provides
     @Singleton
-    fun provideSettingsDataStore(@ApplicationContext context: Context): SettingsDataStore =
+    fun provideSettingsStore(@ApplicationContext context: Context): SettingsStore =
         SettingsDataStore(context)
 }

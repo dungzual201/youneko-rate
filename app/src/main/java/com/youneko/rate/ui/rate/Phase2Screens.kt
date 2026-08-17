@@ -327,6 +327,13 @@ private fun StandaloneDialog(onDismiss: () -> Unit) {
 @Composable
 fun AlbumEditorScreen(onSaved: (String) -> Unit, onCancel: () -> Unit, viewModel: AlbumEditorViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    LaunchedEffect(Unit) {
+        viewModel.events.collect { event ->
+            when (event) {
+                is AlbumEditorEvent.OpenAlbum -> onSaved(event.albumId)
+            }
+        }
+    }
     var quickCount by rememberSaveable { mutableStateOf("") }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         OutlinedTextField(state.title, viewModel::setTitle, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.album_title)) }, singleLine = true)
@@ -356,7 +363,7 @@ fun AlbumEditorScreen(onSaved: (String) -> Unit, onCancel: () -> Unit, viewModel
         state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
             TextButton(onClick = onCancel) { Text(stringResource(R.string.cancel)) }
-            Button(onClick = { viewModel.save(onSaved) }) { Text(stringResource(R.string.save)) }
+            Button(onClick = { viewModel.save() }) { Text(stringResource(R.string.save)) }
         }
     }
     if (quickCount.isNotBlank()) {
@@ -422,17 +429,25 @@ private fun AlbumTypeMenu(value: String, onValue: (String) -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AlbumDetailScreen(onBack: () -> Unit, viewModel: AlbumDetailViewModel = hiltViewModel()) {
-    val item by viewModel.album.collectAsStateWithLifecycle()
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    LaunchedEffect(Unit) {
+        viewModel.events.collect { event ->
+            when (event) {
+                AlbumDetailEvent.ExitAlbum -> onBack()
+            }
+        }
+    }
     var showDelete by rememberSaveable { mutableStateOf(false) }
     var showManualScore by rememberSaveable { mutableStateOf(false) }
     var manualScoreText by rememberSaveable { mutableStateOf("") }
     var menuExpanded by rememberSaveable { mutableStateOf(false) }
     val snackbarHost = remember { SnackbarHostState() }
     Scaffold(snackbarHost = { SnackbarHost(snackbarHost) }) { padding ->
-        if (item == null) {
-            Column(Modifier.fillMaxSize().padding(padding), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) { Text(stringResource(R.string.error_generic)) }
-        } else {
-            val value = item!!
+        when (state) {
+            AlbumDetailUiState.Loading -> Column(Modifier.fillMaxSize().padding(padding), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) { Text(stringResource(R.string.error_generic)) }
+            AlbumDetailUiState.AlbumDeleted -> Column(Modifier.fillMaxSize().padding(padding), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) { Text(stringResource(R.string.confirm_delete_body)) }
+            is AlbumDetailUiState.Content -> {
+            val value = (state as AlbumDetailUiState.Content).album
             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(padding).padding(horizontal = 16.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.cancel)) }
@@ -470,6 +485,7 @@ fun AlbumDetailScreen(onBack: () -> Unit, viewModel: AlbumDetailViewModel = hilt
                 else value.tracks.forEach { track -> TrackRow(track, viewModel::updateTrack) }
                 Spacer(Modifier.height(32.dp))
             }
+            }
         }
     }
     if (showManualScore) {
@@ -478,7 +494,7 @@ fun AlbumDetailScreen(onBack: () -> Unit, viewModel: AlbumDetailViewModel = hilt
             title = { Text(stringResource(R.string.set_manual_score)) },
             text = { OutlinedTextField(manualScoreText, { manualScoreText = it }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true) },
             confirmButton = { TextButton(onClick = {
-                manualScoreText.toDoubleOrNull()?.takeIf { it in 0.5..5.0 }?.let { valueNow -> viewModel.album.value?.album?.let { album -> viewModel.updateAlbum(album.copy(manualScoreOverride = valueNow)) } }
+                manualScoreText.toDoubleOrNull()?.takeIf { it in 0.5..5.0 }?.let { valueNow -> viewModel.currentAlbum()?.let { album -> viewModel.updateAlbum(album.copy(manualScoreOverride = valueNow)) } }
                 showManualScore = false
             }) { Text(stringResource(R.string.save)) } },
             dismissButton = { TextButton(onClick = { showManualScore = false }) { Text(stringResource(R.string.cancel)) } },
@@ -489,7 +505,7 @@ fun AlbumDetailScreen(onBack: () -> Unit, viewModel: AlbumDetailViewModel = hilt
             onDismissRequest = { showDelete = false },
             title = { Text(stringResource(R.string.confirm_delete_title)) },
             text = { Text(stringResource(R.string.confirm_delete_body)) },
-            confirmButton = { TextButton(onClick = { showDelete = false; viewModel.deleteAlbum(onBack) }) { Text(stringResource(R.string.delete_album)) } },
+            confirmButton = { TextButton(onClick = { showDelete = false; viewModel.deleteAlbum() }) { Text(stringResource(R.string.delete_album)) } },
             dismissButton = { TextButton(onClick = { showDelete = false }) { Text(stringResource(R.string.cancel)) } },
         )
     }

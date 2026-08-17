@@ -45,6 +45,17 @@ data class LibraryAlbum(
     val score: AlbumScoreResult?,
 )
 
+interface AlbumRepository {
+    fun observeAlbums(scoreMode: ScoreMode = ScoreMode.SIMPLE): Flow<List<LibraryAlbum>>
+    fun observeAlbum(id: String, scoreMode: ScoreMode = ScoreMode.SIMPLE): Flow<LibraryAlbum?>
+    suspend fun searchEntityIds(query: String): Set<String>
+    suspend fun saveAlbum(draft: AlbumDraft): String
+    suspend fun saveStandalone(title: String, artistName: String, listenedDate: String?): String
+    suspend fun updateTrack(track: TrackEntity)
+    suspend fun updateAlbum(album: AlbumEntity)
+    suspend fun deleteAlbum(id: String)
+}
+
 @Singleton
 class RateRepository @Inject constructor(
     private val database: YounekoDatabase,
@@ -53,8 +64,8 @@ class RateRepository @Inject constructor(
     private val trackDao: TrackDao,
     private val ftsDao: LibrarySearchFtsDao,
     private val scoreUseCase: CalculateAlbumScoreUseCase,
-) {
-    fun observeAlbums(scoreMode: ScoreMode = ScoreMode.SIMPLE): Flow<List<LibraryAlbum>> =
+) : AlbumRepository {
+    override fun observeAlbums(scoreMode: ScoreMode): Flow<List<LibraryAlbum>> =
         combine(albumDao.observeAll(), artistDao.observeAll(), trackDao.observeAll()) { albums, artists, tracks ->
             albums.map { album ->
                 val albumTracks = tracks.filter { it.albumId == album.id }
@@ -71,7 +82,7 @@ class RateRepository @Inject constructor(
             }
         }
 
-    fun observeAlbum(id: String, scoreMode: ScoreMode = ScoreMode.SIMPLE): Flow<LibraryAlbum?> =
+    override fun observeAlbum(id: String, scoreMode: ScoreMode): Flow<LibraryAlbum?> =
         combine(albumDao.observeById(id), artistDao.observeAll(), trackDao.observeForAlbum(id)) { album, artists, tracks ->
             album?.let {
                 LibraryAlbum(
@@ -87,13 +98,13 @@ class RateRepository @Inject constructor(
             }
         }
 
-    suspend fun searchEntityIds(query: String): Set<String> {
+    override suspend fun searchEntityIds(query: String): Set<String> {
         if (query.isBlank()) return emptySet()
         val normalized = query.trim().replace("\"", "")
         return ftsDao.search("*$normalized*").map { it.entityId }.toSet()
     }
 
-    suspend fun saveAlbum(draft: AlbumDraft): String {
+    override suspend fun saveAlbum(draft: AlbumDraft): String {
         require(draft.title.isNotBlank()) { "Tên album không được để trống" }
         require(draft.artistName.isNotBlank()) { "Tên nghệ sĩ không được để trống" }
         require(draft.tracks.all { it.title.isNotBlank() }) { "Tên bài không được để trống" }
@@ -139,7 +150,7 @@ class RateRepository @Inject constructor(
         return albumId
     }
 
-    suspend fun saveStandalone(title: String, artistName: String, listenedDate: String?): String {
+    override suspend fun saveStandalone(title: String, artistName: String, listenedDate: String?): String {
         require(title.isNotBlank()) { "Tên bài không được để trống" }
         val now = System.currentTimeMillis()
         val artist = artistDao.findByName(artistName.trim()) ?: ArtistEntity(
@@ -155,18 +166,18 @@ class RateRepository @Inject constructor(
         return track.id
     }
 
-    suspend fun updateTrack(track: TrackEntity) {
+    override suspend fun updateTrack(track: TrackEntity) {
         val updated = track.copy(updatedAt = System.currentTimeMillis())
         trackDao.upsert(updated)
         ftsDao.deleteForEntity(track.id)
         ftsDao.upsert(LibrarySearchFtsEntity(track.id, "track", "${track.title} ${track.reviewText.orEmpty()}"))
     }
 
-    suspend fun updateAlbum(album: AlbumEntity) {
+    override suspend fun updateAlbum(album: AlbumEntity) {
         albumDao.upsert(album.copy(updatedAt = System.currentTimeMillis()))
     }
 
-    suspend fun deleteAlbum(id: String) {
+    override suspend fun deleteAlbum(id: String) {
         database.withTransaction {
             albumDao.deleteById(id)
             ftsDao.deleteForEntity(id)
