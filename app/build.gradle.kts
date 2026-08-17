@@ -10,7 +10,8 @@ plugins {
 
 android {
     namespace = "com.youneko.rate"
-    compileSdk = 36
+    // Compose 1.12.0 and core-ktx 1.19.0 require compile API 37; target remains 36 per SPEC.
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.youneko.rate"
@@ -59,7 +60,7 @@ android {
     }
 
     sourceSets {
-        getByName("androidTest").assets.srcDir("$projectDir/schemas")
+        getByName("androidTest").assets.directories.add("$projectDir/schemas")
     }
 }
 

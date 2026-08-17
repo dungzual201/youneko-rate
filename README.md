@@ -1,6 +1,6 @@
 # Youneko Rate!
 
-Ứng dụng Android native **offline-first** để chấm điểm và viết review cho album/bài hát, đồng thời phân tích phổ tần từ file nhạc do người dùng chọn để tham khảo chất lượng audio. Repository này đang ở bước chuẩn bị giai đoạn 0; **chưa có mã nguồn ứng dụng Android**.
+Ứng dụng Android native **offline-first** để chấm điểm và viết review cho album/bài hát, đồng thời phân tích phổ tần từ file nhạc do người dùng chọn để tham khảo chất lượng audio. Repository đã hoàn tất giai đoạn 1: có Android project Kotlin/Compose, Room schema nền tảng, Hilt, DataStore, theme và navigation; các tính năng nghiệp vụ bắt đầu từ giai đoạn 2.
 
 ## Phạm vi và nguyên tắc
 
@@ -10,7 +10,7 @@ Dữ liệu người dùng, gồm điểm số và review, là tối cao và kh�
 
 ## Stack mục tiêu
 
-Dự án sẽ dùng Kotlin, Jetpack Compose, Material 3, minSdk 26, targetSdk 36, Gradle Kotlin DSL, JDK 17, version catalog, MVVM/Clean-ish, Hilt, Coroutines/Flow, Navigation Compose, Room, DataStore, WorkManager, Paging 3, Retrofit, OkHttp, kotlinx.serialization và Coil.
+Dự án dùng Kotlin, Jetpack Compose, Material 3, minSdk 26, **compileSdk 37 và targetSdk 36**, Gradle Kotlin DSL, JDK 17, version catalog, MVVM/Clean-ish, Hilt, Coroutines/Flow, Navigation Compose, Room, DataStore, WorkManager, Paging 3, Retrofit, OkHttp, kotlinx.serialization và Coil. `compileSdk` được nâng lên API 37 vì Compose 1.12.0 và core-ktx 1.19.0 yêu cầu API này; `targetSdk` vẫn giữ 36 đúng SPEC. Version và nguồn xác minh nằm trong [`BUILD_SOURCES.md`](BUILD_SOURCES.md).
 
 Không dùng `ffmpeg-kit`. Giải mã audio sẽ được bọc sau `AudioDecoder`: tầng mặc định dùng Media3 decoders cùng `MediaExtractor`/`MediaCodec`; tầng mở rộng sẽ chỉ được chọn sau khi xác minh thư viện FFmpeg prebuilt AAR còn được duy trì hoặc phương án tự build FFmpeg + JNI. Không khai báo dependency/version chưa được xác minh.
 
@@ -25,12 +25,13 @@ MusicBrainz phải có User-Agent riêng theo format trong `SPEC.md`, token buck
 - [`SPEC.md`](SPEC.md): bản đặc tả đầy đủ, là nguồn yêu cầu duy nhất.
 - [`PROGRESS.md`](PROGRESS.md): trạng thái 12 giai đoạn và commit chính thức.
 - [`DECISIONS.md`](DECISIONS.md): các quyết định kỹ thuật, lý do và điểm đang chờ xác minh.
+- [`BUILD_SOURCES.md`](BUILD_SOURCES.md): các nguồn chính thức và version dependency đã xác minh cho phase 1.
 
 Làm việc tuần tự theo roadmap trong mục 10 của SPEC. Cuối mỗi giai đoạn phải build được, demo được, cập nhật `PROGRESS.md`/`DECISIONS.md`, commit và push.
 
 ## Build local
 
-Sau khi project Android được khởi tạo ở giai đoạn 1, môi trường yêu cầu JDK 17 và Android SDK phù hợp với `compileSdk/targetSdk`. Từ thư mục repository, chạy:
+Môi trường yêu cầu JDK 17 và Android SDK phù hợp với `compileSdk = 37`/`targetSdk = 36`. Từ thư mục repository, chạy:
 
 ```bash
 ./gradlew assembleDebug
