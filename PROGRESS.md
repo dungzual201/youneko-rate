@@ -4,7 +4,7 @@
 
 | Giai đoạn | Trạng thái | Commit hash | Ngày | Ghi chú |
 |---|---|---|---|---|
-| 1. Khởi tạo project, theme, navigation, Room schema đầy đủ, DI | TODO | Chưa có | 2026-08-17 | Chưa bắt đầu; giai đoạn 0 chỉ chuẩn bị tài liệu, repository và CI/CD. |
+| 1. Khởi tạo project, theme, navigation, Room schema đầy đủ, DI | DONE | `7675fba60de2bbfe73e2f3d84b746758f1629249` | 2026-08-17 | Android foundation đã build/test local PASS; CI run [#6](https://github.com/dungzual201/youneko-rate/actions/runs/32049411776) PASS với `assembleDebug` + `testDebugUnitTest`, artifact debug APK 19.6 MB. `compileSdk=37`, `targetSdk=36`. |
 | 2. Rate & Review: nhập thủ công, chấm sao, tính trung bình, local search/sort/filter | TODO | Chưa có | 2026-08-17 | Ưu tiên hoàn thành sớm sau giai đoạn 1; chưa viết code app. |
 | 3. Import metadata từ tag file nhạc local | TODO | Chưa có | 2026-08-17 | Chưa bắt đầu. |
 | 4. Network, throttle, cache, MusicBrainz search và release lookup | TODO | Chưa có | 2026-08-17 | Chưa bắt đầu; phải tuân thủ token bucket 1 request/giây và User-Agent bắt buộc. |
@@ -29,4 +29,4 @@ Giai đoạn 0 là bước chuẩn bị ngoài 12 giai đoạn phát triển tro
 
 | Hạng mục | Trạng thái | Commit hash | Ngày | Ghi chú |
 |---|---|---|---|---|
-| Tài liệu, repository private và CI/CD skeleton | DONE | `6109cbffc7b6afc8c6914a4ace6283724dc97b3b` | 2026-08-17 | Đã push lên `github.com/dungzual201/youneko-rate`; CI đã được kiểm chứng và hiện chờ Android project/Gradle wrapper của giai đoạn 1. |
+| Tài liệu, repository private và CI/CD skeleton | DONE | `6109cbffc7b6afc8c6914a4ace6283724dc97b3b` | 2026-08-17 | Đã push lên `github.com/dungzual201/youneko-rate`; CI skeleton đã được sử dụng thành công để build Android foundation ở giai đoạn 1. |

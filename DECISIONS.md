@@ -28,3 +28,12 @@ Tài liệu này ghi lại các quyết định kỹ thuật của dự án, lý
 ## Quy tắc ghi quyết định
 
 Mỗi quyết định mới phải nêu rõ vấn đề, phương án được chọn, lý do, tác động và giai đoạn áp dụng. Nếu thay thư viện so với SPEC, phải ghi tên thư viện thay thế, version đã kiểm chứng, lý do thay và bằng chứng build/test hoặc log lỗi của phương án cũ.
+
+## Ghi nhận triển khai giai đoạn 1
+
+- **Android foundation:** Chọn Kotlin + Jetpack Compose Material 3, Hilt, Room, DataStore, Navigation Compose, WorkManager, Paging 3 và version catalog theo SPEC. Bốn route chính Library/Rate/Analyze/Stats cùng Settings đã có scaffold; tính năng nghiệp vụ chưa được triển khai trước phase 2.
+- **SDK compatibility:** Giữ `minSdk = 26` và `targetSdk = 36` đúng SPEC, nhưng dùng `compileSdk = 37` vì các artifact đã xác minh `androidx.compose.ui:ui-android:1.12.0` và `androidx.core:core-ktx:1.19.0` yêu cầu compile API 37. CI cài `platforms;android-37.1` và `build-tools;37.0.0`.
+- **Build memory:** Dùng Gradle heap 1536 MB, một worker và Kotlin compiler in-process để build được trong sandbox ít RAM; cấu hình này vẫn build PASS trên CI JDK 17.
+- **Room schema:** Tạo schema nền tảng cho Artist, Album, Track, Credit, AudioAnalysis, RemoteMetadataCache, SearchHistory và FTS4; bật export schema và migration strategy không destructive, chưa thêm fallback destructive.
+- **Dependency provenance:** Các version chính và nguồn xác minh được lưu trong `BUILD_SOURCES.md`; không thêm `ffmpeg-kit` hay version dependency chưa kiểm chứng.
+- **CI evidence:** Run [Android Build #6](https://github.com/dungzual201/youneko-rate/actions/runs/32049411776) của commit `7675fba60de2bbfe73e2f3d84b746758f1629249` PASS cả `assembleDebug` và `testDebugUnitTest`; artifact debug APK/test reports đã upload, digest `sha256:bdb1fd3c841d2d527343f9c583d6121bcf57e271e4618116ab152b03acdf51b3`.
