@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Youneko Rate!</string>
+    <string name="library">Library</string>
+    <string name="rate">Rate</string>
+    <string name="analyze">Analyze</string>
+    <string name="stats">Stats</string>
+    <string name="settings">Settings</string>
+    <string name="library_empty_title">Thư viện của bạn đang trống</string>
+    <string name="library_empty_body">Bắt đầu bằng cách thêm album thủ công hoặc tra cứu metadata ở các giai đoạn sau.</string>
+    <string name="rate_empty_title">Chấm điểm nhanh</string>
+    <string name="rate_empty_body">Màn hình chấm điểm sẽ được hoàn thiện ở giai đoạn 2.</string>
+    <string name="analyze_empty_title">Audio Quality Checker</string>
+    <string name="analyze_empty_body">Chọn file nhạc để phân tích phổ ở giai đoạn 8.</string>
+    <string name="stats_empty_title">Thống kê</string>
+    <string name="stats_empty_body">Stats và Wrapped sẽ được triển khai ở giai đoạn 11.</string>
+    <string name="settings_body">Cấu hình offline, nguồn dữ liệu và sao lưu thủ công sẽ xuất hiện ở các giai đoạn sau.</string>
+</resources>
