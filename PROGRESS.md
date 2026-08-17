@@ -25,3 +25,7 @@
 ## Giai đoạn 0
 
 Giai đoạn 0 là bước chuẩn bị ngoài 11 giai đoạn phát triển trong SPEC: đọc yêu cầu, dựng tài liệu dài hạn, khởi tạo repo private, thiết lập CI/CD và nêu rủi ro/câu hỏi. Chưa có mã nguồn ứng dụng Android nào được viết ở giai đoạn này.
+
+| Hạng mục | Trạng thái | Commit hash | Ngày | Ghi chú |
+|---|---|---|---|---|
+| Tài liệu, repository private và CI/CD skeleton | DONE | `d20504297269581bacfbb0d5968bdd081ef00a24` | 2026-08-17 | Đã push lên `github.com/dungzual201/youneko-rate`; workflow build APK sẽ chỉ build thành công sau khi giai đoạn 1 tạo Android project và Gradle wrapper. |
