@@ -28,11 +28,18 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.youneko.rate.R
+import com.youneko.rate.ui.rate.AlbumDetailScreen
+import com.youneko.rate.ui.rate.AlbumEditorScreen
+import com.youneko.rate.ui.rate.LibraryScreen
+import com.youneko.rate.ui.rate.RateScreen
+import com.youneko.rate.ui.rate.SettingsScreen
 
 private data class AppDestination(
     val route: String,
@@ -54,52 +61,37 @@ fun YounekoNavHost() {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
     val isSettings = currentDestination?.route == "settings"
+    val isDetail = currentDestination?.route?.startsWith("album/") == true
+    val isEditor = currentDestination?.route == "addAlbum"
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = if (isSettings) stringResource(R.string.settings)
-                        else stringResource(R.string.app_name),
-                    )
-                },
-                actions = {
-                    if (!isSettings) {
-                        IconButton(onClick = { navController.navigate("settings") }) {
-                            Icon(
-                                imageVector = Icons.Default.Settings,
-                                contentDescription = stringResource(R.string.settings),
-                            )
+            if (!isDetail && !isEditor) {
+                TopAppBar(
+                    title = { Text(if (isSettings) stringResource(R.string.settings) else stringResource(R.string.app_name)) },
+                    actions = {
+                        if (!isSettings) IconButton(onClick = { navController.navigate("settings") }) {
+                            Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.settings))
                         }
-                    }
-                },
-            )
+                    },
+                )
+            }
         },
         bottomBar = {
-            if (!isSettings) {
+            if (!isSettings && !isDetail && !isEditor) {
                 NavigationBar {
                     destinations.forEach { destination ->
-                        val selected = currentDestination?.hierarchy?.any {
-                            it.route == destination.route
-                        } == true
+                        val selected = currentDestination?.hierarchy?.any { it.route == destination.route } == true
                         NavigationBarItem(
                             selected = selected,
                             onClick = {
                                 navController.navigate(destination.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = true
-                                    }
+                                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
                                     launchSingleTop = true
                                     restoreState = true
                                 }
                             },
-                            icon = {
-                                Icon(
-                                    imageVector = destination.icon,
-                                    contentDescription = stringResource(destination.label),
-                                )
-                            },
+                            icon = { Icon(destination.icon, contentDescription = stringResource(destination.label)) },
                             label = { Text(stringResource(destination.label)) },
                         )
                     }
@@ -107,67 +99,37 @@ fun YounekoNavHost() {
             }
         },
     ) { innerPadding ->
-        NavHost(
-            navController = navController,
-            startDestination = "library",
-            modifier = Modifier.padding(innerPadding),
-        ) {
+        NavHost(navController, startDestination = "library", modifier = Modifier.padding(innerPadding)) {
             composable("library") {
-                PlaceholderScreen(
-                    title = stringResource(R.string.library),
-                    body = stringResource(R.string.library_empty_body),
-                    mascot = "ฅ^•ﻌ•^ฅ",
+                LibraryScreen(
+                    onOpenAlbum = { navController.navigate("album/$it") },
+                    onAddAlbum = { navController.navigate("addAlbum") },
                 )
             }
             composable("rate") {
-                PlaceholderScreen(
-                    title = stringResource(R.string.rate),
-                    body = stringResource(R.string.rate_empty_body),
-                    mascot = "★  ☆  ★",
+                RateScreen(
+                    onAddAlbum = { navController.navigate("addAlbum") },
+                    onOpenAlbum = { navController.navigate("album/$it") },
                 )
             }
-            composable("analyze") {
-                PlaceholderScreen(
-                    title = stringResource(R.string.analyze),
-                    body = stringResource(R.string.analyze_empty_body),
-                    mascot = "∿  ∿  ∿",
-                )
+            composable("analyze") { PlaceholderScreen(R.string.analyze, R.string.analyze_empty_body, "∿  ∿  ∿") }
+            composable("stats") { PlaceholderScreen(R.string.stats, R.string.stats_empty_body, "▥  ▥  ▥") }
+            composable("settings") { SettingsScreen() }
+            composable("addAlbum") {
+                AlbumEditorScreen(onSaved = { navController.navigate("album/$it") { popUpTo("library") } }, onCancel = { navController.popBackStack() })
             }
-            composable("stats") {
-                PlaceholderScreen(
-                    title = stringResource(R.string.stats),
-                    body = stringResource(R.string.stats_empty_body),
-                    mascot = "▥  ▥  ▥",
-                )
-            }
-            composable("settings") {
-                PlaceholderScreen(
-                    title = stringResource(R.string.settings),
-                    body = stringResource(R.string.settings_body),
-                    mascot = "⚙",
-                )
+            composable("album/{albumId}", arguments = listOf(navArgument("albumId") { type = NavType.StringType })) {
+                AlbumDetailScreen(onBack = { navController.popBackStack() })
             }
         }
     }
 }
 
 @Composable
-private fun PlaceholderScreen(
-    title: String,
-    body: String,
-    mascot: String,
-) {
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Text(text = mascot, style = MaterialTheme.typography.displaySmall)
-        Text(text = title, style = MaterialTheme.typography.headlineSmall)
-        Text(
-            text = body,
-            modifier = Modifier.padding(horizontal = 24.dp),
-            style = MaterialTheme.typography.bodyLarge,
-        )
+private fun PlaceholderScreen(@StringRes title: Int, @StringRes body: Int, mascot: String) {
+    Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+        Text(mascot, style = MaterialTheme.typography.displaySmall)
+        Text(stringResource(title), style = MaterialTheme.typography.headlineSmall)
+        Text(stringResource(body), modifier = Modifier.padding(horizontal = 24.dp), style = MaterialTheme.typography.bodyLarge)
     }
 }

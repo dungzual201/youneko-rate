@@ -1,0 +1,195 @@
+package com.youneko.rate.data
+
+import androidx.room.withTransaction
+import com.youneko.rate.data.local.YounekoDatabase
+import com.youneko.rate.data.local.dao.AlbumDao
+import com.youneko.rate.data.local.dao.ArtistDao
+import com.youneko.rate.data.local.dao.LibrarySearchFtsDao
+import com.youneko.rate.data.local.dao.TrackDao
+import com.youneko.rate.data.local.entity.AlbumEntity
+import com.youneko.rate.data.local.entity.ArtistEntity
+import com.youneko.rate.data.local.entity.LibrarySearchFtsEntity
+import com.youneko.rate.data.local.entity.TrackEntity
+import com.youneko.rate.domain.usecase.AlbumScoreResult
+import com.youneko.rate.domain.usecase.CalculateAlbumScoreUseCase
+import com.youneko.rate.domain.usecase.ScoreMode
+import com.youneko.rate.domain.usecase.TrackScoreInput
+import java.util.UUID
+import javax.inject.Inject
+import javax.inject.Singleton
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+
+class AlbumDraft(
+    val title: String,
+    val artistName: String,
+    val releaseYear: Int?,
+    val albumType: String,
+    val genreTags: List<String>,
+    val listenedDate: String?,
+    val coverUri: String?,
+    val tracks: List<TrackDraft>,
+)
+
+data class TrackDraft(
+    val title: String,
+    val discNumber: Int = 1,
+    val durationMs: Long? = null,
+    val id: String = UUID.randomUUID().toString(),
+)
+
+data class LibraryAlbum(
+    val album: AlbumEntity,
+    val artist: ArtistEntity?,
+    val tracks: List<TrackEntity>,
+    val score: AlbumScoreResult?,
+)
+
+@Singleton
+class RateRepository @Inject constructor(
+    private val database: YounekoDatabase,
+    private val albumDao: AlbumDao,
+    private val artistDao: ArtistDao,
+    private val trackDao: TrackDao,
+    private val ftsDao: LibrarySearchFtsDao,
+    private val scoreUseCase: CalculateAlbumScoreUseCase,
+) {
+    fun observeAlbums(scoreMode: ScoreMode = ScoreMode.SIMPLE): Flow<List<LibraryAlbum>> =
+        combine(albumDao.observeAll(), artistDao.observeAll(), trackDao.observeAll()) { albums, artists, tracks ->
+            albums.map { album ->
+                val albumTracks = tracks.filter { it.albumId == album.id }
+                LibraryAlbum(
+                    album = album,
+                    artist = artists.firstOrNull { it.id == album.artistId },
+                    tracks = albumTracks,
+                    score = scoreUseCase(
+                        albumTracks.map { TrackScoreInput(it.stars, it.durationMs) },
+                        scoreMode,
+                        album.manualScoreOverride,
+                    ),
+                )
+            }
+        }
+
+    fun observeAlbum(id: String, scoreMode: ScoreMode = ScoreMode.SIMPLE): Flow<LibraryAlbum?> =
+        combine(albumDao.observeById(id), artistDao.observeAll(), trackDao.observeForAlbum(id)) { album, artists, tracks ->
+            album?.let {
+                LibraryAlbum(
+                    album = it,
+                    artist = artists.firstOrNull { artist -> artist.id == it.artistId },
+                    tracks = tracks,
+                    score = scoreUseCase(
+                        tracks.map { track -> TrackScoreInput(track.stars, track.durationMs) },
+                        scoreMode,
+                        it.manualScoreOverride,
+                    ),
+                )
+            }
+        }
+
+    suspend fun searchEntityIds(query: String): Set<String> {
+        if (query.isBlank()) return emptySet()
+        val normalized = query.trim().replace("\"", "")
+        return ftsDao.search("*$normalized*").map { it.entityId }.toSet()
+    }
+
+    suspend fun saveAlbum(draft: AlbumDraft): String {
+        require(draft.title.isNotBlank()) { "Tên album không được để trống" }
+        require(draft.artistName.isNotBlank()) { "Tên nghệ sĩ không được để trống" }
+        require(draft.tracks.all { it.title.isNotBlank() }) { "Tên bài không được để trống" }
+        val now = System.currentTimeMillis()
+        val artist = artistDao.findByName(draft.artistName.trim()) ?: ArtistEntity(
+            id = UUID.randomUUID().toString(),
+            name = draft.artistName.trim(),
+            createdAt = now,
+            updatedAt = now,
+        )
+        artistDao.upsert(artist)
+        val albumId = UUID.randomUUID().toString()
+        val album = AlbumEntity(
+            id = albumId,
+            title = draft.title.trim(),
+            artistId = artist.id,
+            releaseYear = draft.releaseYear,
+            coverUri = draft.coverUri,
+            coverThumbUri = draft.coverUri,
+            genreTags = draft.genreTags.map { it.trim() }.filter { it.isNotEmpty() }.distinct(),
+            albumType = draft.albumType,
+            listenedDate = draft.listenedDate,
+            createdAt = now,
+            updatedAt = now,
+        )
+        val tracks = draft.tracks.mapIndexed { index, item ->
+            TrackEntity(
+                id = item.id,
+                albumId = albumId,
+                title = item.title.trim(),
+                trackNumber = index + 1,
+                discNumber = item.discNumber,
+                durationMs = item.durationMs,
+                createdAt = now,
+                updatedAt = now,
+            )
+        }
+        database.withTransaction {
+            albumDao.upsert(album)
+            trackDao.upsertAll(tracks)
+            rebuildSearchIndex(albumId, album, artist, tracks)
+        }
+        return albumId
+    }
+
+    suspend fun saveStandalone(title: String, artistName: String, listenedDate: String?): String {
+        require(title.isNotBlank()) { "Tên bài không được để trống" }
+        val now = System.currentTimeMillis()
+        val artist = artistDao.findByName(artistName.trim()) ?: ArtistEntity(
+            id = UUID.randomUUID().toString(), name = artistName.trim(), createdAt = now, updatedAt = now,
+        )
+        artistDao.upsert(artist)
+        val track = TrackEntity(
+            id = UUID.randomUUID().toString(), title = title.trim(), isStandalone = true,
+            listenedDate = listenedDate, createdAt = now, updatedAt = now,
+        )
+        trackDao.upsert(track)
+        ftsDao.upsert(LibrarySearchFtsEntity(track.id, "track", "$title $artistName"))
+        return track.id
+    }
+
+    suspend fun updateTrack(track: TrackEntity) {
+        val updated = track.copy(updatedAt = System.currentTimeMillis())
+        trackDao.upsert(updated)
+        ftsDao.deleteForEntity(track.id)
+        ftsDao.upsert(LibrarySearchFtsEntity(track.id, "track", "${track.title} ${track.reviewText.orEmpty()}"))
+    }
+
+    suspend fun updateAlbum(album: AlbumEntity) {
+        albumDao.upsert(album.copy(updatedAt = System.currentTimeMillis()))
+    }
+
+    suspend fun deleteAlbum(id: String) {
+        database.withTransaction {
+            albumDao.deleteById(id)
+            ftsDao.deleteForEntity(id)
+        }
+    }
+
+    suspend fun rebuildSearchIndex(albumId: String, album: AlbumEntity, artist: ArtistEntity, tracks: List<TrackEntity>) {
+        ftsDao.deleteForEntity(albumId)
+        ftsDao.upsert(
+            LibrarySearchFtsEntity(
+                entityId = albumId,
+                entityType = "album",
+                searchableText = buildString {
+                    append(album.title).append(' ').append(artist.name).append(' ')
+                    append(album.genreTags.joinToString(" ")).append(' ')
+                    append(album.reviewText.orEmpty()).append(' ')
+                    append(tracks.joinToString(" ") { "${it.title} ${it.reviewText.orEmpty()}" })
+                },
+            ),
+        )
+        tracks.forEach { track ->
+            ftsDao.deleteForEntity(track.id)
+            ftsDao.upsert(LibrarySearchFtsEntity(track.id, "track", "${track.title} ${track.reviewText.orEmpty()}"))
+        }
+    }
+}

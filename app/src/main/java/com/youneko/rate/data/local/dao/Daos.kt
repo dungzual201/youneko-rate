@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.youneko.rate.data.local.entity.AlbumEntity
+import com.youneko.rate.data.local.entity.ArtistEntity
 import com.youneko.rate.data.local.entity.AudioAnalysisEntity
 import com.youneko.rate.data.local.entity.CreditEntity
 import com.youneko.rate.data.local.entity.LibrarySearchFtsEntity
@@ -15,23 +16,68 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface AlbumDao {
-    @Query("SELECT * FROM albums ORDER BY title COLLATE NOCASE")
+    @Query("SELECT * FROM albums ORDER BY createdAt DESC")
     fun observeAll(): Flow<List<AlbumEntity>>
+
+    @Query("SELECT * FROM albums WHERE id = :id LIMIT 1")
+    fun observeById(id: String): Flow<AlbumEntity?>
+
+    @Query("SELECT * FROM albums WHERE id = :id LIMIT 1")
+    suspend fun findById(id: String): AlbumEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(album: AlbumEntity)
 
-    @Query("SELECT * FROM albums WHERE id = :id LIMIT 1")
-    suspend fun findById(id: String): AlbumEntity?
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(albums: List<AlbumEntity>)
+
+    @Query("DELETE FROM albums WHERE id = :id")
+    suspend fun deleteById(id: String)
+
+    @Query("SELECT COUNT(*) FROM albums")
+    fun observeCount(): Flow<Int>
+}
+
+@Dao
+interface ArtistDao {
+    @Query("SELECT * FROM artists ORDER BY name COLLATE NOCASE")
+    fun observeAll(): Flow<List<ArtistEntity>>
+
+    @Query("SELECT * FROM artists WHERE id = :id LIMIT 1")
+    suspend fun findById(id: String): ArtistEntity?
+
+    @Query("SELECT * FROM artists WHERE name = :name COLLATE NOCASE LIMIT 1")
+    suspend fun findByName(name: String): ArtistEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(artist: ArtistEntity)
 }
 
 @Dao
 interface TrackDao {
+    @Query("SELECT * FROM tracks ORDER BY createdAt DESC")
+    fun observeAll(): Flow<List<TrackEntity>>
+
     @Query("SELECT * FROM tracks WHERE albumId = :albumId ORDER BY discNumber, trackNumber, title COLLATE NOCASE")
     fun observeForAlbum(albumId: String): Flow<List<TrackEntity>>
 
+    @Query("SELECT * FROM tracks WHERE albumId IS NULL AND isStandalone = 1 ORDER BY createdAt DESC")
+    fun observeStandalone(): Flow<List<TrackEntity>>
+
+    @Query("SELECT * FROM tracks WHERE id = :id LIMIT 1")
+    suspend fun findById(id: String): TrackEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(track: TrackEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(tracks: List<TrackEntity>)
+
+    @Query("DELETE FROM tracks WHERE id = :id")
+    suspend fun deleteById(id: String)
+
+    @Query("SELECT * FROM tracks WHERE albumId = :albumId ORDER BY discNumber, trackNumber")
+    suspend fun findForAlbum(albumId: String): List<TrackEntity>
 }
 
 @Dao
@@ -78,6 +124,15 @@ interface LibrarySearchFtsDao {
     @Query("SELECT * FROM library_search_fts WHERE library_search_fts MATCH :query ORDER BY rowid DESC")
     suspend fun search(query: String): List<LibrarySearchFtsEntity>
 
+    @Query("SELECT entityId FROM library_search_fts WHERE library_search_fts MATCH :query ORDER BY rowid DESC")
+    fun observeEntityIds(query: String): Flow<List<String>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(value: LibrarySearchFtsEntity)
+
+    @Query("DELETE FROM library_search_fts WHERE entityId = :entityId")
+    suspend fun deleteForEntity(entityId: String)
+
+    @Query("DELETE FROM library_search_fts")
+    suspend fun deleteAll()
 }

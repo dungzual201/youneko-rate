@@ -2,6 +2,7 @@ package com.youneko.rate.data.local.entity
 
 import androidx.room.Entity
 import androidx.room.Fts4
+import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
@@ -19,6 +20,14 @@ data class ArtistEntity(
 
 @Entity(
     tableName = "albums",
+    foreignKeys = [
+        ForeignKey(
+            entity = ArtistEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["artistId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
     indices = [Index(value = ["artistId"]), Index(value = ["mbid"], unique = false)],
 )
 data class AlbumEntity(
@@ -50,6 +59,14 @@ data class AlbumEntity(
 
 @Entity(
     tableName = "tracks",
+    foreignKeys = [
+        ForeignKey(
+            entity = AlbumEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["albumId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
     indices = [Index(value = ["albumId"]), Index(value = ["recordingMbid"], unique = false)],
 )
 data class TrackEntity(
@@ -74,6 +91,20 @@ data class TrackEntity(
 
 @Entity(
     tableName = "credits",
+    foreignKeys = [
+        ForeignKey(
+            entity = AlbumEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["albumId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+        ForeignKey(
+            entity = TrackEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["trackId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
     indices = [Index(value = ["albumId"]), Index(value = ["trackId"]), Index(value = ["personMbid"])],
 )
 data class CreditEntity(
@@ -91,6 +122,20 @@ data class CreditEntity(
 
 @Entity(
     tableName = "audio_analysis",
+    foreignKeys = [
+        ForeignKey(
+            entity = AlbumEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["albumId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+        ForeignKey(
+            entity = TrackEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["trackId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
     indices = [Index(value = ["trackId"]), Index(value = ["albumId"]), Index(value = ["fileHash"])],
 )
 data class AudioAnalysisEntity(
