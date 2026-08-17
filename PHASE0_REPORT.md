@@ -50,3 +50,14 @@
 ## 4. Thư viện thay thế so với SPEC
 
 Ở giai đoạn 0 chưa khóa thêm thư viện nào ngoài các hướng đã nêu trong SPEC. Quyết định rõ ràng là **không dùng `ffmpeg-kit`** vì đã retired/archived; tầng decode mở rộng sẽ được chọn sau khi xác minh thư viện còn duy trì và có bằng chứng build/runtime. JTransforms hoặc TarsosDSP cũng chưa được chốt tuyệt đối trước benchmark thực tế.
+
+## 5. Kết quả CI/CD giai đoạn 0
+
+Workflow `Android Build` đã được GitHub nhận đúng từ nhánh `main`, dùng checkout, Temurin JDK 17 và Gradle setup/cache. Run [Android Build #2](https://github.com/dungzual201/youneko-rate/actions/runs/32046899029) đã chạy đến bước `Assemble debug APK` nhưng **FAIL** với log thực tế:
+
+```text
+/home/runner/work/_temp/14203bb4-47c3-4082-a3d3-9e1e32409ff7.sh: line 1: ./gradlew: No such file or directory
+Error: Process completed with exit code 127.
+```
+
+Đây là kết quả được dự đoán ở giai đoạn 0 vì chưa được phép tạo Android app code, Gradle wrapper hoặc `build.gradle.kts`; workflow đã sẵn sàng để tự chạy lại và build APK sau giai đoạn 1. Không có APK artifact hoặc test report ở run này.
