@@ -16,14 +16,14 @@ Không dùng `ffmpeg-kit`. Giải mã audio sẽ được bọc sau `AudioDecode
 
 ## Dữ liệu và nguồn metadata
 
-MusicBrainz là nguồn chính, luôn bật; Cover Art Archive được dùng để lấy ảnh bìa. Discogs, Last.fm, Deezer và ListenBrainz Labs là provider phụ, mặc định tắt và chỉ bật khi người dùng chủ động cấu hình theo điều kiện của từng dịch vụ. App chỉ dùng API công khai chính thức, không scrape HTML, không dùng Spotify/Apple Music/YouTube Music API để xây dựng thư viện offline.
+MusicBrainz là nguồn chính, luôn bật; Cover Art Archive được dùng để lấy ảnh bìa. Provider phụ được ưu tiên theo thứ tự Discogs → Deezer → Last.fm → ListenBrainz Labs, tất cả mặc định tắt và chỉ bật khi người dùng chủ động cấu hình theo điều kiện của từng dịch vụ. Đây là tra cứu/fetch metadata một chiều, không có tính năng đồng bộ/sync; backup chỉ do người dùng chủ động xuất/nhập. App chỉ dùng API công khai chính thức, không scrape HTML, không dùng Spotify/Apple Music/YouTube Music API để xây dựng thư viện offline.
 
 MusicBrainz phải có User-Agent riêng theo format trong `SPEC.md`, token bucket capacity 5 với refill 1 token/giây, retry 503 có exponential backoff + jitter và tôn trọng cache validator. Credits chỉ được tải khi người dùng bấm xem.
 
 ## Trạng thái và tài liệu
 
 - [`SPEC.md`](SPEC.md): bản đặc tả đầy đủ, là nguồn yêu cầu duy nhất.
-- [`PROGRESS.md`](PROGRESS.md): trạng thái 11 giai đoạn và commit chính thức.
+- [`PROGRESS.md`](PROGRESS.md): trạng thái 12 giai đoạn và commit chính thức.
 - [`DECISIONS.md`](DECISIONS.md): các quyết định kỹ thuật, lý do và điểm đang chờ xác minh.
 
 Làm việc tuần tự theo roadmap trong mục 10 của SPEC. Cuối mỗi giai đoạn phải build được, demo được, cập nhật `PROGRESS.md`/`DECISIONS.md`, commit và push.
@@ -46,6 +46,8 @@ Workflow [`.github/workflows/android-build.yml`](.github/workflows/android-build
 ## Release và ký APK
 
 Workflow [`.github/workflows/release.yml`](.github/workflows/release.yml) chạy khi push tag bắt đầu bằng `v`, build release, ký bằng keystore lấy từ GitHub Secrets và tạo GitHub Release. Tuyệt đối không commit keystore, file `.jks`, mật khẩu hoặc secret vào repository.
+
+Discogs Personal Access Token, Last.fm API key và mọi credential khác chỉ nằm trong DataStore, **không bao giờ được serialize vào `data.json`, `manifest.json` hoặc ZIP backup**. Màn hình Export phải hiển thị cảnh báo này; ZIP có mật khẩu chỉ là hướng mở rộng về sau.
 
 ### Tự tạo keystore
 
@@ -87,4 +89,4 @@ Trước mỗi giai đoạn, đọc lại `SPEC.md` và `PROGRESS.md`. Sau mỗi
 
 ## License và phạm vi phát hành
 
-Chưa chốt license phát hành của phần mã nguồn ứng dụng. Việc sử dụng dữ liệu và API bên thứ ba phải tuân thủ điều khoản của từng nguồn; phần attribution bắt buộc trong app được mô tả trong SPEC.
+Chưa chốt license phát hành của phần mã nguồn ứng dụng. `jaudiotagger` là LGPL và phải dynamic-link; PoC FFmpeg ở phase 12 ưu tiên bản LGPL, phải ghi rõ codec bị loại nếu ràng buộc GPL. Mọi dependency phải có license inventory và app sẽ có màn Open source licenses ở phase 11. Việc sử dụng dữ liệu và API bên thứ ba phải tuân thủ điều khoản của từng nguồn; phần attribution bắt buộc trong app được mô tả trong SPEC.

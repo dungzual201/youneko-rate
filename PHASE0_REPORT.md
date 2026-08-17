@@ -3,7 +3,7 @@
 ## 1. Tóm tắt hiểu biết về dự án
 
 1. Youneko Rate! là ứng dụng Android native viết bằng Kotlin và Jetpack Compose.
-2. Ứng dụng offline-first, dùng mạng chỉ để tra cứu và đồng bộ metadata khi người dùng cho phép.
+2. Ứng dụng offline-first, dùng mạng chỉ để tra cứu/fetch metadata một chiều khi người dùng cho phép; không có tính năng đồng bộ/sync.
 3. Trụ cột thứ nhất là Rate & Review cho album, bài hát và bài lẻ.
 4. Người dùng chấm từ 0.5 đến 5.0 sao theo bước cấu hình được.
 5. Điểm trung bình album lấy từ các bài đã chấm, bỏ qua bài chưa chấm thay vì coi là 0.
@@ -21,7 +21,7 @@
 17. Room lưu dữ liệu local; UUID giúp merge backup giữa nhiều thiết bị không xung đột.
 18. Backup hỗ trợ JSON/ZIP, ảnh bìa, spectrogram, manifest checksum và merge/replace.
 19. Giao diện gồm Library, Rate, Analyze, Stats và Settings, có tiếng Việt mặc định cùng English.
-20. Quy trình phát triển gồm 11 giai đoạn tuần tự; mỗi giai đoạn phải build/demo, cập nhật tài liệu, commit và push.
+20. Quy trình phát triển gồm 12 giai đoạn tuần tự; mỗi giai đoạn phải build/demo, cập nhật tài liệu, commit và push.
 
 ## 2. Rủi ro kỹ thuật chính
 

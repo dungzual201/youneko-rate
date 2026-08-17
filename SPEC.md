@@ -364,6 +364,7 @@ Mỗi lý do phải nói rõ **vì sao nghi ngờ**, ví dụ: "Cutoff đo đư�
 - Format `data.json` phải là **JSON thuần, dễ đọc, được document hoá trong README** để đọc/restore được
   cả trên máy tính. Kèm một **script Python nhỏ trong `tools/`** để đọc file backup và in ra bảng review.
 - **Auto backup**: setting tự xuất backup định kỳ (hằng tuần) vào folder người dùng chọn, giữ N bản gần nhất.
+- **Credential tuyệt đối không được đưa vào backup:** Discogs Personal Access Token, Last.fm API key và mọi credential khác chỉ được lưu trong DataStore, không được serialize vào `data.json`, `manifest.json` hay bất kỳ file ZIP nào. Màn hình Export phải hiển thị cảnh báo rõ ràng về điều này.
 
 ---
 
@@ -426,7 +427,8 @@ sau mỗi giai đoạn:
 9. Audio Quality Checker phần 2: bộ heuristics + verdict + lý do + lưu kết quả + so sánh 2 file + gắn
    badge vào thư viện.
 10. Export/import backup, CSV, Markdown, auto backup, script Python trong `tools/`.
-11. Stats, share ảnh, onboarding, đa ngôn ngữ, polish, unit test, README, build APK.
+11. Stats, share ảnh, onboarding, đa ngôn ngữ, polish, unit test, README, build APK và màn Open source licenses.
+12. PoC và decode audio tầng 2 mở rộng bằng thư viện prebuilt/JNI còn maintain cho ALAC, AIFF, APE, WavPack, TTA, DSD, Musepack, WMA và các định dạng mở rộng khác. Trước khi code phải đo kích thước APK tăng thêm và test ít nhất một thiết bị arm64; ưu tiên bản LGPL và ghi rõ codec bị loại nếu ràng buộc GPL.
 
 Nếu có điểm nào bất khả thi hoặc một thư viện không hoạt động như dự kiến, hãy báo cho tôi ngay kèm log/
 response thật và đề xuất phương án thay thế, thay vì âm thầm bỏ qua hoặc fake dữ liệu.
