@@ -5,7 +5,7 @@
 | Giai đoạn | Trạng thái | Commit hash | Ngày | Ghi chú |
 |---|---|---|---|---|
 | 1. Khởi tạo project, theme, navigation, Room schema đầy đủ, DI | DONE | `7675fba60de2bbfe73e2f3d84b746758f1629249` | 2026-08-17 | Android foundation đã build/test local PASS; CI run [#6](https://github.com/dungzual201/youneko-rate/actions/runs/32049411776) PASS với `assembleDebug` + `testDebugUnitTest`, artifact debug APK 19.6 MB. `compileSdk=37`, `targetSdk=36`. |
-| 2. Rate & Review: nhập thủ công, chấm sao, tính trung bình, local search/sort/filter | TODO | Chưa có | 2026-08-17 | Ưu tiên hoàn thành sớm sau giai đoạn 1; chưa viết code app. |
+| 2. Rate & Review: nhập thủ công, chấm sao, tính trung bình, local search/sort/filter | DONE | `72c667666e3074444dec1aba0eabf2333353c127` | 2026-08-18 | Đã có CRUD album/bài lẻ, Room FTS4, search debounce 400ms, grid/list, sort/filter DataStore, star rating tap/drag/long-press, review autosave, manual override, reactive Flow, SavedStateHandle, unit tests và DAO instrumentation tests. Local `clean assembleDebug testDebugUnitTest compileDebugAndroidTestKotlin` PASS; chưa làm phase 3. |
 | 3. Import metadata từ tag file nhạc local | TODO | Chưa có | 2026-08-17 | Chưa bắt đầu. |
 | 4. Network, throttle, cache, MusicBrainz search và release lookup | TODO | Chưa có | 2026-08-17 | Chưa bắt đầu; phải tuân thủ token bucket 1 request/giây và User-Agent bắt buộc. |
 | 5. Preview, chọn release, import Room, Cover Art Archive và dedupe | TODO | Chưa có | 2026-08-17 | Chưa bắt đầu. |

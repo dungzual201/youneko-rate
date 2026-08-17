@@ -91,3 +91,20 @@ Trước mỗi giai đoạn, đọc lại `SPEC.md` và `PROGRESS.md`. Sau mỗi
 ## License và phạm vi phát hành
 
 Chưa chốt license phát hành của phần mã nguồn ứng dụng. `jaudiotagger` là LGPL và phải dynamic-link; PoC FFmpeg ở phase 12 ưu tiên bản LGPL, phải ghi rõ codec bị loại nếu ràng buộc GPL. Mọi dependency phải có license inventory và app sẽ có màn Open source licenses ở phase 11. Việc sử dụng dữ liệu và API bên thứ ba phải tuân thủ điều khoản của từng nguồn; phần attribution bắt buộc trong app được mô tả trong SPEC.
+
+## Giai đoạn 2 — Rate & Review
+
+Phase 2 đã hoàn tất trong commit `72c667666e3074444dec1aba0eabf2333353c127`. Người dùng có thể thêm album thủ công hoặc bài lẻ, nhập artist, năm, loại album, genre, ngày nghe, ảnh bìa từ SAF và tracklist. Form dùng `SavedStateHandle`; tracklist hỗ trợ thêm/xoá, thêm nhanh N dòng và long-press drag reorder. Khi lưu, `trackNumber` được đánh lại theo thứ tự hiện tại.
+
+Library dùng Room FTS4 cho search local-first với debounce 400 ms trên tên album, nghệ sĩ, track và review. Có grid/list, sort theo mới thêm/điểm/tên/năm/ngày nghe, filter favorite và unfinished ratings; lựa chọn được lưu trong DataStore. Empty state phân biệt thư viện trống với không có kết quả. Tab Rate hiển thị album đang chấm dở và luồng thêm album/bài lẻ.
+
+Album detail có cover placeholder hoặc URI ảnh đã chọn, điểm 2 chữ số, tiến độ chấm, review album auto-save sau 800 ms, tracklist, chấm sao trực tiếp, highlight/skip, review từng track, favorite, manual score override và xác nhận xoá. `StarRatingBar` hỗ trợ 0.5–5.0, tap, kéo ngang, haptic, animation nhẹ, long-press để xoá điểm và semantics cho accessibility. Chế độ tính điểm đơn giản/trọng số theo duration được lưu trong Settings; track thiếu duration sẽ fallback trọng số bằng nhau và hiển thị ghi chú.
+
+Các lệnh kiểm chứng phase 2:
+
+```bash
+./gradlew clean assembleDebug testDebugUnitTest
+./gradlew compileDebugAndroidTestKotlin
+```
+
+`testDebugUnitTest` bao phủ usecase tính điểm; `RateDaoTest` trong `androidTest` bao phủ Room FTS4 search và cascade delete. Connected Android tests cần emulator/device Android phù hợp nên CI debug workflow hiện vẫn chạy unit tests và compile AndroidTest source; không giả định có emulator trong sandbox.
