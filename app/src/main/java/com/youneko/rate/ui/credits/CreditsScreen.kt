@@ -12,6 +12,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -24,9 +28,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -39,7 +40,6 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.youneko.rate.R
 import com.youneko.rate.data.AlbumRepository
 import com.youneko.rate.data.local.entity.CreditEntity
@@ -48,24 +48,30 @@ import com.youneko.rate.data.musicbrainz.MusicBrainzCreditsService
 import com.youneko.rate.data.musicbrainz.NetworkError
 import com.youneko.rate.data.musicbrainz.Resource
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 import javax.inject.Inject
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+sealed interface CreditsContentState {
+    data object Idle : CreditsContentState
+    data class Loading(val completed: Int, val total: Int) : CreditsContentState
+    data class Error(val kind: NetworkError) : CreditsContentState
+    data class NoMbid(val searchUrl: String) : CreditsContentState
+    data object Empty : CreditsContentState
+    data object Data : CreditsContentState
+}
+
 data class CreditsUiState(
     val credits: List<CreditEntity> = emptyList(),
-    val loading: Boolean = false,
-    val completed: Int = 0,
-    val total: Int = 0,
-    val error: NetworkError? = null,
-    val hasLoaded: Boolean = false,
+    val content: CreditsContentState = CreditsContentState.Idle,
+    val searchUrl: String? = null,
 )
 
 @HiltViewModel
@@ -83,7 +89,7 @@ class CreditsViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             creditsService.observeCredits(albumId, trackId)
-                .catch { _state.update { value -> value.copy(error = NetworkError.UNKNOWN) } }
+                .catch { _state.update { value -> value.copy(content = CreditsContentState.Error(NetworkError.UNKNOWN)) } }
                 .collect { credits -> _state.update { value -> value.copy(credits = credits) } }
         }
     }
@@ -91,23 +97,41 @@ class CreditsViewModel @Inject constructor(
     fun load(forceRefresh: Boolean = false) {
         if (loadJob?.isActive == true) return
         loadJob = viewModelScope.launch {
-            val album = repository.observeAlbum(albumId).first()?.album ?: run {
-                _state.update { it.copy(error = NetworkError.NO_RESULTS) }
+            val library = repository.observeAlbum(albumId).first()
+            val album = library?.album
+            if (album == null) {
+                _state.update { it.copy(content = CreditsContentState.Error(NetworkError.NO_RESULTS)) }
                 return@launch
             }
-            _state.update { it.copy(loading = true, completed = 0, total = 0, error = null) }
+            val searchUrl = musicBrainzSearchUrl(library.album.title, library.artist?.name.orEmpty())
+            _state.update { it.copy(searchUrl = searchUrl) }
+            if (album.mbid.isNullOrBlank()) {
+                _state.update { it.copy(content = CreditsContentState.NoMbid(searchUrl)) }
+                return@launch
+            }
+            if (trackId != null && library.tracks.none { it.id == trackId }) {
+                _state.update { it.copy(content = CreditsContentState.Error(NetworkError.NO_RESULTS)) }
+                return@launch
+            }
+            if (trackId != null && library.tracks.firstOrNull { it.id == trackId }?.recordingMbid.isNullOrBlank()) {
+                _state.update { it.copy(content = CreditsContentState.NoMbid(searchUrl)) }
+                return@launch
+            }
+            _state.update { it.copy(content = CreditsContentState.Loading(0, 0)) }
             val result = if (trackId == null) {
                 creditsService.loadAlbumCredits(album, forceRefresh) { done, total ->
-                    _state.update { it.copy(completed = done, total = total) }
+                    _state.update { it.copy(content = CreditsContentState.Loading(done, total)) }
                 }
             } else {
                 creditsService.loadTrackCredits(album, trackId, forceRefresh) { done, total ->
-                    _state.update { it.copy(completed = done, total = total) }
+                    _state.update { it.copy(content = CreditsContentState.Loading(done, total)) }
                 }
             }
             when (result) {
-                is Resource.Success -> _state.update { it.copy(loading = false, hasLoaded = true, error = null) }
-                is Resource.Error -> _state.update { it.copy(loading = false, hasLoaded = true, error = result.kind) }
+                is Resource.Success -> _state.update {
+                    it.copy(content = if (it.credits.isEmpty()) CreditsContentState.Empty else CreditsContentState.Data)
+                }
+                is Resource.Error -> _state.update { it.copy(content = CreditsContentState.Error(result.kind)) }
                 Resource.Loading -> Unit
             }
         }
@@ -116,7 +140,12 @@ class CreditsViewModel @Inject constructor(
     fun cancel() {
         loadJob?.cancel()
         loadJob = null
-        _state.update { it.copy(loading = false) }
+        _state.update { it.copy(content = if (it.credits.isEmpty()) CreditsContentState.Idle else CreditsContentState.Data) }
+    }
+
+    private fun musicBrainzSearchUrl(title: String, artist: String): String {
+        val query = URLEncoder.encode("$title $artist".trim(), StandardCharsets.UTF_8.name())
+        return "https://musicbrainz.org/search?type=release&method=indexed&query=$query"
     }
 }
 
@@ -131,6 +160,7 @@ fun CreditsScreen(
     val context = LocalContext.current
     LaunchedEffect(Unit) { viewModel.load() }
     val grouped = state.credits.groupBy { creditGroupForUi(it.role) }
+    val openUrl: (String) -> Unit = { url -> context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
 
     Scaffold(
         topBar = {
@@ -143,35 +173,44 @@ fun CreditsScreen(
         },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)) {
-            if (state.loading) {
-                Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator()
-                    Spacer(Modifier.width(12.dp))
-                    Text(stringResource(R.string.credits_progress, state.completed, state.total.coerceAtLeast(1)))
-                    Spacer(Modifier.weight(1f))
-                    TextButton(onClick = viewModel::cancel) { Text(stringResource(R.string.cancel)) }
-                }
-            }
-            state.error?.let { error ->
-                Text(creditsErrorLabel(error), color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(vertical = 8.dp))
-                TextButton(onClick = { viewModel.load(forceRefresh = true) }) { Text(stringResource(R.string.retry)) }
-            }
-            if (!state.loading && state.hasLoaded && state.credits.isEmpty()) {
-                Text(stringResource(R.string.credits_empty), modifier = Modifier.padding(top = 24.dp))
-                releaseUrl?.let {
-                    Button(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(it))) }) {
-                        Text(stringResource(R.string.credits_contribute))
+            when (val content = state.content) {
+                CreditsContentState.Idle -> Unit
+                is CreditsContentState.Loading -> {
+                    Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator()
+                        Spacer(Modifier.width(12.dp))
+                        Text(stringResource(R.string.credits_progress, content.completed, content.total.coerceAtLeast(1)))
+                        Spacer(Modifier.weight(1f))
+                        TextButton(onClick = viewModel::cancel) { Text(stringResource(R.string.cancel)) }
                     }
                 }
+                is CreditsContentState.Error -> {
+                    Text(creditsErrorLabel(content.kind), color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(vertical = 8.dp))
+                    TextButton(onClick = { viewModel.load(forceRefresh = true) }) { Text(stringResource(R.string.retry)) }
+                }
+                is CreditsContentState.NoMbid -> {
+                    Text(stringResource(R.string.credits_no_mbid), modifier = Modifier.padding(top = 24.dp))
+                    Button(onClick = { openUrl(content.searchUrl) }) { Text(stringResource(R.string.credits_link_musicbrainz)) }
+                }
+                CreditsContentState.Empty -> {
+                    Text(stringResource(R.string.credits_empty), modifier = Modifier.padding(top = 24.dp))
+                    releaseUrl?.let { url ->
+                        Button(onClick = { openUrl(url) }) { Text(stringResource(R.string.credits_contribute)) }
+                    }
+                    state.searchUrl?.let { url ->
+                        TextButton(onClick = { openUrl(url) }) { Text(stringResource(R.string.credits_try_other_release)) }
+                    }
+                }
+                CreditsContentState.Data -> Unit
             }
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 grouped.forEach { (group, values) ->
                     item(key = group.name) {
                         Text(creditGroupLabel(group), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 12.dp))
                         HorizontalDivider()
                     }
                     items(values, key = { it.id }) { credit ->
-                        CreditRow(credit) { url -> context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+                        CreditRow(credit) { url -> openUrl(url) }
                     }
                 }
             }
@@ -185,10 +224,7 @@ private fun CreditRow(credit: CreditEntity, onOpen: (String) -> Unit) {
         Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(credit.personName, style = MaterialTheme.typography.titleSmall)
-                Text(
-                    listOfNotNull(credit.role, credit.instrumentOrAttribute).joinToString(" · "),
-                    style = MaterialTheme.typography.bodySmall,
-                )
+                Text(listOfNotNull(credit.role, credit.instrumentOrAttribute).joinToString(" · "), style = MaterialTheme.typography.bodySmall)
             }
             AssistChip(onClick = { credit.sourceUrl?.let(onOpen) }, label = { Text("MB") })
         }
@@ -198,7 +234,7 @@ private fun CreditRow(credit: CreditEntity, onOpen: (String) -> Unit) {
 private fun creditGroupForUi(role: String): CreditGroup = when (role.lowercase()) {
     "composer", "lyricist", "writer", "arranger", "orchestrator", "librettist" -> CreditGroup.WRITING
     "producer", "executive producer", "co-producer" -> CreditGroup.PRODUCTION
-    "recording engineer", "mix", "mastering", "programming", "editor" -> CreditGroup.ENGINEERING
+    "recording engineer", "mix", "mixing engineer", "mastering", "mastering engineer", "programming", "editor" -> CreditGroup.ENGINEERING
     "vocal", "instrument", "performer", "conductor", "orchestra" -> CreditGroup.PERFORMANCE
     "label", "publisher", "copyright", "phonographic copyright" -> CreditGroup.RELEASE
     else -> CreditGroup.OTHER

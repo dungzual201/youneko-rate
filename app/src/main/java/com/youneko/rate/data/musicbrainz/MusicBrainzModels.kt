@@ -133,8 +133,15 @@ data class MbWork(
 @Serializable
 data class MbRelation(
     val type: String = "",
+    @SerialName("type-id") val typeId: String? = null,
+    val direction: String? = null,
     @SerialName("target-type") val targetType: String? = null,
+    @SerialName("target-credit") val targetCredit: String? = null,
+    @SerialName("source-credit") val sourceCredit: String? = null,
     val attributes: List<String> = emptyList(),
+    @SerialName("attribute-values") val attributeValues: Map<String, String> = emptyMap(),
+    @SerialName("attribute-ids") val attributeIds: Map<String, String> = emptyMap(),
+    @SerialName("attribute-credits") val attributeCredits: Map<String, String> = emptyMap(),
     val artist: MbArtist? = null,
     val recording: MbRecording? = null,
     val work: MbWork? = null,
@@ -158,6 +165,7 @@ data class MbTrack(
     val id: String? = null,
     val number: String? = null,
     val position: Int? = null,
+    @SerialName("track-offset") val trackOffset: Int? = null,
     val title: String = "",
     val length: Long? = null,
     val recording: MbRecording? = null,

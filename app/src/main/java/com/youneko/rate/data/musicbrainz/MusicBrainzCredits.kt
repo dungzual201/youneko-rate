@@ -57,7 +57,7 @@ enum class CreditGroup {
 fun creditGroupForRole(role: String): CreditGroup = when (role.trim().lowercase()) {
     "composer", "lyricist", "writer", "arranger", "orchestrator", "librettist" -> CreditGroup.WRITING
     "producer", "executive producer", "co-producer" -> CreditGroup.PRODUCTION
-    "recording engineer", "mix", "mastering", "programming", "editor" -> CreditGroup.ENGINEERING
+    "recording engineer", "mix", "mixing engineer", "mastering", "mastering engineer", "programming", "editor" -> CreditGroup.ENGINEERING
     "vocal", "instrument", "performer", "conductor", "orchestra" -> CreditGroup.PERFORMANCE
     "label", "publisher", "copyright", "phonographic copyright" -> CreditGroup.RELEASE
     else -> CreditGroup.OTHER
@@ -131,9 +131,13 @@ class MusicBrainzCreditsService @Inject constructor(
         val total = recordingTracks.size + 1
         var completed = 0
         val releaseCandidates = mutableListOf<CreditCandidate>()
+        val releaseRecordings = mutableMapOf<String, MbRecording>()
         val fallbackRequired = runCatching {
             val release = api.lookupRelease(releaseMbid)
             releaseCandidates += relationCandidates(release.relations, "https://musicbrainz.org/release/$releaseMbid")
+            release.media.flatMap { medium -> medium.tracks }.mapNotNull { it.recording }.forEach { recording ->
+                if (recording.id.isNotBlank()) releaseRecordings[recording.id] = recording
+            }
             completed++
             onProgress(completed, total)
             false
@@ -150,13 +154,14 @@ class MusicBrainzCreditsService @Inject constructor(
             coroutineContext.ensureActive()
             val recordingMbid = track.recordingMbid ?: return@forEach
             val candidates = mutableListOf<CreditCandidate>()
-            val recording = runCatching { api.lookupRecording(recordingMbid) }.getOrNull()
+            val recording = releaseRecordings[recordingMbid]
+                ?: runCatching { api.lookupRecording(recordingMbid) }.getOrNull()
             if (recording != null) {
                 candidates += relationCandidates(recording.relations, "https://musicbrainz.org/recording/$recordingMbid")
                 recording.relations.mapNotNull { it.work?.id }.distinct().forEach { workMbid ->
                     coroutineContext.ensureActive()
                     runCatching { api.lookupWork(workMbid) }.getOrNull()?.let { work ->
-                        candidates += relationCandidates(work.relations, "https://musicbrainz.org/work/$workMbid", work.title)
+                        candidates += relationCandidates(work.relations, "https://musicbrainz.org/work/$workMbid")
                     }
                 }
                 successfulItems++
@@ -203,7 +208,8 @@ class MusicBrainzCreditsService @Inject constructor(
         recording.relations.mapNotNull { it.work?.id }.distinct().forEach { workMbid ->
             coroutineContext.ensureActive()
             runCatching { api.lookupWork(workMbid) }.getOrNull()?.let { work ->
-                candidates += relationCandidates(work.relations, "https://musicbrainz.org/work/$workMbid", work.title)
+                                    candidates += relationCandidates(work.relations, "https://musicbrainz.org/work/$workMbid")
+
             }
         }
         val credits = CreditMerger.merge(album.id, trackId, candidates)
@@ -228,19 +234,30 @@ class MusicBrainzCreditsService @Inject constructor(
         return runCatching { json.decodeFromString<CachedCredits>(cached.jsonBody).values.map(::fromCached) }.getOrNull()
     }
 
-    private fun relationCandidates(relations: List<MbRelation>, sourceUrl: String, context: String? = null): List<CreditCandidate> =
+    private fun relationCandidates(relations: List<MbRelation>, sourceUrl: String): List<CreditCandidate> =
         relations.mapNotNull { relation ->
+            val targetType = relation.targetType?.lowercase()
+            if (targetType != null && targetType !in setOf("artist", "label")) return@mapNotNull null
             val person = relation.artist
             val label = relation.label
-            val url = relation.url
-            val name = person?.name ?: label?.name ?: url?.resource ?: relation.work?.title ?: return@mapNotNull null
+            val name = person?.name ?: label?.name ?: return@mapNotNull null
+            val task = relation.attributeValues["task"].orEmpty().trim().lowercase()
+            val role = when {
+                relation.type.equals("engineer", ignoreCase = true) && task == "mix" -> "Mixing engineer"
+                relation.type.equals("engineer", ignoreCase = true) && task == "mastering" -> "Mastering engineer"
+                else -> relation.type.ifBlank { "unknown" }
+            }
             CreditCandidate(
                 personName = name,
                 personMbid = person?.id ?: label?.id,
-                role = relation.type.ifBlank { "unknown" },
-                instrumentOrAttribute = (relation.attributes + listOfNotNull(context)).distinct().joinToString(", ").ifBlank { null },
+                role = role,
+                instrumentOrAttribute = relation.attributes
+                    .filterNot { it.equals("task", ignoreCase = true) }
+                    .distinct()
+                    .joinToString(", ")
+                    .ifBlank { null },
                 sourceProvider = MUSICBRAINZ_CREDITS,
-                sourceUrl = person?.id?.let { "https://musicbrainz.org/artist/$it" } ?: sourceUrl,
+                sourceUrl = person?.id?.let { "https://musicbrainz.org/artist/$it" } ?: label?.id?.let { "https://musicbrainz.org/label/$it" } ?: sourceUrl,
             )
         }
 

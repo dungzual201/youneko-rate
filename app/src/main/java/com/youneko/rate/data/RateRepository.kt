@@ -254,20 +254,29 @@ class RateRepository @Inject constructor(
     override suspend fun mergeMusicBrainzMetadata(albumId: String, draft: AlbumDraft) {
         val existing = albumDao.findById(albumId) ?: return
         val now = System.currentTimeMillis()
-        albumDao.update(
-            existing.copy(
-                coverUri = existing.coverUri ?: draft.coverUri,
-                coverThumbUri = existing.coverThumbUri ?: draft.coverUri,
-                label = existing.label ?: draft.label,
-                catalogNumber = existing.catalogNumber ?: draft.catalogNumber,
-                country = existing.country ?: draft.country,
-                mbid = existing.mbid ?: draft.mbid,
-                releaseGroupMbid = existing.releaseGroupMbid ?: draft.releaseGroupMbid,
-                sourceProvider = existing.sourceProvider ?: draft.sourceProvider,
-                metadataFetchedAt = now,
-                updatedAt = now,
-            ),
-        )
+        database.withTransaction {
+            albumDao.update(
+                existing.copy(
+                    coverUri = existing.coverUri ?: draft.coverUri,
+                    coverThumbUri = existing.coverThumbUri ?: draft.coverUri,
+                    label = existing.label ?: draft.label,
+                    catalogNumber = existing.catalogNumber ?: draft.catalogNumber,
+                    country = existing.country ?: draft.country,
+                    mbid = existing.mbid ?: draft.mbid,
+                    releaseGroupMbid = existing.releaseGroupMbid ?: draft.releaseGroupMbid,
+                    sourceProvider = existing.sourceProvider ?: draft.sourceProvider,
+                    metadataFetchedAt = now,
+                    updatedAt = now,
+                ),
+            )
+            val incomingByTitle = draft.tracks.associateBy { ImportDedupe.normalize(it.title) }
+            trackDao.findForAlbum(albumId).forEach { track ->
+                val incoming = incomingByTitle[ImportDedupe.normalize(track.title)]
+                if (track.recordingMbid.isNullOrBlank() && !incoming?.recordingMbid.isNullOrBlank()) {
+                    trackDao.update(track.copy(recordingMbid = incoming?.recordingMbid, updatedAt = now))
+                }
+            }
+        }
     }
 
     override suspend fun saveStandalone(title: String, artistName: String, listenedDate: String?): String {
