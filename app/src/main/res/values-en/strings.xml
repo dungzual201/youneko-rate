@@ -11,7 +11,8 @@
     <string name="rate_empty_title">Quick rating</string>
     <string name="rate_empty_body">Add an album or standalone track to get started.</string>
     <string name="analyze_empty_title">Audio Quality Checker</string>
-    <string name="analyze_empty_body">Choose a music file to analyze its spectrum in phase 8.</string>
+    <string name="analyze_empty_body">Audio quality checking will be available in phase 8.</string>
+    <string name="audio_quality_phase8_body">Choose a file to view its spectrum, technical details and heuristic verdict in phase 8. Audio is not read or analyzed yet.</string>
     <string name="stats_empty_title">Statistics</string>
     <string name="stats_empty_body">Stats and Wrapped will be implemented in phase 11.</string>
     <string name="settings_body">Ratings and reviews stay on your device.</string>
@@ -19,6 +20,18 @@
     <string name="dynamic_color_body">Use Android system colors instead of the pastel purple and cream brand palette.</string>
     <string name="search_library">Search albums, artists, tracks or reviews</string>
     <string name="add_album">Add album</string>
+    <string name="import_music">Import music files</string>
+    <string name="local_search">On device</string>
+    <string name="online_search">Online</string>
+    <string name="online_results">MusicBrainz results</string>
+    <string name="load_more">Load more</string>
+    <string name="online_preview_read_only">Read-only preview; adding to the library is part of phase 5.</string>
+    <string name="close">Close</string>
+    <string name="network_offline">Offline mode is enabled.</string>
+    <string name="network_no_connection">No network connection.</string>
+    <string name="network_timeout">MusicBrainz connection timed out.</string>
+    <string name="network_rate_limited">MusicBrainz is rate limiting requests; try again later.</string>
+    <string name="network_error">Could not load MusicBrainz data.</string>
     <string name="import_title">Import music files</string>
     <string name="import_body">Choose one file or a folder to read local tags. Audio is not decoded in this phase.</string>
     <string name="import_file">Choose file</string>
@@ -96,8 +109,9 @@
     <string name="empty_tracks">This album has no tracks yet</string>
     <string name="edit_album">Edit album</string>
     <string name="change_cover">Change cover</string>
-    <string name="library_count">%1$d albums</string>
     <string name="error_generic">Something went wrong. Please try again.</string>
     <string name="year_invalid">Release year must be between 1800 and 2100</string>
     <string name="validation_required">This field is required</string>
+    <string name="validation_title">Track title is required</string>
+    <string name="validation_artist">Artist name is required</string>
 </resources>
