@@ -104,6 +104,13 @@
     <string name="album_detail">Album detail</string>
     <string name="album_review">Album review</string>
     <string name="track_review">Track review</string>
+    <string name="track_actions">Track actions</string>
+    <string name="track_credits">Credits</string>
+    <string name="track_mark_highlight">Mark as highlight</string>
+    <string name="track_unmark_highlight">Remove highlight</string>
+    <string name="track_skip">Skip this track</string>
+    <string name="track_unskip">Remove skip</string>
+    <string name="track_play_preview">Play preview</string>
     <string name="characters">%1$d characters</string>
     <string name="delete_album">Delete album</string>
     <string name="confirm_delete_title">Delete album?</string>
@@ -128,8 +135,12 @@
     <string name="empty_tracks">This album has no tracks yet</string>
     <string name="edit_album">Edit album</string>
     <string name="refresh_metadata">Refresh metadata</string>
+    <string name="reload_cover">Reload cover art</string>
     <string name="refresh_metadata_error">Could not refresh metadata.</string>
     <string name="view_credits">View credits</string>
+    <string name="source_musicbrainz">MusicBrainz</string>
+    <string name="credits_source_footer">Data source: MusicBrainz</string>
+    <string name="credits_open_source">Open page</string>
     <string name="credits_title">Credits</string>
     <string name="credits_reload">Reload credits</string>
     <string name="credits_progress">Loading %1$d/%2$d items</string>

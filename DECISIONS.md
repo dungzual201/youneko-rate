@@ -193,3 +193,22 @@ Mọi key JSON có gạch ngang phải có `@SerialName` tương ứng trong DTO
 | D-0051 | Online và local search là hai flow/UI độc lập; Online chỉ nhận text người dùng, không đọc DB và không phụ thuộc số album local. | Bảo đảm thư viện trống vẫn tìm MusicBrainz được và tránh EmptyLibrary che khuất kết quả. | Đã triển khai; test PASS |
 | D-0052 | Import progress phải là modal dialog có nút Hủy; không đặt overlay progress ở cuối LazyColumn. | Tránh bottom navigation che indicator; stage và X/Y phải luôn nhìn thấy. | Đã triển khai; cần manual device verification |
 | D-0053 | Credits luôn lookup theo MBID; release lookup là nguồn chính cho top-level và embedded recording relations, recording/work lookup là fallback; state NoMbid chặn mọi request. | SEARCH không nhận query MBID/rỗng đúng semantics; MBID guard bảo vệ offline-first và tránh 400. | Đã triển khai; fixture thật và endpoint tests PASS |
+
+
+## Bug log — Cover Art Archive và UI A–C
+
+> Các mã `BUG-0008` và `BUG-0009` đã được dùng cho Search/Import/Credits hotfix ở trên; để tránh trùng lịch sử, các bug mới dùng mã kế tiếp.
+
+| Mã | Bug và nguyên nhân gốc | Cách sửa | Test/bằng chứng |
+|---|---|---|---|
+| BUG-0011 | Cover Art Archive dùng chung OkHttp với MusicBrainz nên ảnh phải đi qua token bucket 1 request/giây; một batch 25 ảnh có thể mất khoảng 25 giây và redirect HTTP 307 sang archive.org có thể không được theo đúng cấu hình client. | Tách `CoverArtApi` và `ImageLoader` sang OkHttpClient riêng, bật `followRedirects(true)` và `followSslRedirects(true)`, cache HTTP 20 MB, không gắn User-Agent/token bucket MusicBrainz. 404 được coi là `NotFound`, dùng placeholder mèo, không ném lỗi UI. | `CoverArtTest` xác minh URL fallback và mapping 404 → `NotFound`; compile/unit test/full verification PASS. Redirect và ảnh thật vẫn cần xác minh trên thiết bị/network thực tế. |
+| BUG-0012 | Loading trong search/import có thể nằm inline ở cuối nội dung hoặc bị bottom navigation che, khiến indicator không được căn giữa vùng hiển thị. | Search refresh/preview/query-empty dùng vùng `weight(1f)` + `navigationBarsPadding()` và `contentAlignment = Alignment.Center`; append loader là item cao 56dp; import dùng modal dialog với CircularProgressIndicator và progress X/Y. | `assembleDebug`, `testDebugUnitTest` và `lintDebug` PASS; vị trí thực tế vẫn cần ảnh chụp thiết bị vì sandbox không có emulator/adb. |
+
+### Quyết định bổ sung
+
+| Mã | Quyết định | Lý do và tác động | Trạng thái |
+|---|---|---|---|
+| D-0054 | Dùng `release-group` làm định danh ưu tiên để tìm cover, sau đó fallback sang `release`; download ưu tiên `front-500` rồi `front-250`. | Release-group ổn định hơn giữa các bản phát hành/country khác nhau; thứ tự fallback giữ cover hiển thị ngay cả khi một release cụ thể thiếu ảnh. | Đã triển khai; URL builder test PASS |
+| D-0055 | Ảnh cover tải về được promote vào `filesDir/covers/{albumId}.jpg`, ghi đường dẫn local vào Room và ưu tiên local-first; không hotlink online sau import. | Đáp ứng offline-first, tránh phụ thuộc URL từ xa khi xem lại album và giữ dữ liệu app-owned bền vững hơn URI SAF. | Đã triển khai; cần manual device verification |
+| D-0056 | `ImageLoader` Coil là Hilt singleton; cấu hình crossfade, placeholder/error mèo, memory cache và disk cache đều bật. | Tránh tạo loader trong mỗi recompose, giảm request lặp và giữ fallback UI nhất quán toàn app. | Đã triển khai; compile/lint PASS |
+| D-0057 | Track row chỉ hiển thị số thứ tự, tên, sao và menu ba chấm; review, credits, highlight, skip và preview nằm trong modal bottom sheet. Credits gộp cùng người theo MBID/tên, hiển thị số người theo nhóm, mở mặc định tối đa 3 nhóm và chỉ có footer nguồn MusicBrainz. | Giảm mật độ thông tin trên danh sách, tránh badge lặp trên từng dòng và làm rõ các thao tác phụ mà không làm mất chức năng. | Đã triển khai; compile/lint PASS; cần ảnh chụp thiết bị |

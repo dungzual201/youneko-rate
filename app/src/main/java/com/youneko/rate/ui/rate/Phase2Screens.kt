@@ -4,7 +4,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
@@ -24,7 +23,6 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -99,6 +97,7 @@ import com.youneko.rate.R
 import com.youneko.rate.data.LibraryAlbum
 import com.youneko.rate.data.local.entity.AlbumEntity
 import com.youneko.rate.data.local.entity.TrackEntity
+import com.youneko.rate.ui.artwork.CoverArtImage
 import com.youneko.rate.domain.usecase.ScoreMode
 import com.youneko.rate.ui.musicbrainz.MusicBrainzSearchPanel
 import com.youneko.rate.ui.musicbrainz.MusicBrainzSearchViewModel
@@ -252,7 +251,7 @@ private fun EmptyLibrary(onAdd: () -> Unit, hasQuery: Boolean) {
 private fun AlbumCard(item: LibraryAlbum, onOpen: (String) -> Unit) {
     Card(onClick = { onOpen(item.album.id) }) {
         Column(Modifier.padding(12.dp)) {
-            CoverPlaceholder(Modifier.fillMaxWidth().height(120.dp))
+            CoverArtImage(item.album.coverUri, Modifier.fillMaxWidth().height(120.dp))
             Spacer(Modifier.height(8.dp))
             Text(item.album.title, maxLines = 2, style = MaterialTheme.typography.titleMedium)
             Text(item.artist?.name.orEmpty(), maxLines = 1, style = MaterialTheme.typography.bodySmall)
@@ -265,7 +264,7 @@ private fun AlbumCard(item: LibraryAlbum, onOpen: (String) -> Unit) {
 private fun AlbumListRow(item: LibraryAlbum, onOpen: (String) -> Unit) {
     Card(onClick = { onOpen(item.album.id) }, modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            CoverPlaceholder(Modifier.size(64.dp))
+            CoverArtImage(item.album.coverUri, Modifier.size(64.dp))
             Column(Modifier.weight(1f).padding(start = 12.dp)) {
                 Text(item.album.title, style = MaterialTheme.typography.titleMedium)
                 Text(item.artist?.name.orEmpty(), style = MaterialTheme.typography.bodySmall)
@@ -282,14 +281,6 @@ private fun ScoreLine(item: LibraryAlbum) {
         Icon(Icons.Default.Star, contentDescription = null, tint = Color(0xFFFFB84D), modifier = Modifier.size(18.dp))
         Text(score?.let { "${it.effectiveScore.format2()}★" } ?: stringResource(R.string.not_rated), style = MaterialTheme.typography.labelLarge)
         if (score != null) Text(" · ${score.ratedCount}/${score.totalCount}", style = MaterialTheme.typography.labelSmall)
-    }
-}
-
-@Composable
-private fun CoverPlaceholder(modifier: Modifier = Modifier) {
-    Box(modifier.clip(RoundedCornerShape(18.dp)).background(MaterialTheme.colorScheme.secondaryContainer), contentAlignment = Alignment.Center) {
-        // TODO(phase-11): replace the temporary vector cat with the final Youneko mascot asset.
-        Icon(Icons.Default.Pets, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onSecondaryContainer)
     }
 }
 
@@ -503,6 +494,10 @@ fun AlbumDetailScreen(
                                 onClick = { menuExpanded = false; viewModel.refreshMetadata() },
                             )
                             DropdownMenuItem(
+                                text = { Text(stringResource(R.string.reload_cover), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                onClick = { menuExpanded = false; viewModel.reloadCover() },
+                            )
+                            DropdownMenuItem(
                                 text = { Text(stringResource(R.string.view_credits), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                 onClick = { menuExpanded = false; onViewCredits(value.album.id, null, value.album.mbid) },
                             )
@@ -514,7 +509,7 @@ fun AlbumDetailScreen(
                         }
                     }
                 }
-                CoverPlaceholder(Modifier.fillMaxWidth().height(if (value.album.coverUri == null) 150.dp else 220.dp))
+                CoverArtImage(value.album.coverUri, Modifier.fillMaxWidth().height(if (value.album.coverUri == null) 150.dp else 220.dp))
                 Text(value.album.title, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(top = 12.dp))
                 Text(value.artist?.name.orEmpty(), style = MaterialTheme.typography.titleMedium)
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 8.dp)) {
@@ -573,46 +568,54 @@ fun AlbumDetailScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun TrackRow(track: TrackEntity, onChanged: (TrackEntity) -> Unit, onViewCredits: () -> Unit = {}) {
+private fun TrackRow(
+    track: TrackEntity,
+    onChanged: (TrackEntity) -> Unit,
+    onViewCredits: () -> Unit = {},
+    onPlayPreview: () -> Unit = {},
+) {
     var review by rememberSaveable(track.id) { mutableStateOf(track.reviewText.orEmpty()) }
-    var expanded by rememberSaveable(track.id) { mutableStateOf(false) }
+    var reviewExpanded by rememberSaveable(track.id) { mutableStateOf(false) }
+    var actionsOpen by rememberSaveable(track.id) { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     LaunchedEffect(review) {
         delay(800)
         if (review != track.reviewText.orEmpty()) onChanged(track.copy(reviewText = review))
     }
     Card(Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
-        Column(Modifier.padding(10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("${track.trackNumber ?: "•"}. ${track.title}", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
-                StarRatingBar(track.stars, { onChanged(track.copy(stars = it)) }, { onChanged(track.copy(stars = null)) }, step = 0.5)
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("${track.trackNumber ?: "•"}. ${track.title}", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            StarRatingBar(track.stars, { onChanged(track.copy(stars = it)) }, { onChanged(track.copy(stars = null)) }, step = 0.5)
+            IconButton(onClick = { actionsOpen = true }) {
+                Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.track_actions))
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                val highlightLabel = "${stringResource(R.string.highlight)} ${track.title}"
-                val skipLabel = "${stringResource(R.string.skip)} ${track.title}"
-                TooltipBox(
-                    positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
-                    tooltip = { PlainTooltip { Text(highlightLabel) } },
-                    state = rememberTooltipState(),
-                ) {
-                    IconToggleButton(checked = track.isHighlight, onCheckedChange = { onChanged(track.copy(isHighlight = it)) }, modifier = Modifier.semantics { contentDescription = highlightLabel }) {
-                        Icon(Icons.Default.Highlight, contentDescription = highlightLabel, tint = if (track.isHighlight) Color(0xFFFFB84D) else MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-                TooltipBox(
-                    positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
-                    tooltip = { PlainTooltip { Text(skipLabel) } },
-                    state = rememberTooltipState(),
-                ) {
-                    IconToggleButton(checked = track.isSkip, onCheckedChange = { onChanged(track.copy(isSkip = it)) }, modifier = Modifier.semantics { contentDescription = skipLabel }) {
-                        Icon(Icons.Default.SkipNext, contentDescription = skipLabel, tint = if (track.isSkip) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-                TextButton(onClick = { expanded = !expanded }) { Text(stringResource(R.string.track_review)) }
-                TextButton(onClick = onViewCredits) { Text(stringResource(R.string.view_credits)) }
-            }
-            if (expanded) {
+        }
+        if (reviewExpanded) {
+            Column(Modifier.padding(horizontal = 10.dp, vertical = 4.dp)) {
                 OutlinedTextField(review, { review = it.take(2000) }, Modifier.fillMaxWidth(), minLines = 2, maxLines = 6, label = { Text(stringResource(R.string.track_review)) })
                 Text(stringResource(R.string.characters, review.length), style = MaterialTheme.typography.labelSmall)
+            }
+        }
+    }
+    if (actionsOpen) {
+        ModalBottomSheet(
+            onDismissRequest = { actionsOpen = false },
+            sheetState = sheetState,
+        ) {
+            Column(Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
+                Text(track.title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
+                TextButton(onClick = { actionsOpen = false; reviewExpanded = !reviewExpanded }) { Text(stringResource(R.string.track_review)) }
+                TextButton(onClick = { actionsOpen = false; onViewCredits() }) { Text(stringResource(R.string.track_credits)) }
+                TextButton(onClick = { actionsOpen = false; onChanged(track.copy(isHighlight = !track.isHighlight)) }) {
+                    Text(stringResource(if (track.isHighlight) R.string.track_unmark_highlight else R.string.track_mark_highlight))
+                }
+                TextButton(onClick = { actionsOpen = false; onChanged(track.copy(isSkip = !track.isSkip)) }) {
+                    Text(stringResource(if (track.isSkip) R.string.track_unskip else R.string.track_skip))
+                }
+                TextButton(onClick = { actionsOpen = false; onPlayPreview() }) { Text(stringResource(R.string.track_play_preview)) }
             }
         }
     }

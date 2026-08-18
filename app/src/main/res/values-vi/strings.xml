@@ -104,6 +104,13 @@
     <string name="album_detail">Chi tiết album</string>
     <string name="album_review">Nhận xét album</string>
     <string name="track_review">Nhận xét bài</string>
+    <string name="track_actions">Thao tác bài</string>
+    <string name="track_credits">Xem credits</string>
+    <string name="track_mark_highlight">Đánh dấu nổi bật</string>
+    <string name="track_unmark_highlight">Bỏ đánh dấu nổi bật</string>
+    <string name="track_skip">Bỏ qua bài này</string>
+    <string name="track_unskip">Bỏ bỏ qua</string>
+    <string name="track_play_preview">Phát thử</string>
     <string name="characters">%1$d ký tự</string>
     <string name="delete_album">Xoá album</string>
     <string name="confirm_delete_title">Xoá album?</string>
@@ -128,8 +135,12 @@
     <string name="empty_tracks">Album chưa có bài nào</string>
     <string name="edit_album">Sửa album</string>
     <string name="refresh_metadata">Làm mới metadata</string>
+    <string name="reload_cover">Tải lại ảnh bìa</string>
     <string name="refresh_metadata_error">Không thể cập nhật metadata.</string>
     <string name="view_credits">Xem credits</string>
+    <string name="source_musicbrainz">MusicBrainz</string>
+    <string name="credits_source_footer">Nguồn dữ liệu: MusicBrainz</string>
+    <string name="credits_open_source">Mở trang</string>
     <string name="credits_title">Ê-kíp</string>
     <string name="credits_reload">Tải lại credits</string>
     <string name="credits_progress">Đang tải %1$d/%2$d mục</string>

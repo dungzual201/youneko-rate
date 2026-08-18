@@ -16,7 +16,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -31,6 +30,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -159,8 +161,14 @@ fun CreditsScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     LaunchedEffect(Unit) { viewModel.load() }
-    val grouped = state.credits.groupBy { creditGroupForUi(it.role) }
+    val grouped = state.credits
+        .groupBy { creditGroupForUi(it.role) }
+        .mapValues { (group, values) -> mergeCredits(group, values) }
+    var expandedGroups by rememberSaveable(grouped.keys.joinToString(",") { it.name }) {
+        mutableStateOf(grouped.keys.take(3).map { it.name }.toSet())
+    }
     val openUrl: (String) -> Unit = { url -> context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+    val sourceUrl = releaseUrl ?: state.searchUrl
 
     Scaffold(
         topBar = {
@@ -205,28 +213,70 @@ fun CreditsScreen(
             }
             LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 grouped.forEach { (group, values) ->
-                    item(key = group.name) {
-                        Text(creditGroupLabel(group), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 12.dp))
+                    val expanded = group.name in expandedGroups
+                    item(key = "header-${group.name}") {
+                        TextButton(
+                            onClick = {
+                                expandedGroups = if (expanded) {
+                                    expandedGroups - group.name
+                                } else {
+                                    (expandedGroups + group.name).let { names ->
+                                        if (names.size > 3) names.drop(1).toSet() else names
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(
+                                "${creditGroupLabel(group)} (${values.size})",
+                                style = MaterialTheme.typography.titleMedium,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Text(if (expanded) "▾" else "▸", style = MaterialTheme.typography.titleMedium)
+                        }
                         HorizontalDivider()
                     }
-                    items(values, key = { it.id }) { credit ->
-                        CreditRow(credit) { url -> openUrl(url) }
+                    if (expanded) {
+                        items(values, key = { it.id }) { credit -> CreditRow(credit) }
                     }
+                }
+            }
+            Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.credits_source_footer), style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
+                TextButton(onClick = { sourceUrl?.let(openUrl) }, enabled = sourceUrl != null) {
+                    Text(stringResource(R.string.credits_open_source))
                 }
             }
         }
     }
 }
 
+data class MergedCredit(
+    val id: String,
+    val personName: String,
+    val roleLabels: List<String>,
+    val sortOrder: Int,
+)
+
+private fun mergeCredits(group: CreditGroup, credits: List<CreditEntity>): List<MergedCredit> = credits
+    .groupBy { it.personMbid ?: it.personName.trim().lowercase() }
+    .map { (personKey, personCredits) ->
+        val first = personCredits.minByOrNull { it.sortOrder } ?: personCredits.first()
+        val labels = personCredits
+            .flatMap { listOfNotNull(it.role.takeIf(String::isNotBlank), it.instrumentOrAttribute?.takeIf(String::isNotBlank)) }
+            .distinctBy { it.trim().lowercase() }
+        MergedCredit("${group.name}-$personKey", first.personName, labels, first.sortOrder)
+    }
+    .sortedWith(compareBy({ it.sortOrder }, { it.personName.lowercase() }))
+
 @Composable
-private fun CreditRow(credit: CreditEntity, onOpen: (String) -> Unit) {
+private fun CreditRow(credit: MergedCredit) {
     Card(Modifier.fillMaxWidth()) {
-        Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text(credit.personName, style = MaterialTheme.typography.titleSmall)
-                Text(listOfNotNull(credit.role, credit.instrumentOrAttribute).joinToString(" · "), style = MaterialTheme.typography.bodySmall)
+        Column(Modifier.fillMaxWidth().padding(12.dp)) {
+            Text(credit.personName, style = MaterialTheme.typography.titleSmall)
+            if (credit.roleLabels.isNotEmpty()) {
+                Text(credit.roleLabels.joinToString(", "), style = MaterialTheme.typography.bodySmall)
             }
-            AssistChip(onClick = { credit.sourceUrl?.let(onOpen) }, label = { Text("MB") })
         }
     }
 }
