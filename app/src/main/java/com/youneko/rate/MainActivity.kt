@@ -1,7 +1,7 @@
 package com.youneko.rate
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
+import androidx.appcompat.app.AppCompatActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.collectAsState
@@ -12,7 +12,7 @@ import com.youneko.rate.navigation.YounekoNavHost
 import com.youneko.rate.ui.YounekoRateTheme
 
 @AndroidEntryPoint
-class MainActivity : ComponentActivity() {
+class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {

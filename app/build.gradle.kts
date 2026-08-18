@@ -17,6 +17,7 @@ android {
         applicationId = "com.youneko.rate"
         minSdk = 26
         targetSdk = 36
+        resourceConfigurations += listOf("en", "vi")
         versionCode = 1
         versionName = "0.1.0"
 
@@ -87,6 +88,7 @@ dependencies {
     implementation(libs.androidx.paging.runtime)
     implementation(libs.androidx.paging.compose)
     implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.appcompat)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)

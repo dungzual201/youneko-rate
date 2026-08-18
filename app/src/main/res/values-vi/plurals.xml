@@ -5,7 +5,7 @@
         <item quantity="other">%d album</item>
     </plurals>
     <plurals name="online_result_count">
-        <item quantity="one">%1$d result</item>
-        <item quantity="other">%1$d results</item>
+        <item quantity="one">%1$d kết quả</item>
+        <item quantity="other">%1$d kết quả</item>
     </plurals>
 </resources>
