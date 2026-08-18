@@ -48,3 +48,10 @@ APK debug local đã được tạo tại `app/build/outputs/apk/debug/youneko-r
 Đã hoàn thiện ma trận audit trong `PHASE13_AUDIT.md`. Analyze foreground worker hiện phát progress theo file/index/tổng số/bước/frame, có notification action Huỷ và cancellation guard; FFT/verdict đã có reference band 1–4 kHz, ref−50 dB, stable 6 bins, slope 2 kHz và fallback bucket sau decode thành công. Credits đã có album/track union, Genius/Discogs settings và provider, merge roleGroup/source/diacritics, manual/file-tag preservation. Cover đã có validation title/artist + track/year, provenance `coverSource`/`coverWidth`/`coverUpdatedAt`, Room schema 10 và cover picker manual/provider metadata. Track bottom sheet đã chuyển đúng 5 mục và loại bỏ cắt text một dòng.
 
 Regression `AudioAnalysisTest`, `CoverArtTest` và `Phase6CreditsTest` đã được mở rộng; focused AudioAnalysis và Phase6Credits hiện PASS. Cần chạy full verification sau toàn bộ thay đổi phase 13, commit theo chỉ thị, push CI và build APK. Sandbox không có emulator/adb nên không thể tự cài, chụp screenshot hay thay thế xác nhận thiết bị của người dùng; Phase 9 vẫn chưa bắt đầu.
+
+
+## Phase 13 verification — 2026-08-18
+
+Full local verification sau toàn bộ thay đổi đã PASS: `assembleDebug`, `testDebugUnitTest` và `lintDebug` (`BUILD SUCCESSFUL`). GitHub Actions [Android Build #32157021878](https://github.com/dungzual201/youneko-rate/actions/runs/32157021878) trên SHA `9518bb8eef7c1dee63dabe9f87ec29416ec1ed09` cũng PASS `assembleDebug`, debug unit tests, MainActivity launch regression và artifact upload.
+
+APK local: `app/build/outputs/apk/debug/youneko-rate-phase13.apk`, khoảng 27 MB, SHA-256 `4b67cec64663d2eba47ab8f80671575d221e3cd08ca5a8c329c99d62da4d35f3`. Sandbox không có emulator/adb, nên chưa có kiểm thử thiết bị thật hoặc screenshot. Phase 9 vẫn bị khóa cho tới khi nhận đủ sáu ảnh xác nhận E4; không fake screenshot.
