@@ -18,8 +18,8 @@
     <string name="audio_analysis_empty">Chọn một file audio local để bắt đầu.</string>
     <string name="audio_analysis_verdict">Kết luận chất lượng</string>
     <string name="audio_analysis_explain">Các chỉ số này có ý nghĩa gì?</string>
-    <string name="audio_analysis_cutoff">Tần số cắt</string>
-    <string name="audio_analysis_slope">Độ dốc rolloff</string>
+    <string name="audio_analysis_cutoff">Tần số cắt (kHz)</string>
+    <string name="audio_analysis_slope">Độ dốc vách cắt (dB/kHz)</string>
     <string name="audio_analysis_dynamic">Dải động</string>
     <string name="audio_analysis_peak">True peak</string>
     <string name="audio_analysis_clipping">Clipping</string>

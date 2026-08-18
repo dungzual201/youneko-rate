@@ -18,8 +18,8 @@
     <string name="audio_analysis_empty">Choose a local audio file to begin.</string>
     <string name="audio_analysis_verdict">Quality verdict</string>
     <string name="audio_analysis_explain">What do these metrics mean?</string>
-    <string name="audio_analysis_cutoff">Cutoff frequency</string>
-    <string name="audio_analysis_slope">Rolloff slope</string>
+    <string name="audio_analysis_cutoff">Cutoff frequency (kHz)</string>
+    <string name="audio_analysis_slope">Cutoff slope (dB/kHz)</string>
     <string name="audio_analysis_dynamic">Dynamic range</string>
     <string name="audio_analysis_peak">True peak</string>
     <string name="audio_analysis_clipping">Clipping</string>
