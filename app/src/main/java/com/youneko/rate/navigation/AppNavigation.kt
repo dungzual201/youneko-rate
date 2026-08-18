@@ -37,6 +37,7 @@ import androidx.navigation.navArgument
 import com.youneko.rate.R
 import com.youneko.rate.ui.rate.AlbumDetailScreen
 import com.youneko.rate.ui.rate.AlbumEditorScreen
+import com.youneko.rate.ui.importer.ImportScreen
 import com.youneko.rate.ui.rate.LibraryScreen
 import com.youneko.rate.ui.rate.RateScreen
 import com.youneko.rate.ui.rate.SettingsScreen
@@ -112,7 +113,7 @@ fun YounekoNavHost() {
                     onOpenAlbum = { navController.navigate("album/$it") },
                 )
             }
-            composable("analyze") { PlaceholderScreen(R.string.analyze, R.string.analyze_empty_body, "∿  ∿  ∿") }
+            composable("analyze") { ImportScreen(onDone = { navController.navigate("library") { popUpTo("analyze") { inclusive = true } } }) }
             composable("stats") { PlaceholderScreen(R.string.stats, R.string.stats_empty_body, "▥  ▥  ▥") }
             composable("settings") { SettingsScreen() }
             composable("addAlbum") {

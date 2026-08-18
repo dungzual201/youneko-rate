@@ -71,3 +71,19 @@ Các thay đổi hotfix không nuốt exception bằng `try/catch`, không đổ
 Regression test `RateDaoTest.updateAlbumVariantsPreserveTracksCreditsAndAudioAnalysis` tạo album có 3 track, 1 Credit và 1 AudioAnalysis, gọi lần lượt mọi biến thể cập nhật và xác minh số lượng/nội dung track, Credit và AudioAnalysis không đổi. Test cũ trên code REPLACE sẽ quan sát children bị cascade xoá; test mới dùng `@Update(ABORT)` và giữ nguyên children.
 
 Favorite được gỡ hoàn toàn theo yêu cầu sản phẩm vì không còn cần thiết và vì nút này là đường dẫn đã kích hoạt data-loss bug. `isFavorite` đã được loại khỏi `AlbumEntity`, `LibraryUiState`, `SettingsStore`, ViewModel, Compose screens, resources, SPEC, README và Phase 2 report. Database dùng migration Room tường minh `MIGRATION_2_3`: rebuild bảng `albums` không có cột `isFavorite`, copy toàn bộ cột dữ liệu còn lại, tạo lại index và đăng ký migration trong Hilt; không dùng `fallbackToDestructiveMigration`. Preference `library_favorite_only` không còn được đọc/ghi, dữ liệu cũ trong DataStore được bỏ qua an toàn.
+
+
+## Quyết định Phase 3 — Local tag import và UI polish
+
+| Mã | Quyết định | Lý do |
+|---|---|---|
+| D-0029 | Import file nhạc dùng `ACTION_OPEN_DOCUMENT`/`OpenMultipleDocuments` và `ACTION_OPEN_DOCUMENT_TREE`; app xin persistable read permission và chỉ đọc local. | Hỗ trợ một file, nhiều file và cả folder mà không cần quyền storage rộng; audio không upload, không stream và không decode ở Phase 3. |
+| D-0030 | Dùng `net.jthink:jaudiotagger:3.0.1` để đọc ARTIST/ALBUM/TITLE/TRACKNUMBER/DISCNUMBER/YEAR/genre/duration/embedded cover; parser chạy trên IO và file SAF được copy vào cache tạm. | Artifact/version đã kiểm tra từ Maven Central; project chính thức công bố hỗ trợ MP3, MP4/M4A, Ogg, FLAC, WAV, AIF, DSF, WMA và LGPL. |
+| D-0031 | Import chạy qua `CoroutineWorker`; worker đọc lại tags sau preview, báo progress và ghi Room qua `AlbumRepository` EntryPoint. | Tránh block UI, có thể cancel, và vẫn local-first/offline. |
+| D-0032 | Group album theo artist + album + year; nhiều disc được sắp theo disc/track; không có ALBUM trở thành bài lẻ. | Khớp tag semantics và không gộp nhầm các album cùng tên khác năm/nghệ sĩ. |
+| D-0033 | Dedupe dùng normalize Unicode/diacritics và khóa title+artist+year. Track trùng được update chỉ để bổ sung metadata thiếu; `stars`, `reviewText`, `isSkip`, `isHighlight` luôn được giữ. | Metadata refresh không được ghi đè dữ liệu người dùng; duplicate import phải idempotent. |
+| D-0034 | Embedded cover được lưu vào `filesDir/covers`; cover người dùng chọn trong preview được ưu tiên; không lưu credential hay file audio vào backup/network. | URI SAF có thể hết quyền sau worker; app-owned cover path bền vững hơn và vẫn không đưa audio ra ngoài máy. |
+| D-0035 | Palette mặc định là tím pastel/trắng kem; dynamic color mặc định tắt và chỉ bật khi người dùng chọn `Màu theo hệ thống` trong Settings. | Giữ nhận diện YounekoRate theo SPEC, nhưng vẫn cho phép tích hợp màu Android có chủ đích. |
+| D-0036 | StarRatingBar hiển thị 5 sao với half-fill và số điểm cạnh thanh; highlight/skip có tooltip/semantics; placeholder lớn giảm còn 150dp và dùng icon mèo vector tạm. | Cải thiện đọc nhanh, accessibility và empty state; mascot asset chính thức để dành phase sau theo TODO. |
+
+Nguồn dependency Phase 3 và license được lưu trong `BUILD_SOURCES_PHASE3.md`. Không có credential, token hay file âm thanh nào được thêm vào repository.

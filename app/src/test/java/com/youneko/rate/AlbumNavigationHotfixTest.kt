@@ -5,6 +5,8 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import com.youneko.rate.data.AlbumDraft
 import com.youneko.rate.data.AlbumRepository
 import com.youneko.rate.data.LibraryAlbum
+import com.youneko.rate.data.importer.ImportGroup
+import com.youneko.rate.data.importer.ImportedTrack
 import com.youneko.rate.data.SettingsStore
 import com.youneko.rate.data.local.entity.AlbumEntity
 import com.youneko.rate.data.local.entity.ArtistEntity
@@ -77,12 +79,14 @@ private class FakeSettingsStore : SettingsStore {
     override val ratingStep = MutableStateFlow(0.5)
     override val scoreMode = MutableStateFlow("SIMPLE")
     override val gridView = MutableStateFlow(true)
+    override val dynamicColor = MutableStateFlow(false)
     override val sortOrder = MutableStateFlow("NEWEST")
     override val unfinishedOnly = MutableStateFlow(false)
     override suspend fun setOfflineOnly(value: Boolean) { offlineOnly.value = value }
     override suspend fun setRatingStep(value: Double) { ratingStep.value = value }
     override suspend fun setScoreMode(value: String) { scoreMode.value = value }
     override suspend fun setGridView(value: Boolean) { gridView.value = value }
+    override suspend fun setDynamicColor(value: Boolean) { dynamicColor.value = value }
     override suspend fun setSortOrder(value: String) { sortOrder.value = value }
     override suspend fun setUnfinishedOnly(value: Boolean) { unfinishedOnly.value = value }
 }
@@ -98,6 +102,8 @@ private class FakeAlbumRepository(private val saveResult: String = "id") : Album
     override suspend fun updateTrack(track: TrackEntity) = Unit
     override suspend fun updateAlbum(album: AlbumEntity) = Unit
     override suspend fun deleteAlbum(id: String) { albumFlow.value = null }
+    override suspend fun findMatchingAlbum(group: ImportGroup): String? = null
+    override suspend fun appendImportedTracks(albumId: String, tracks: List<ImportedTrack>): Int = tracks.size
 }
 
 private fun sampleAlbum(id: String): LibraryAlbum {

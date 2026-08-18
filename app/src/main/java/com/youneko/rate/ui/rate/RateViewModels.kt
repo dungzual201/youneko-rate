@@ -242,11 +242,17 @@ class AlbumEditorViewModel @Inject constructor(
 class ScoreSettingsViewModel @Inject constructor(
     private val settings: SettingsStore,
 ) : ViewModel() {
+    val dynamicColor: StateFlow<Boolean> = settings.dynamicColor
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
     val scoreMode: StateFlow<ScoreMode> = settings.scoreMode
         .map { if (it == "WEIGHTED_BY_DURATION") ScoreMode.WEIGHTED_BY_DURATION else ScoreMode.SIMPLE }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ScoreMode.SIMPLE)
 
     fun setScoreMode(mode: ScoreMode) = viewModelScope.launch(Dispatchers.IO) {
         settings.setScoreMode(mode.name)
+    }
+
+    fun setDynamicColor(enabled: Boolean) = viewModelScope.launch(Dispatchers.IO) {
+        settings.setDynamicColor(enabled)
     }
 }

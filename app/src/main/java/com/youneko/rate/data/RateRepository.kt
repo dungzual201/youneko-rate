@@ -14,6 +14,10 @@ import com.youneko.rate.domain.usecase.AlbumScoreResult
 import com.youneko.rate.domain.usecase.CalculateAlbumScoreUseCase
 import com.youneko.rate.domain.usecase.ScoreMode
 import com.youneko.rate.domain.usecase.TrackScoreInput
+import com.youneko.rate.data.importer.ImportDedupe
+import com.youneko.rate.data.importer.ImportGroup
+import com.youneko.rate.data.importer.ImportMergePolicy
+import com.youneko.rate.data.importer.ImportedTrack
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -54,6 +58,8 @@ interface AlbumRepository {
     suspend fun updateTrack(track: TrackEntity)
     suspend fun updateAlbum(album: AlbumEntity)
     suspend fun deleteAlbum(id: String)
+    suspend fun findMatchingAlbum(group: ImportGroup): String?
+    suspend fun appendImportedTracks(albumId: String, tracks: List<ImportedTrack>): Int
 }
 
 @Singleton
@@ -182,6 +188,57 @@ class RateRepository @Inject constructor(
             albumDao.deleteById(id)
             ftsDao.deleteForEntity(id)
         }
+    }
+
+    override suspend fun findMatchingAlbum(group: ImportGroup): String? {
+        val albumTitle = group.album ?: return null
+        for (album in albumDao.findAll()) {
+            val artist = artistDao.findById(album.artistId)
+            if (artist != null && ImportDedupe.sameAlbum(
+                    title = albumTitle,
+                    artist = group.artist,
+                    year = group.year,
+                    existingTitle = album.title,
+                    existingArtist = artist.name,
+                    existingYear = album.releaseYear,
+                )) return album.id
+        }
+        return null
+    }
+
+    override suspend fun appendImportedTracks(albumId: String, tracks: List<ImportedTrack>): Int {
+        if (tracks.isEmpty()) return 0
+        val existing = trackDao.findForAlbum(albumId)
+        val existingByTitle = existing.associateBy { ImportDedupe.normalize(it.title) }
+        val selected = ImportDedupe.newTracks(emptyList(), tracks)
+        if (selected.isEmpty()) return 0
+        val updates = selected.mapNotNull { incoming ->
+            existingByTitle[ImportDedupe.normalize(incoming.title)]?.let { ImportMergePolicy.preserveUserData(it, incoming) }
+        }
+        val newTracks = selected.filter { ImportDedupe.normalize(it.title) !in existingByTitle }
+        val nextNumber = (existing.maxOfOrNull { it.trackNumber ?: 0 } ?: 0) + 1
+        val now = System.currentTimeMillis()
+        val entities = newTracks.mapIndexed { index, track ->
+            TrackEntity(
+                id = UUID.randomUUID().toString(),
+                albumId = albumId,
+                title = track.title,
+                trackNumber = track.trackNumber ?: nextNumber + index,
+                discNumber = track.discNumber,
+                durationMs = track.durationMs,
+                listenedDate = track.listenedDate,
+                createdAt = now,
+                updatedAt = now,
+            )
+        }
+        database.withTransaction {
+            updates.forEach { trackDao.update(it) }
+            if (entities.isNotEmpty()) trackDao.insertAll(entities)
+            val album = albumDao.findById(albumId) ?: return@withTransaction
+            val artist = artistDao.findById(album.artistId)
+            if (artist != null) rebuildSearchIndex(albumId, album, artist, trackDao.findForAlbum(albumId))
+        }
+        return entities.size
     }
 
     suspend fun rebuildSearchIndex(albumId: String, album: AlbumEntity, artist: ArtistEntity, tracks: List<TrackEntity>) {

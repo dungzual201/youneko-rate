@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Highlight
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Pets
 import androidx.compose.material.icons.filled.RemoveCircleOutline
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SkipNext
@@ -61,6 +62,10 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.PlainTooltip
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -254,7 +259,8 @@ private fun ScoreLine(item: LibraryAlbum) {
 @Composable
 private fun CoverPlaceholder(modifier: Modifier = Modifier) {
     Box(modifier.clip(RoundedCornerShape(18.dp)).background(MaterialTheme.colorScheme.secondaryContainer), contentAlignment = Alignment.Center) {
-        Icon(Icons.Outlined.Album, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onSecondaryContainer)
+        // TODO(phase-11): replace the temporary vector cat with the final Youneko mascot asset.
+        Icon(Icons.Default.Pets, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onSecondaryContainer)
     }
 }
 
@@ -447,7 +453,7 @@ fun AlbumDetailScreen(onBack: () -> Unit, viewModel: AlbumDetailViewModel = hilt
                         DropdownMenu(menuExpanded, { menuExpanded = false }) { DropdownMenuItem(text = { Text(stringResource(R.string.delete_album)) }, onClick = { menuExpanded = false; showDelete = true }, leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) }) }
                     }
                 }
-                CoverPlaceholder(Modifier.fillMaxWidth().height(220.dp))
+                CoverPlaceholder(Modifier.fillMaxWidth().height(if (value.album.coverUri == null) 150.dp else 220.dp))
                 Text(value.album.title, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(top = 12.dp))
                 Text(value.artist?.name.orEmpty(), style = MaterialTheme.typography.titleMedium)
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 8.dp)) {
@@ -499,6 +505,7 @@ fun AlbumDetailScreen(onBack: () -> Unit, viewModel: AlbumDetailViewModel = hilt
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun TrackRow(track: TrackEntity, onChanged: (TrackEntity) -> Unit) {
     var review by rememberSaveable(track.id) { mutableStateOf(track.reviewText.orEmpty()) }
@@ -516,8 +523,24 @@ private fun TrackRow(track: TrackEntity, onChanged: (TrackEntity) -> Unit) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 val highlightLabel = "${stringResource(R.string.highlight)} ${track.title}"
                 val skipLabel = "${stringResource(R.string.skip)} ${track.title}"
-                IconToggleButton(checked = track.isHighlight, onCheckedChange = { onChanged(track.copy(isHighlight = it)) }, modifier = Modifier.semantics { contentDescription = highlightLabel }) { Icon(Icons.Default.Highlight, contentDescription = null, tint = if (track.isHighlight) Color(0xFFFFB84D) else Color.Gray) }
-                IconToggleButton(checked = track.isSkip, onCheckedChange = { onChanged(track.copy(isSkip = it)) }, modifier = Modifier.semantics { contentDescription = skipLabel }) { Icon(Icons.Default.SkipNext, contentDescription = null, tint = if (track.isSkip) MaterialTheme.colorScheme.error else Color.Gray) }
+                TooltipBox(
+                    positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                    tooltip = { PlainTooltip { Text(highlightLabel) } },
+                    state = rememberTooltipState(),
+                ) {
+                    IconToggleButton(checked = track.isHighlight, onCheckedChange = { onChanged(track.copy(isHighlight = it)) }, modifier = Modifier.semantics { contentDescription = highlightLabel }) {
+                        Icon(Icons.Default.Highlight, contentDescription = highlightLabel, tint = if (track.isHighlight) Color(0xFFFFB84D) else MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                TooltipBox(
+                    positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                    tooltip = { PlainTooltip { Text(skipLabel) } },
+                    state = rememberTooltipState(),
+                ) {
+                    IconToggleButton(checked = track.isSkip, onCheckedChange = { onChanged(track.copy(isSkip = it)) }, modifier = Modifier.semantics { contentDescription = skipLabel }) {
+                        Icon(Icons.Default.SkipNext, contentDescription = skipLabel, tint = if (track.isSkip) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
                 TextButton(onClick = { expanded = !expanded }) { Text(stringResource(R.string.track_review)) }
             }
             if (expanded) {
@@ -559,6 +582,7 @@ class StandaloneViewModel @javax.inject.Inject constructor(
 @Composable
 fun SettingsScreen(viewModel: ScoreSettingsViewModel = hiltViewModel()) {
     val mode by viewModel.scoreMode.collectAsStateWithLifecycle()
+    val dynamicColor by viewModel.dynamicColor.collectAsStateWithLifecycle()
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(stringResource(R.string.score_mode), style = MaterialTheme.typography.titleLarge)
         FilterChip(
@@ -571,6 +595,12 @@ fun SettingsScreen(viewModel: ScoreSettingsViewModel = hiltViewModel()) {
             onClick = { viewModel.setScoreMode(ScoreMode.WEIGHTED_BY_DURATION) },
             label = { Text(stringResource(R.string.weighted_average)) },
         )
+        FilterChip(
+            selected = dynamicColor,
+            onClick = { viewModel.setDynamicColor(!dynamicColor) },
+            label = { Text(stringResource(R.string.dynamic_color)) },
+        )
+        Text(stringResource(R.string.dynamic_color_body), style = MaterialTheme.typography.bodySmall)
         Text(stringResource(R.string.settings_body), style = MaterialTheme.typography.bodyMedium)
     }
 }

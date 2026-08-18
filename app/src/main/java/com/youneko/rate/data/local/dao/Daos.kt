@@ -26,6 +26,9 @@ interface AlbumDao {
     @Query("SELECT * FROM albums WHERE id = :id LIMIT 1")
     suspend fun findById(id: String): AlbumEntity?
 
+    @Query("SELECT * FROM albums")
+    suspend fun findAll(): List<AlbumEntity>
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(album: AlbumEntity)
 

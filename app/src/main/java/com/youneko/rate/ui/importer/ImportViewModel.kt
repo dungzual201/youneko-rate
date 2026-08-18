@@ -1,0 +1,152 @@
+package com.youneko.rate.ui.importer
+
+import android.content.Context
+import android.net.Uri
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
+import androidx.work.workDataOf
+import com.youneko.rate.data.importer.ImportGroup
+import com.youneko.rate.data.importer.ImportSelection
+import com.youneko.rate.data.importer.ImportWorker
+import com.youneko.rate.data.importer.ImportDedupe
+import com.youneko.rate.data.importer.LocalAudioTagReader
+import com.youneko.rate.data.importer.stableKey
+import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import java.util.UUID
+import javax.inject.Inject
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+
+ data class ImportUiState(
+    val isReading: Boolean = false,
+    val groups: List<ImportGroup> = emptyList(),
+    val selectedUris: Set<String> = emptySet(),
+    val selections: Map<String, ImportSelection> = emptyMap(),
+    val failures: List<String> = emptyList(),
+    val progressCurrent: Int = 0,
+    val progressTotal: Int = 0,
+    val workId: UUID? = null,
+    val workState: WorkInfo.State? = null,
+    val importedCount: Int = 0,
+    val error: String? = null,
+)
+
+@HiltViewModel
+class ImportViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
+) : ViewModel() {
+    private val _state = MutableStateFlow(ImportUiState())
+    val state: StateFlow<ImportUiState> = _state.asStateFlow()
+    private val workManager = WorkManager.getInstance(context)
+    private val json = Json { ignoreUnknownKeys = true }
+
+    fun readSelection(uri: Uri, isTree: Boolean) = readSelections(listOf(uri), isTree)
+
+    fun readSelections(uris: List<Uri>, isTree: Boolean) {
+        uris.forEach { uri ->
+            context.contentResolver.takePersistableUriPermission(
+                uri,
+                android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION,
+            )
+        }
+        viewModelScope.launch {
+            _state.value = _state.value.copy(isReading = true, error = null)
+            val result = withContext(Dispatchers.IO) {
+                val reader = LocalAudioTagReader(context)
+                val audioUris = uris.flatMap { reader.collectAudioUris(it, isTree) }.distinct()
+                reader.readAll(audioUris)
+            }
+            val groups = com.youneko.rate.data.importer.ImportGrouping.group(result.tags)
+            val selectedUris = groups.flatMap { it.tracks }.mapTo(mutableSetOf()) { it.uri }
+            val selections = groups.associate { group ->
+                group.stableKey() to ImportSelection(
+                    groupKey = group.stableKey(),
+                    title = group.displayTitle,
+                    artist = group.artist,
+                    selectedUris = group.tracks.map { it.uri },
+                    mergeIfExisting = group.album != null,
+                )
+            }
+            _state.value = _state.value.copy(
+                isReading = false,
+                groups = groups,
+                selectedUris = selectedUris,
+                selections = selections,
+                failures = result.failures.map { "${it.fileName}: ${it.reason}" },
+            )
+        }
+    }
+
+    fun toggleTrack(uri: String) {
+        val selected = _state.value.selectedUris.toMutableSet()
+        if (!selected.add(uri)) selected.remove(uri)
+        _state.value = _state.value.copy(selectedUris = selected)
+    }
+
+    fun updateGroup(group: ImportGroup, title: String = group.displayTitle, artist: String = group.artist) {
+        val key = group.stableKey()
+        val old = _state.value.selections[key] ?: return
+        _state.value = _state.value.copy(selections = _state.value.selections + (key to old.copy(title = title, artist = artist)))
+    }
+
+    fun setMerge(group: ImportGroup, merge: Boolean) {
+        val key = group.stableKey()
+        val old = _state.value.selections[key] ?: return
+        _state.value = _state.value.copy(selections = _state.value.selections + (key to old.copy(mergeIfExisting = merge)))
+    }
+
+    fun setCover(group: ImportGroup, uri: String) {
+        val key = group.stableKey()
+        val old = _state.value.selections[key] ?: return
+        _state.value = _state.value.copy(selections = _state.value.selections + (key to old.copy(coverUri = uri)))
+    }
+
+    fun enqueueImport() {
+        val current = _state.value
+        if (current.selectedUris.isEmpty() || current.selections.isEmpty()) return
+        val request = OneTimeWorkRequestBuilder<ImportWorker>()
+            .setInputData(
+                workDataOf(
+                    ImportWorker.KEY_URIS to current.selectedUris.toTypedArray(),
+                    ImportWorker.KEY_SELECTED to current.selectedUris.toTypedArray(),
+                    ImportWorker.KEY_SELECTIONS to json.encodeToString(current.selections.values.toList()),
+                ),
+            )
+            .build()
+        workManager.enqueue(request)
+        _state.value = current.copy(workId = request.id, workState = WorkInfo.State.ENQUEUED)
+        observeWork(request.id)
+    }
+
+    fun cancelImport() {
+        _state.value.workId?.let(workManager::cancelWorkById)
+    }
+
+    private fun observeWork(id: UUID) {
+        viewModelScope.launch {
+            workManager.getWorkInfoByIdFlow(id).collectLatest { info ->
+                if (info == null) return@collectLatest
+                val progress = info.progress
+                _state.value = _state.value.copy(
+                    workState = info.state,
+                    progressCurrent = progress.getInt(ImportWorker.KEY_CURRENT, 0),
+                    progressTotal = progress.getInt(ImportWorker.KEY_TOTAL, 0),
+                    importedCount = info.outputData.getInt(ImportWorker.KEY_IMPORTED, 0),
+                    failures = info.outputData.getString(ImportWorker.KEY_FAILURES)?.split('\n').orEmpty().filter(String::isNotBlank),
+                    error = null,
+                )
+            }
+        }
+    }
+}
