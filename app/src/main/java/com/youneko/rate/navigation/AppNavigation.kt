@@ -43,6 +43,7 @@ import com.youneko.rate.ui.importer.ImportScreen
 import com.youneko.rate.ui.rate.LibraryScreen
 import com.youneko.rate.ui.rate.RateScreen
 import com.youneko.rate.ui.rate.SettingsScreen
+import com.youneko.rate.ui.analyze.AudioAnalysisScreen
 import com.youneko.rate.ui.credits.CreditsScreen
 
 private data class AppDestination(
@@ -119,7 +120,7 @@ fun YounekoNavHost() {
                     onOpenAlbum = { navController.navigate("album/$it") },
                 )
             }
-            composable("analyze") { AudioQualityPlaceholder() }
+            composable("analyze") { AudioAnalysisScreen() }
             composable("stats") { PlaceholderScreen(R.string.stats, R.string.stats_empty_body, "▥  ▥  ▥") }
             composable("settings") { SettingsScreen() }
             composable("importTags") { ImportScreen(onDone = { navController.popBackStack() }) }
@@ -130,17 +131,33 @@ fun YounekoNavHost() {
                 AlbumDetailScreen(
                     onBack = { navController.popBackStack() },
                     onViewCredits = { albumId, trackId, releaseMbid ->
-                        val trackPart = trackId?.let { "?trackId=$it" }.orEmpty()
-                        val releasePart = releaseMbid?.let { if (trackPart.isEmpty()) "?releaseMbid=$it" else "&releaseMbid=$it" }.orEmpty()
-                        navController.navigate("credits/$albumId$trackPart$releasePart")
+                        val releasePart = releaseMbid?.let { "&releaseMbid=$it" }.orEmpty()
+                        if (trackId == null) {
+                            navController.navigate("credits/album/$albumId${releasePart.replaceFirst('&', '?')}")
+                        } else {
+                            navController.navigate("credits/track/$trackId?albumId=$albumId$releasePart")
+                        }
                     },
                 )
             }
             composable(
-                route = "credits/{albumId}?trackId={trackId}&releaseMbid={releaseMbid}",
+                route = "credits/album/{albumId}?releaseMbid={releaseMbid}",
                 arguments = listOf(
                     navArgument("albumId") { type = NavType.StringType },
-                    navArgument("trackId") { type = NavType.StringType; nullable = true; defaultValue = null },
+                    navArgument("releaseMbid") { type = NavType.StringType; nullable = true; defaultValue = null },
+                ),
+            ) { entry ->
+                val releaseMbid = entry.arguments?.getString("releaseMbid")
+                CreditsScreen(
+                    onBack = { navController.popBackStack() },
+                    releaseUrl = releaseMbid?.let { "https://musicbrainz.org/release/$it" },
+                )
+            }
+            composable(
+                route = "credits/track/{trackId}?albumId={albumId}&releaseMbid={releaseMbid}",
+                arguments = listOf(
+                    navArgument("trackId") { type = NavType.StringType },
+                    navArgument("albumId") { type = NavType.StringType },
                     navArgument("releaseMbid") { type = NavType.StringType; nullable = true; defaultValue = null },
                 ),
             ) { entry ->

@@ -5,8 +5,11 @@ import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.rememberTransformableState
+import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -72,6 +75,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -82,6 +86,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -91,6 +96,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.youneko.rate.R
@@ -471,6 +478,8 @@ fun AlbumDetailScreen(
     }
     var showDelete by rememberSaveable { mutableStateOf(false) }
     var showManualScore by rememberSaveable { mutableStateOf(false) }
+    var fileInfoTrackId by rememberSaveable { mutableStateOf<String?>(null) }
+    var showFullCover by rememberSaveable { mutableStateOf(false) }
     var manualScoreText by rememberSaveable { mutableStateOf("") }
     var menuExpanded by rememberSaveable { mutableStateOf(false) }
     val snackbarHost = remember { SnackbarHostState() }
@@ -509,7 +518,11 @@ fun AlbumDetailScreen(
                         }
                     }
                 }
-                CoverArtImage(value.album.coverUri, Modifier.fillMaxWidth().height(if (value.album.coverUri == null) 150.dp else 220.dp))
+                Box(
+                    Modifier.fillMaxWidth().aspectRatio(1f).clickable(enabled = value.album.coverUri != null) { showFullCover = true },
+                ) {
+                    CoverArtImage(value.album.coverUri, Modifier.fillMaxSize())
+                }
                 Text(value.album.title, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(top = 12.dp))
                 Text(value.artist?.name.orEmpty(), style = MaterialTheme.typography.titleMedium)
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 8.dp)) {
@@ -536,7 +549,13 @@ fun AlbumDetailScreen(
                 Text(stringResource(R.string.tracklist), style = MaterialTheme.typography.titleLarge)
                 if (value.tracks.isEmpty()) Text(stringResource(R.string.empty_tracks), modifier = Modifier.padding(vertical = 24.dp))
                 else value.tracks.forEach { track ->
-                    TrackRow(track, viewModel::updateTrack) { onViewCredits(value.album.id, track.id, value.album.mbid) }
+                    TrackRow(
+                        track = track,
+                        onChanged = viewModel::updateTrack,
+                        onViewCredits = { onViewCredits(value.album.id, track.id, value.album.mbid) },
+                        onViewFileInfo = { fileInfoTrackId = track.id },
+                        localFileAvailable = !track.sourceUri.isNullOrBlank(),
+                    )
                 }
                 Spacer(Modifier.height(32.dp))
             }
@@ -564,6 +583,49 @@ fun AlbumDetailScreen(
             dismissButton = { TextButton(onClick = { showDelete = false }) { Text(stringResource(R.string.cancel)) } },
         )
     }
+    if (showFullCover) {
+        (state as? AlbumDetailUiState.Content)?.album?.album?.coverUri?.let { coverUri ->
+            CoverArtFullscreenDialog(coverUri, onDismiss = { showFullCover = false })
+        }
+    }
+    fileInfoTrackId?.let { trackId ->
+        val track = (state as? AlbumDetailUiState.Content)?.album?.tracks?.firstOrNull { it.id == trackId }
+        AlertDialog(
+            onDismissRequest = { fileInfoTrackId = null },
+            title = { Text(stringResource(R.string.track_file_info)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(track?.fileName.orEmpty())
+                    Text(track?.sourceUri.orEmpty(), style = MaterialTheme.typography.bodySmall)
+                }
+            },
+            confirmButton = { TextButton(onClick = { fileInfoTrackId = null }) { Text(stringResource(R.string.close)) } },
+        )
+    }
+}
+
+@Composable
+private fun CoverArtFullscreenDialog(model: Any, onDismiss: () -> Unit) {
+    var scale by remember { mutableFloatStateOf(1f) }
+    val transformState = rememberTransformableState { zoomChange, _, _ ->
+        scale = (scale * zoomChange).coerceIn(1f, 5f)
+    }
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Surface(color = Color.Black, modifier = Modifier.fillMaxSize().clickable(onClick = onDismiss)) {
+            Box(Modifier.fillMaxSize()) {
+                CoverArtImage(
+                    model = model,
+                    modifier = Modifier.fillMaxSize().graphicsLayer { scaleX = scale; scaleY = scale }.transformable(transformState),
+                )
+                TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.TopEnd).padding(12.dp)) {
+                    Text(stringResource(R.string.close), color = Color.White)
+                }
+            }
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -572,12 +634,21 @@ private fun TrackRow(
     track: TrackEntity,
     onChanged: (TrackEntity) -> Unit,
     onViewCredits: () -> Unit = {},
-    onPlayPreview: () -> Unit = {},
+    onViewFileInfo: () -> Unit = {},
+    localFileAvailable: Boolean = false,
 ) {
     var review by rememberSaveable(track.id) { mutableStateOf(track.reviewText.orEmpty()) }
     var reviewExpanded by rememberSaveable(track.id) { mutableStateOf(false) }
     var actionsOpen by rememberSaveable(track.id) { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    fun closeSheetThen(action: () -> Unit) {
+        scope.launch {
+            sheetState.hide()
+            actionsOpen = false
+            action()
+        }
+    }
     LaunchedEffect(review) {
         delay(800)
         if (review != track.reviewText.orEmpty()) onChanged(track.copy(reviewText = review))
@@ -587,7 +658,7 @@ private fun TrackRow(
             Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("${track.trackNumber ?: "•"}. ${track.title}", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text("${track.trackNumber ?: "•"}. ${track.title}", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, maxLines = 3, overflow = TextOverflow.Ellipsis)
             StarRatingBar(track.stars, { onChanged(track.copy(stars = it)) }, { onChanged(track.copy(stars = null)) }, step = 0.5)
             IconButton(onClick = { actionsOpen = true }) {
                 Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.track_actions))
@@ -607,15 +678,17 @@ private fun TrackRow(
         ) {
             Column(Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
                 Text(track.title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
-                TextButton(onClick = { actionsOpen = false; reviewExpanded = !reviewExpanded }) { Text(stringResource(R.string.track_review)) }
-                TextButton(onClick = { actionsOpen = false; onViewCredits() }) { Text(stringResource(R.string.track_credits)) }
-                TextButton(onClick = { actionsOpen = false; onChanged(track.copy(isHighlight = !track.isHighlight)) }) {
+                TextButton(onClick = { closeSheetThen { reviewExpanded = !reviewExpanded } }) { Text(stringResource(R.string.track_review)) }
+                TextButton(onClick = { closeSheetThen(onViewCredits) }) { Text(stringResource(R.string.track_credits)) }
+                TextButton(onClick = { closeSheetThen { onChanged(track.copy(isHighlight = !track.isHighlight)) } }) {
                     Text(stringResource(if (track.isHighlight) R.string.track_unmark_highlight else R.string.track_mark_highlight))
                 }
-                TextButton(onClick = { actionsOpen = false; onChanged(track.copy(isSkip = !track.isSkip)) }) {
+                TextButton(onClick = { closeSheetThen { onChanged(track.copy(isSkip = !track.isSkip)) } }) {
                     Text(stringResource(if (track.isSkip) R.string.track_unskip else R.string.track_skip))
                 }
-                TextButton(onClick = { actionsOpen = false; onPlayPreview() }) { Text(stringResource(R.string.track_play_preview)) }
+                TextButton(enabled = localFileAvailable, onClick = { closeSheetThen(onViewFileInfo) }) {
+                    Text(stringResource(R.string.track_file_info))
+                }
             }
         }
     }
@@ -652,7 +725,12 @@ class StandaloneViewModel @javax.inject.Inject constructor(
 @Composable
 fun SettingsScreen(viewModel: ScoreSettingsViewModel = hiltViewModel()) {
     val mode by viewModel.scoreMode.collectAsStateWithLifecycle()
+    val offlineOnly by viewModel.offlineOnly.collectAsStateWithLifecycle()
     val dynamicColor by viewModel.dynamicColor.collectAsStateWithLifecycle()
+    val discogsEnabled by viewModel.discogsEnabled.collectAsStateWithLifecycle()
+    val discogsToken by viewModel.discogsToken.collectAsStateWithLifecycle()
+    val lastFmEnabled by viewModel.lastFmEnabled.collectAsStateWithLifecycle()
+    val lastFmApiKey by viewModel.lastFmApiKey.collectAsStateWithLifecycle()
     val applicationLanguage = AppCompatDelegate.getApplicationLocales().toLanguageTags()
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(stringResource(R.string.language), style = MaterialTheme.typography.titleLarge)
@@ -688,6 +766,39 @@ fun SettingsScreen(viewModel: ScoreSettingsViewModel = hiltViewModel()) {
             label = { Text(stringResource(R.string.dynamic_color)) },
         )
         Text(stringResource(R.string.dynamic_color_body), style = MaterialTheme.typography.bodySmall)
+        Text(stringResource(R.string.data_sources), style = MaterialTheme.typography.titleLarge)
+        FilterChip(
+            selected = offlineOnly,
+            onClick = { viewModel.setOfflineOnly(!offlineOnly) },
+            label = { Text(stringResource(R.string.offline_mode)) },
+        )
+        Text(stringResource(R.string.provider_discogs), style = MaterialTheme.typography.titleMedium)
+        FilterChip(
+            selected = discogsEnabled,
+            onClick = { viewModel.setDiscogsEnabled(!discogsEnabled) },
+            label = { Text(if (discogsEnabled) stringResource(R.string.provider_enabled) else stringResource(R.string.provider_need_key)) },
+        )
+        OutlinedTextField(
+            value = discogsToken,
+            onValueChange = viewModel::setDiscogsToken,
+            label = { Text(stringResource(R.string.provider_api_key)) },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Text(stringResource(R.string.provider_lastfm), style = MaterialTheme.typography.titleMedium)
+        FilterChip(
+            selected = lastFmEnabled,
+            onClick = { viewModel.setLastFmEnabled(!lastFmEnabled) },
+            label = { Text(if (lastFmEnabled) stringResource(R.string.provider_enabled) else stringResource(R.string.provider_need_key)) },
+        )
+        OutlinedTextField(
+            value = lastFmApiKey,
+            onValueChange = viewModel::setLastFmApiKey,
+            label = { Text(stringResource(R.string.provider_api_key)) },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        TextButton(onClick = viewModel::clearMetadataCache) { Text(stringResource(R.string.metadata_cache_clear)) }
         Text(stringResource(R.string.settings_body), style = MaterialTheme.typography.bodyMedium)
     }
 }

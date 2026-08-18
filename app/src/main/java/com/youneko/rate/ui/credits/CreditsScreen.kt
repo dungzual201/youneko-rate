@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -44,8 +45,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.youneko.rate.R
 import com.youneko.rate.data.AlbumRepository
+import com.youneko.rate.data.discogs.DiscogsCreditsService
+import com.youneko.rate.data.local.dao.CreditDao
 import com.youneko.rate.data.local.entity.CreditEntity
 import com.youneko.rate.data.musicbrainz.CreditGroup
+import com.youneko.rate.data.musicbrainz.CreditMerger
 import com.youneko.rate.data.musicbrainz.MusicBrainzCreditsService
 import com.youneko.rate.data.musicbrainz.NetworkError
 import com.youneko.rate.data.musicbrainz.Resource
@@ -72,6 +76,7 @@ sealed interface CreditsContentState {
 
 data class CreditsUiState(
     val credits: List<CreditEntity> = emptyList(),
+    val trackTitles: Map<String, String> = emptyMap(),
     val content: CreditsContentState = CreditsContentState.Idle,
     val searchUrl: String? = null,
 )
@@ -81,6 +86,8 @@ class CreditsViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val repository: AlbumRepository,
     private val creditsService: MusicBrainzCreditsService,
+    private val discogsService: DiscogsCreditsService,
+    private val creditDao: CreditDao,
 ) : ViewModel() {
     private val albumId: String = checkNotNull(savedStateHandle["albumId"])
     private val trackId: String? = savedStateHandle["trackId"]
@@ -106,7 +113,8 @@ class CreditsViewModel @Inject constructor(
                 return@launch
             }
             val searchUrl = musicBrainzSearchUrl(library.album.title, library.artist?.name.orEmpty())
-            _state.update { it.copy(searchUrl = searchUrl) }
+            val trackTitles = library.tracks.associate { it.id to it.title }
+            _state.update { it.copy(searchUrl = searchUrl, trackTitles = trackTitles) }
             if (album.mbid.isNullOrBlank()) {
                 _state.update { it.copy(content = CreditsContentState.NoMbid(searchUrl)) }
                 return@launch
@@ -130,11 +138,37 @@ class CreditsViewModel @Inject constructor(
                 }
             }
             when (result) {
-                is Resource.Success -> _state.update {
-                    it.copy(content = if (it.credits.isEmpty()) CreditsContentState.Empty else CreditsContentState.Data)
+                is Resource.Success -> {
+                    _state.update { it.copy(content = if (it.credits.isEmpty()) CreditsContentState.Empty else CreditsContentState.Data) }
+                    if (trackId == null) loadDiscogsCredits(album, library.artist?.name.orEmpty())
                 }
                 is Resource.Error -> _state.update { it.copy(content = CreditsContentState.Error(result.kind)) }
                 Resource.Loading -> Unit
+            }
+        }
+    }
+
+    private fun loadDiscogsCredits(album: com.youneko.rate.data.local.entity.AlbumEntity, artist: String) {
+        viewModelScope.launch {
+            when (val result = discogsService.load(album.id, album.title, artist)) {
+                is Resource.Success -> if (result.value.credits.isNotEmpty()) {
+                    val existing = creditsService.observeCredits(album.id, null).first().filter { it.trackId == null }
+                    val existingCandidates = existing.map { credit ->
+                        com.youneko.rate.data.musicbrainz.CreditCandidate(
+                            personName = credit.personName,
+                            personMbid = credit.personMbid,
+                            role = credit.role,
+                            instrumentOrAttribute = credit.instrumentOrAttribute,
+                            sourceProvider = credit.sourceProvider,
+                            sourceUrl = credit.sourceUrl,
+                            beginDate = credit.beginDate,
+                            endDate = credit.endDate,
+                        )
+                    }
+                    creditDao.deleteAlbumCredits(album.id)
+                    creditDao.upsertAll(CreditMerger.merge(album.id, null, existingCandidates + result.value.credits))
+                }
+                else -> Unit
             }
         }
     }
@@ -161,11 +195,15 @@ fun CreditsScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     LaunchedEffect(Unit) { viewModel.load() }
-    val grouped = state.credits
-        .groupBy { creditGroupForUi(it.role) }
-        .mapValues { (group, values) -> mergeCredits(group, values) }
-    var expandedGroups by rememberSaveable(grouped.keys.joinToString(",") { it.name }) {
-        mutableStateOf(grouped.keys.take(3).map { it.name }.toSet())
+    val trackGroups = state.credits
+        .groupBy { it.trackId }
+        .toList()
+        .sortedWith(compareBy<Pair<String?, List<CreditEntity>>> { it.first != null }.thenBy { it.first.orEmpty() })
+    val groupKeys = trackGroups.flatMap { (trackId, credits) ->
+        credits.groupBy { creditGroupForUi(it.role) }.keys.map { group -> "${trackId ?: "album"}:${group.name}" }
+    }
+    var expandedGroups by rememberSaveable(groupKeys.joinToString(",")) {
+        mutableStateOf(groupKeys.take(3).toSet())
     }
     val openUrl: (String) -> Unit = { url -> context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
     val sourceUrl = releaseUrl ?: state.searchUrl
@@ -212,32 +250,46 @@ fun CreditsScreen(
                 CreditsContentState.Data -> Unit
             }
             LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                grouped.forEach { (group, values) ->
-                    val expanded = group.name in expandedGroups
-                    item(key = "header-${group.name}") {
-                        TextButton(
-                            onClick = {
-                                expandedGroups = if (expanded) {
-                                    expandedGroups - group.name
-                                } else {
-                                    (expandedGroups + group.name).let { names ->
-                                        if (names.size > 3) names.drop(1).toSet() else names
-                                    }
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
+                trackGroups.forEach { (trackId, trackCredits) ->
+                    if (trackId != null) {
+                        item(key = "track-header-$trackId") {
                             Text(
-                                "${creditGroupLabel(group)} (${values.size})",
-                                style = MaterialTheme.typography.titleMedium,
-                                modifier = Modifier.weight(1f),
+                                "${state.trackTitles[trackId] ?: trackId}",
+                                style = MaterialTheme.typography.titleLarge,
+                                modifier = Modifier.padding(top = 12.dp),
                             )
-                            Text(if (expanded) "▾" else "▸", style = MaterialTheme.typography.titleMedium)
+                            HorizontalDivider()
                         }
-                        HorizontalDivider()
                     }
-                    if (expanded) {
-                        items(values, key = { it.id }) { credit -> CreditRow(credit) }
+                    trackCredits.groupBy { creditGroupForUi(it.role) }.forEach { (group, values) ->
+                        val groupKey = "${trackId ?: "album"}:${group.name}"
+                        val mergedValues = mergeCredits(group, values)
+                        val expanded = groupKey in expandedGroups
+                        item(key = "header-$groupKey") {
+                            TextButton(
+                                onClick = {
+                                    expandedGroups = if (expanded) {
+                                        expandedGroups - groupKey
+                                    } else {
+                                        (expandedGroups + groupKey).let { names ->
+                                            if (names.size > 3) names.drop(1).toSet() else names
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Text(
+                                    "${creditGroupLabel(group)} (${mergedValues.size})",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                Text(if (expanded) "▾" else "▸", style = MaterialTheme.typography.titleMedium)
+                            }
+                            HorizontalDivider()
+                        }
+                        if (expanded) {
+                            items(mergedValues, key = { it.id }) { credit -> CreditRow(credit) }
+                        }
                     }
                 }
             }
@@ -255,6 +307,7 @@ data class MergedCredit(
     val id: String,
     val personName: String,
     val roleLabels: List<String>,
+    val sources: List<String>,
     val sortOrder: Int,
 )
 
@@ -263,9 +316,12 @@ private fun mergeCredits(group: CreditGroup, credits: List<CreditEntity>): List<
     .map { (personKey, personCredits) ->
         val first = personCredits.minByOrNull { it.sortOrder } ?: personCredits.first()
         val labels = personCredits
-            .flatMap { listOfNotNull(it.role.takeIf(String::isNotBlank), it.instrumentOrAttribute?.takeIf(String::isNotBlank)) }
+            .flatMap { credit ->
+                val date = listOfNotNull(credit.beginDate, credit.endDate).distinct().joinToString("–").ifBlank { null }
+                listOfNotNull(credit.role.takeIf(String::isNotBlank), credit.instrumentOrAttribute?.takeIf(String::isNotBlank), date)
+            }
             .distinctBy { it.trim().lowercase() }
-        MergedCredit("${group.name}-$personKey", first.personName, labels, first.sortOrder)
+        MergedCredit("${group.name}-$personKey", first.personName, labels, personCredits.flatMap { it.sourceProvider.split(",") }.map(String::trim).filter { it.isNotBlank() }.distinct(), first.sortOrder)
     }
     .sortedWith(compareBy({ it.sortOrder }, { it.personName.lowercase() }))
 
@@ -275,17 +331,35 @@ private fun CreditRow(credit: MergedCredit) {
         Column(Modifier.fillMaxWidth().padding(12.dp)) {
             Text(credit.personName, style = MaterialTheme.typography.titleSmall)
             if (credit.roleLabels.isNotEmpty()) {
-                Text(credit.roleLabels.joinToString(", "), style = MaterialTheme.typography.bodySmall)
+                Text(credit.roleLabels.map { creditRoleLabel(it) }.joinToString(", "), style = MaterialTheme.typography.bodySmall)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                credit.sources.filterNot { it.equals("musicbrainz", ignoreCase = true) }.forEach { source ->
+                    AssistChip(onClick = {}, label = { Text(source.replaceFirstChar { it.uppercase() }) })
+                }
             }
         }
     }
 }
 
+@Composable
+private fun creditRoleLabel(role: String): String = when (role.lowercase()) {
+    "mix" -> stringResource(R.string.credit_role_mix)
+    "assistant mix" -> stringResource(R.string.credit_role_assistant_mix)
+    "lead vocals" -> stringResource(R.string.credit_role_lead_vocals)
+    "background vocals" -> stringResource(R.string.credit_role_background_vocals)
+    "producer" -> stringResource(R.string.credit_role_producer)
+    "programming" -> stringResource(R.string.credit_role_programming)
+    "recording" -> stringResource(R.string.credit_role_recording)
+    "writer" -> stringResource(R.string.credit_role_writer)
+    else -> role
+}
+
 private fun creditGroupForUi(role: String): CreditGroup = when (role.lowercase()) {
     "composer", "lyricist", "writer", "arranger", "orchestrator", "librettist" -> CreditGroup.WRITING
     "producer", "executive producer", "co-producer" -> CreditGroup.PRODUCTION
-    "recording engineer", "mix", "mixing engineer", "mastering", "mastering engineer", "programming", "editor" -> CreditGroup.ENGINEERING
-    "vocal", "instrument", "performer", "conductor", "orchestra" -> CreditGroup.PERFORMANCE
+    "recording", "engineer", "recording engineer", "mix", "assistant mix", "mixing engineer", "mastering", "mastering engineer", "programming", "editor" -> CreditGroup.ENGINEERING
+    "vocal", "lead vocals", "background vocals", "instrument", "performer", "conductor", "orchestra" -> CreditGroup.PERFORMANCE
     "label", "publisher", "copyright", "phonographic copyright" -> CreditGroup.RELEASE
     else -> CreditGroup.OTHER
 }

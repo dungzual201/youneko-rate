@@ -10,6 +10,7 @@ import com.youneko.rate.data.musicbrainz.AlbumMetadataRefreshService
 import com.youneko.rate.data.musicbrainz.CoverArtService
 import com.youneko.rate.data.musicbrainz.Resource
 import com.youneko.rate.data.TrackDraft
+import com.youneko.rate.data.local.dao.RemoteMetadataCacheDao
 import com.youneko.rate.data.local.entity.AlbumEntity
 import com.youneko.rate.data.local.entity.TrackEntity
 import com.youneko.rate.domain.usecase.ScoreMode
@@ -267,18 +268,32 @@ class AlbumEditorViewModel @Inject constructor(
 @HiltViewModel
 class ScoreSettingsViewModel @Inject constructor(
     private val settings: SettingsStore,
+    private val remoteMetadataCacheDao: RemoteMetadataCacheDao,
 ) : ViewModel() {
+    val offlineOnly = settings.offlineOnly.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
     val dynamicColor: StateFlow<Boolean> = settings.dynamicColor
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
     val scoreMode: StateFlow<ScoreMode> = settings.scoreMode
         .map { if (it == "WEIGHTED_BY_DURATION") ScoreMode.WEIGHTED_BY_DURATION else ScoreMode.SIMPLE }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ScoreMode.SIMPLE)
+    val discogsEnabled = settings.discogsEnabled.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+    val discogsToken = settings.discogsToken.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
+    val lastFmEnabled = settings.lastFmEnabled.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+    val lastFmApiKey = settings.lastFmApiKey.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
 
     fun setScoreMode(mode: ScoreMode) = viewModelScope.launch(Dispatchers.IO) {
         settings.setScoreMode(mode.name)
     }
 
+    fun setOfflineOnly(enabled: Boolean) = viewModelScope.launch(Dispatchers.IO) { settings.setOfflineOnly(enabled) }
+
     fun setDynamicColor(enabled: Boolean) = viewModelScope.launch(Dispatchers.IO) {
         settings.setDynamicColor(enabled)
     }
+
+    fun setDiscogsEnabled(enabled: Boolean) = viewModelScope.launch(Dispatchers.IO) { settings.setDiscogsEnabled(enabled) }
+    fun setDiscogsToken(token: String) = viewModelScope.launch(Dispatchers.IO) { settings.setDiscogsToken(token) }
+    fun setLastFmEnabled(enabled: Boolean) = viewModelScope.launch(Dispatchers.IO) { settings.setLastFmEnabled(enabled) }
+    fun setLastFmApiKey(key: String) = viewModelScope.launch(Dispatchers.IO) { settings.setLastFmApiKey(key) }
+    fun clearMetadataCache() = viewModelScope.launch(Dispatchers.IO) { remoteMetadataCacheDao.deleteAll() }
 }
