@@ -34,3 +34,10 @@ Giai đoạn 0 là bước chuẩn bị ngoài 12 giai đoạn phát triển tro
 | Hạng mục | Trạng thái | Commit hash | Ngày | Ghi chú |
 |---|---|---|---|---|
 | Tài liệu, repository private và CI/CD skeleton | DONE | `6109cbffc7b6afc8c6914a4ace6283724dc97b3b` | 2026-08-17 | Đã push lên `github.com/dungzual201/youneko-rate`; CI skeleton đã được sử dụng thành công để build Android foundation ở giai đoạn 1. |
+
+
+## Xác nhận A-D — 2026-08-18
+
+Các sửa chữa A-D của `FIX_ANALYZE_COVERS_CREDITS.md` đã có bảy commit bắt buộc: `bb428b5`, `8623c99`, `7761f2a`, `a11425d`, `1cb0ba7`, `4f6ccfb`, `e810ca1`. Full local verification `assembleDebug`, `testDebugUnitTest` và `lintDebug` PASS; regression manual-credit test cũng PASS. GitHub Actions [Android Build #32147162916](https://github.com/dungzual201/youneko-rate/actions/runs/32147162916) trên SHA `3fd6f6277cdae980dff39119dc6ae8d30495d816` đã PASS toàn bộ build, unit tests, MainActivity launch regression và artifact upload.
+
+APK debug local đã được tạo tại `app/build/outputs/apk/debug/youneko-rate-fft-credits-covers.apk`, kích thước khoảng 27 MB, SHA-256 `2fa75aa4b0b5a342b1be2f14abdd3b7d13234d373ec8a5311a228052055d1107`. Sandbox vẫn không có emulator/adb nên APK chưa được cài/chạy thủ công và chưa có ảnh xác nhận; Phase 9 chưa bắt đầu.
