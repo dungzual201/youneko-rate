@@ -113,3 +113,24 @@ Nguồn dependency Phase 3 và license được lưu trong `BUILD_SOURCES_PHASE3
 | D-0042 | UI search có chip `Trong máy`/`Trực tuyến`; FTS local render trước online Paging 3, online result có badge `MB`; preview release chỉ đọc và nút thêm thư viện chưa có. | Không phá local-first và giữ việc import release cho Phase 5. |
 
 Nguồn API/dependency đã lưu trong `NETWORK_SOURCES_PHASE4.md`. Không commit API key hoặc credential.
+
+## Bug log — folder import crash hotfix
+
+### BUG-0003 — Crash khi import thư mục lớn ngay lúc enqueue
+
+**Triệu chứng:** chưa có stack trace adb thực tế trong sandbox vì môi trường không có `adb`/emulator; code review xác định enqueue folder lớn có thể ném `IllegalStateException` do vượt giới hạn khoảng 10 KB của WorkManager `Data`, đồng thời preview giữ nhiều cover `ByteArray` có nguy cơ OOM.
+
+**Cách xác minh:** không đoán stack trace. Đã ghi nhận minh bạch giới hạn thiết bị kiểm thử; thay thế bằng kiểm tra code và unit test kích thước payload. Worker hiện chỉ nhận `KEY_SESSION_ID`, session lưu source URI/selections trong Room, worker re-scan DocumentFile sau process death, quyền tree URI được persist, cover được ghi cache thành file path, track chèn theo batch 50 và lỗi từng file/group được cô lập.
+
+**Quyết định:** không truyền mảng URI hoặc JSON selections trong WorkManager Data; không dùng `REPLACE` cho Album/Artist/Track; chỉ dùng IGNORE cho batch track import và giữ ABORT cho parent entities.
+
+## Quyết định Phase 5 và i18n
+
+| Mã | Quyết định | Lý do |
+|---|---|---|
+| D-0043 | `values/` là English fallback; `values-vi/` là Vietnamese; locale được đổi bằng `AppCompatDelegate.setApplicationLocales()` với System/English/Vietnamese. | Theo cơ chế AndroidX/AppCompat, không tạo DataStore key locale riêng và tránh ghép câu bằng code. |
+| D-0044 | Search release-group mở preview release cụ thể; người dùng có thể chọn release trong release-group trước khi import. | Release-group có thể có nhiều bản phát hành khác nhau về country/date/tracklist. |
+| D-0045 | Cover Art Archive thử `front-500`, fallback `front-250`, rồi vector cat; bytes được copy vào `filesDir/covers`, không lưu hotlink. | Offline-first và đáp ứng fallback cover art đã thống nhất. |
+| D-0046 | Dedupe MusicBrainz theo release MBID, release-group MBID, rồi normalized title/artist/year; merge chỉ điền metadata còn thiếu, không ghi đè review/rating/cover user. | Bảo toàn dữ liệu người dùng và tránh album trùng. |
+
+Nguồn Phase 5: `NETWORK_SOURCES_PHASE5.md`; không commit API key hoặc credential.

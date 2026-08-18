@@ -8,7 +8,7 @@
 | 2. Rate & Review: nhập thủ công, chấm sao, tính trung bình, local search/sort/filter | DONE | `43d2cc2` | 2026-08-18 | Hotfix cascade đã đổi Album/Track/Artist từ REPLACE sang insert/update ABORT; Favorite đã gỡ hoàn toàn bằng migration Room 2→3; UI polish gồm palette mặc định, 5 sao half-fill, tooltip highlight/skip và mascot vector tạm. Regression migration test thêm; commit đã push cùng Phase 3. |
 | 3. Import metadata từ tag file nhạc local | DONE | `0589742` + `60463e4` | 2026-08-18 | Đã hotfix lỗi SAF truyền extension `.audio` khiến jaudiotagger skip toàn bộ file: dùng display name, magic bytes, temp file đúng extension, cleanup finally và MediaMetadataRetriever fallback. Unit tests extension/magic và manual matrix FLAC/MP3 v2.3/v2.4/M4A-ALAC/WAV/OGG/file không extension PASS; Opus được chuyển qua fallback Android. CI Phase 4 cũng xác nhận build/test/artifact. |
 | 4. Network, throttle, cache, MusicBrainz search và release lookup | DONE | `aeeb80a` | 2026-08-18 | Retrofit + kotlinx-serialization + OkHttp/Hilt; User-Agent; token bucket capacity 5/refill 1 token/s; retry 503/429; cache TTL 30 ngày; offline switch; Paging 3 local-first/online search; read-only MB preview; MockWebServer fixtures, TTL, HTTP error và token bucket tests PASS. CI [Android Build #32097543485](https://github.com/dungzual201/youneko-rate/actions/runs/32097543485) PASS với assembleDebug, unit tests và upload artifact. |
-| 5. Preview, chọn release, import Room, Cover Art Archive và dedupe | TODO | Chưa có | 2026-08-17 | Chưa bắt đầu. |
+| 5. Preview, chọn release, import Room, Cover Art Archive và dedupe | IN-PROGRESS | Chưa commit | 2026-08-18 | Đã triển khai release-group → release preview, release selector, import Room theo batch, Cover Art Archive front-500/front-250/cat fallback, local cover copy, MBID/normalized dedupe và non-destructive merge; đang chờ lint/CI và commit. |
 | 6. Credits MusicBrainz, bảng Credit và tra cứu theo người | TODO | Chưa có | 2026-08-17 | Chưa bắt đầu; credits chỉ tải lazy khi người dùng yêu cầu. |
 | 7. Provider phụ và quản lý nguồn/token/cache | TODO | Chưa có | 2026-08-17 | Chưa bắt đầu; Discogs, Last.fm, Deezer, ListenBrainz mặc định tắt theo SPEC. |
 | 8. Audio Quality Checker phần 1: decode, FFT, spectrogram, technical info | TODO | Chưa có | 2026-08-17 | Chưa bắt đầu; không dùng ffmpeg-kit và không fake dữ liệu. |
@@ -16,6 +16,10 @@
 | 10. Export/import backup, CSV, Markdown, auto backup và Python tool | TODO | Chưa có | 2026-08-17 | Chưa bắt đầu. |
 | 11. Stats, share ảnh, onboarding, đa ngôn ngữ, polish, unit test, README và APK | TODO | Chưa có | 2026-08-17 | Chưa bắt đầu; màn Open source licenses nằm ở giai đoạn này. |
 | 12. PoC và decode audio tầng 2 mở rộng bằng thư viện prebuilt/JNI đã xác minh | TODO | Chưa có | 2026-08-17 | Tách khỏi giai đoạn 8; phải đo APK tăng thêm và test ít nhất một thiết bị arm64 trước khi chốt. |
+
+## Ghi chú kiểm thử session hiện tại
+
+Sandbox không có emulator hoặc `adb`, nên không thể lấy stack trace logcat thực tế hay chụp screenshot thiết bị. Các hotfix A được kiểm tra bằng code review, unit test WorkManager payload/grouping/dedupe và compile/test Gradle thành công; CI sẽ là bước xác minh tiếp theo.
 
 ## Quy ước trạng thái
 

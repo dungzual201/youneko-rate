@@ -36,6 +36,7 @@ data class MbReleaseGroup(
     @SerialName("first-release-date") val firstReleaseDate: String? = null,
     val disambiguation: String? = null,
     @SerialName("artist-credit") val artistCredit: List<MbArtistCredit> = emptyList(),
+    val releases: List<MbRelease> = emptyList(),
 )
 
 @Serializable
@@ -100,10 +101,31 @@ data class MusicBrainzPreview(
     val releaseId: String,
     val title: String,
     val artist: String,
+    val artistMbid: String? = null,
+    val releaseGroupId: String? = null,
     val year: String?,
     val country: String?,
     val label: String?,
     val tracks: List<MusicBrainzPreviewTrack>,
+    val releaseOptions: List<MusicBrainzReleaseOption> = emptyList(),
+)
+
+data class MusicBrainzReleaseOption(
+    val id: String,
+    val title: String,
+    val year: String?,
+    val country: String?,
+)
+
+@Serializable
+data class CoverArtResponse(
+    val images: List<CoverArtImage> = emptyList(),
+)
+
+@Serializable
+data class CoverArtImage(
+    val front: Boolean = false,
+    val thumbnails: Map<String, String> = emptyMap(),
 )
 
 data class MusicBrainzPreviewTrack(
@@ -111,6 +133,7 @@ data class MusicBrainzPreviewTrack(
     val trackNumber: Int,
     val title: String,
     val durationMs: Long?,
+    val recordingMbid: String? = null,
 )
 
 sealed interface Resource<out T> {
@@ -167,10 +190,15 @@ fun MbRecording.toSearchItem() = MusicBrainzSearchItem(
     subtitle = length?.let { "${it / 1000}s" },
 )
 
-fun MbRelease.toPreview(): MusicBrainzPreview = MusicBrainzPreview(
+fun MbRelease.toPreview(
+    releaseGroupId: String? = releaseGroup?.id,
+    releaseOptions: List<MusicBrainzReleaseOption> = emptyList(),
+): MusicBrainzPreview = MusicBrainzPreview(
     releaseId = id,
     title = title,
     artist = artistCredit.joinToString(", ") { it.name ?: it.artist?.name.orEmpty() },
+    artistMbid = artistCredit.firstOrNull()?.artist?.id,
+    releaseGroupId = releaseGroupId,
     year = date?.take(4),
     country = country,
     label = labels.firstOrNull()?.label?.name,
@@ -181,6 +209,7 @@ fun MbRelease.toPreview(): MusicBrainzPreview = MusicBrainzPreview(
                 trackNumber = track.position ?: trackIndex + 1,
                 title = track.title.ifBlank { track.recording?.title.orEmpty() },
                 durationMs = track.length ?: track.recording?.length,
+                recordingMbid = track.recording?.id,
             )
         }
     },

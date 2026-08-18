@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import com.youneko.rate.data.AlbumDraft
 import com.youneko.rate.data.AlbumRepository
 import com.youneko.rate.data.SettingsStore
+import com.youneko.rate.data.musicbrainz.AlbumMetadataRefreshService
+import com.youneko.rate.data.musicbrainz.Resource
 import com.youneko.rate.data.TrackDraft
 import com.youneko.rate.data.local.entity.AlbumEntity
 import com.youneko.rate.data.local.entity.TrackEntity
@@ -26,6 +28,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -109,6 +112,7 @@ class AlbumDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val repository: AlbumRepository,
     private val settings: SettingsStore,
+    private val musicBrainzImportService: AlbumMetadataRefreshService,
 ) : ViewModel() {
     private val albumId: String = checkNotNull(savedStateHandle["albumId"])
     private val eventsChannel = Channel<AlbumDetailEvent>(Channel.BUFFERED)
@@ -136,6 +140,12 @@ class AlbumDetailViewModel @Inject constructor(
     fun currentAlbum(): AlbumEntity? = (state.value as? AlbumDetailUiState.Content)?.album?.album
     fun updateTrack(track: TrackEntity) = viewModelScope.launch(Dispatchers.IO) { repository.updateTrack(track) }
     fun updateAlbum(album: AlbumEntity) = viewModelScope.launch(Dispatchers.IO) { repository.updateAlbum(album) }
+    private val _refreshResult = MutableStateFlow<Resource<Unit>?>(null)
+    val refreshResult: StateFlow<Resource<Unit>?> = _refreshResult.asStateFlow()
+    fun refreshMetadata() {
+        val album = currentAlbum() ?: return
+        viewModelScope.launch(Dispatchers.IO) { _refreshResult.value = musicBrainzImportService.refreshMetadata(album) }
+    }
     fun deleteAlbum() = viewModelScope.launch(Dispatchers.IO) { repository.deleteAlbum(albumId) }
 }
 

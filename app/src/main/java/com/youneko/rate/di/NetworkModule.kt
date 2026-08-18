@@ -3,6 +3,8 @@ package com.youneko.rate.di
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import com.youneko.rate.BuildConfig
 import com.youneko.rate.data.musicbrainz.MusicBrainzApi
+import com.youneko.rate.data.musicbrainz.MusicBrainzReleaseGroupApi
+import com.youneko.rate.data.musicbrainz.CoverArtApi
 import com.youneko.rate.data.musicbrainz.MusicBrainzRetryInterceptor
 import com.youneko.rate.data.musicbrainz.TokenBucket
 import com.youneko.rate.data.musicbrainz.TokenBucketInterceptor
@@ -60,4 +62,22 @@ object NetworkModule {
         .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
         .build()
         .create(MusicBrainzApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideMusicBrainzReleaseGroupApi(client: OkHttpClient, json: Json): MusicBrainzReleaseGroupApi = Retrofit.Builder()
+        .baseUrl("https://musicbrainz.org/ws/2/")
+        .client(client)
+        .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+        .build()
+        .create(MusicBrainzReleaseGroupApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideCoverArtApi(client: OkHttpClient, json: Json): CoverArtApi = Retrofit.Builder()
+        .baseUrl("https://coverartarchive.org/")
+        .client(client)
+        .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+        .build()
+        .create(CoverArtApi::class.java)
 }
