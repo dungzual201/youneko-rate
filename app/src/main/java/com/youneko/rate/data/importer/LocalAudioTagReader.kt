@@ -59,7 +59,7 @@ class LocalAudioTagReader(private val context: Context) {
         }
 
         val fallback = readWithMediaMetadataRetriever(uri, fileName)
-        if (tagResult != null) return merge(tagResult!!, fallback)
+        tagResult?.let { return merge(it, fallback) }
         if (fallback != null) return fallback
         throw IllegalArgumentException(
             tagFailure?.let(::friendlyReason) ?: "Không đọc được metadata của file",
@@ -144,7 +144,7 @@ class LocalAudioTagReader(private val context: Context) {
             message.contains("Permission", ignoreCase = true) -> "Không có quyền đọc file"
             message.contains("open", ignoreCase = true) -> "Không thể mở file"
             message.isBlank() -> "Không đọc được metadata"
-            else -> message.take(160)
+            else -> "Không đọc được metadata audio"
         }
     }
 

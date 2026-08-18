@@ -87,3 +87,29 @@ Favorite được gỡ hoàn toàn theo yêu cầu sản phẩm vì không còn 
 | D-0036 | StarRatingBar hiển thị 5 sao với half-fill và số điểm cạnh thanh; highlight/skip có tooltip/semantics; placeholder lớn giảm còn 150dp và dùng icon mèo vector tạm. | Cải thiện đọc nhanh, accessibility và empty state; mascot asset chính thức để dành phase sau theo TODO. |
 
 Nguồn dependency Phase 3 và license được lưu trong `BUILD_SOURCES_PHASE3.md`. Không có credential, token hay file âm thanh nào được thêm vào repository.
+
+
+## Bug log — Phase 3 SAF tag reader
+
+### BUG-0002 — Tất cả file import bị đưa vào Skipped files
+
+**Triệu chứng:** sau khi chọn file hoặc thư mục, mọi audio đều bị bỏ qua với lỗi `No Reader associated with this extension:audio`.
+
+**Root cause:** `LocalAudioTagReader` đã truyền/copy dữ liệu SAF vào file tạm có hậu tố `.audio`. Jaudiotagger chọn reader dựa trên phần mở rộng của `java.io.File`, vì vậy không nhận được FLAC/MP3/M4A/WAV/OGG và diễn giải extension là `audio`; content URI không phải là input hợp lệ cho `AudioFileIO.read`.
+
+**Cách sửa:** lấy tên thật bằng `DocumentFile.name`/`OpenableColumns.DISPLAY_NAME`; tách extension cuối cùng; nếu thiếu hoặc lạ thì dò magic bytes (`fLaC`, ID3/MP3 sync, RIFF/WAVE, OggS/OpusHead, ftyp, FORM/AIFF); copy stream vào `cacheDir/import_<UUID>.<ext>`; gọi `AudioFileIO.read(tempFile)` và luôn xóa file trong `finally`. Nếu jaudiotagger thất bại, dùng `MediaMetadataRetriever` với chính content URI để lấy title/artist/album/duration; chỉ tạo failure sau khi cả hai cách thất bại. Failure chỉ hiển thị tên file thật và thông báo tiếng Việt, không lộ URI.
+
+**Test bảo vệ:** `ImportModelsTest.displayNameExtensionHandlesUnicodeMultipleDotsNoExtensionAndNull`, `ImportModelsTest.magicBytesDetectSupportedAudioContainers`, cùng manual matrix thực tế cho FLAC, MP3 ID3v2.3/v2.4, M4A/ALAC, WAV, OGG Vorbis, Opus và file không extension. Jaudiotagger 3.0.1 đọc thành công mọi mẫu trừ Opus trực tiếp; Opus đi qua fallback Android `MediaMetadataRetriever` theo thiết kế.
+
+## Quyết định Phase 4 — MusicBrainz
+
+| Mã | Quyết định | Lý do |
+|---|---|---|
+| D-0037 | Dùng Retrofit + kotlinx-serialization converter, OkHttp và Hilt `NetworkModule`; timeout connect/read/write 15 giây; logging BASIC chỉ thêm khi `BuildConfig.DEBUG`. | Tách network stack khỏi UI, test được API/parser và tránh log request ở release. |
+| D-0038 | User-Agent cố định là `YounekoRate/1.0.0 (youneko-rate@users.noreply.github.com)`. | MusicBrainz yêu cầu meaningful User-Agent; app không dùng API key. |
+| D-0039 | Token bucket capacity 5, refill 1 token/giây trong OkHttp interceptor; retry 503 exponential tối đa 5 lần; 429 đọc `Retry-After` seconds hoặc HTTP-date. | Tuân thủ giới hạn MusicBrainz và không để UI tự điều phối request. |
+| D-0040 | `RemoteMetadataCacheEntity` dùng key URL/params + provider, JSON body, ETag, fetchedAt/expiresAt; TTL 30 ngày và đọc cache trước mạng. Search history dùng DAO hiện có, giữ 10 kết quả gần nhất. | Offline-first, giảm request lặp và giữ dữ liệu remote không trộn vào rating local. |
+| D-0041 | Search dùng endpoint release-group mặc định với `fmt=json`, `limit=25`, `offset`; model/API cũng hỗ trợ release, recording, artist và release lookup `inc=artist-credits+labels+recordings+release-groups+media`. | Khớp API chính thức và sẵn sàng mở rộng tab tìm kiếm mà không đổi transport layer. |
+| D-0042 | UI search có chip `Trong máy`/`Trực tuyến`; FTS local render trước online Paging 3, online result có badge `MB`; preview release chỉ đọc và nút thêm thư viện chưa có. | Không phá local-first và giữ việc import release cho Phase 5. |
+
+Nguồn API/dependency đã lưu trong `NETWORK_SOURCES_PHASE4.md`. Không commit API key hoặc credential.
