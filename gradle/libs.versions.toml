@@ -5,6 +5,7 @@ composeBom = "2026.08.00"
 coreKtx = "1.19.0"
 activityCompose = "1.13.0"
 appcompat = "1.7.0"
+material = "1.13.0"
 lifecycle = "2.11.0"
 navigation = "2.9.8"
 room = "2.8.4"
@@ -23,6 +24,8 @@ okhttp = "4.12.0"
 converter = "1.0.0"
 androidxTestJunit = "1.3.0"
 androidxTestRunner = "1.7.0"
+androidxTestCore = "1.6.1"
+robolectric = "4.14.1"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
@@ -36,6 +39,7 @@ androidx-paging-runtime = { module = "androidx.paging:paging-runtime", version.r
 androidx-paging-compose = { module = "androidx.paging:paging-compose", version.ref = "paging" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
+material = { module = "com.google.android.material:material", version.ref = "material" }
 androidx-lifecycle-runtime-ktx = { module = "androidx.lifecycle:lifecycle-runtime-ktx", version.ref = "lifecycle" }
 androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycle" }
 androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycle" }
@@ -65,6 +69,8 @@ compose-material-icons-extended = { module = "androidx.compose.material:material
 junit = { module = "junit:junit", version = "4.13.2" }
 androidx-test-ext-junit = { module = "androidx.test.ext:junit", version.ref = "androidxTestJunit" }
 androidx-test-runner = { module = "androidx.test:runner", version.ref = "androidxTestRunner" }
+androidx-test-core = { module = "androidx.test:core", version.ref = "androidxTestCore" }
+robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

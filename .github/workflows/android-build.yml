@@ -39,6 +39,9 @@ jobs:
       - name: Run debug unit tests
         run: ./gradlew testDebugUnitTest
 
+      - name: Run MainActivity launch regression (Robolectric)
+        run: ./gradlew :app:testDebugUnitTest --tests 'com.youneko.rate.MainActivityThemeLaunchTest'
+
       - name: Upload debug APK and test reports
         uses: actions/upload-artifact@v4
         with:

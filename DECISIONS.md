@@ -134,3 +134,17 @@ Nguồn API/dependency đã lưu trong `NETWORK_SOURCES_PHASE4.md`. Không commi
 | D-0046 | Dedupe MusicBrainz theo release MBID, release-group MBID, rồi normalized title/artist/year; merge chỉ điền metadata còn thiếu, không ghi đè review/rating/cover user. | Bảo toàn dữ liệu người dùng và tránh album trùng. |
 
 Nguồn Phase 5: `NETWORK_SOURCES_PHASE5.md`; không commit API key hoặc credential.
+
+## Bug log — AppCompatActivity theme crash
+
+### BUG-0004 — MainActivity crash tại `setContent`
+
+**Stack trace thực tế:** `AppCompatDelegateImpl.createSubDecor` ném `You need to use a Theme.AppCompat theme (or descendant) with this activity` sau khi `MainActivity` được đổi từ Activity sang `AppCompatActivity` để dùng `AppCompatDelegate.setApplicationLocales()`.
+
+**Root cause:** `Theme.YounekoRate` vẫn kế thừa platform theme `android:style/Theme.Material.Light.NoActionBar`, không phải AppCompat descendant. Vì vậy AppCompat không thể tạo sub-decor cho Activity, dù phần UI bên trong dùng Compose Material 3.
+
+**Cách sửa:** đổi parent của theme sáng và night thành `Theme.Material3.DayNight.NoActionBar` từ Material Components; giữ `windowActionBar=false`, `windowNoTitle=true`, pastel status/navigation colors và thêm explicit `android:theme` cho cả application lẫn MainActivity. Thuộc tính navigation bar API 27 được đánh dấu `tools:targetApi="27"` vì minSdk là 26.
+
+**Ràng buộc lâu dài:** việc dùng `AppCompatActivity` để backport per-app language xuống minSdk 26 kéo theo yêu cầu mọi Activity hiện tại và mọi Activity thêm sau này phải dùng theme là hậu duệ của `Theme.AppCompat`, luôn là biến thể `NoActionBar` khi UI được vẽ bằng Compose. Không được thêm Activity mới với `@android:style/...` hoặc theme không tương thích.
+
+**Test hồi quy:** `MainActivityThemeLaunchTest` dùng Robolectric `ActivityScenario.launch(MainActivity::class.java)` cho cả cấu hình sáng và `night`; test được chạy trong `testDebugUnitTest` và có bước CI riêng.
