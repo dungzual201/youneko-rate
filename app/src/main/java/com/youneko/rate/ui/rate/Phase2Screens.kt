@@ -1,6 +1,8 @@
 package com.youneko.rate.ui.rate
 
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.os.LocaleListCompat
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -29,6 +31,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Highlight
 import androidx.compose.material.icons.filled.List
@@ -88,6 +91,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -166,7 +170,7 @@ fun LibraryScreen(
                 items(state.albums, key = { it.album.id }) { item -> AlbumListRow(item, onOpenAlbum) }
             }
         }
-        if (onlineMode) MusicBrainzSearchPanel(onlineViewModel)
+        if (onlineMode) MusicBrainzSearchPanel(onlineViewModel, onImported = onOpenAlbum)
     }
     if (showFilters) {
         ModalBottomSheet(onDismissRequest = { showFilters = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
@@ -281,11 +285,21 @@ private fun CoverPlaceholder(modifier: Modifier = Modifier) {
 fun RateScreen(onAddAlbum: () -> Unit, onImportTags: () -> Unit, onOpenAlbum: (String) -> Unit, viewModel: LibraryViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var showStandalone by rememberSaveable { mutableStateOf(false) }
-    Column(Modifier.fillMaxSize().padding(16.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = onAddAlbum) { Icon(Icons.Default.Add, contentDescription = null); Spacer(Modifier.width(6.dp)); Text(stringResource(R.string.add_album)) }
-            OutlinedButton(onClick = { showStandalone = true }) { Text(stringResource(R.string.add_standalone)) }
-            OutlinedButton(onClick = onImportTags) { Text(stringResource(R.string.import_music)) }
+    Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = onAddAlbum, modifier = Modifier.weight(1f)) {
+                Icon(Icons.Default.Add, contentDescription = null)
+                Spacer(Modifier.width(6.dp))
+                Text(stringResource(R.string.add_album), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            OutlinedButton(onClick = { showStandalone = true }, modifier = Modifier.weight(1f)) {
+                Text(stringResource(R.string.add_standalone), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        OutlinedButton(onClick = onImportTags, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Default.FolderOpen, contentDescription = null)
+            Spacer(Modifier.width(6.dp))
+            Text(stringResource(R.string.import_music), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Spacer(Modifier.height(20.dp))
         Text(stringResource(R.string.albums_in_progress), style = MaterialTheme.typography.headlineSmall)
@@ -453,6 +467,7 @@ fun AlbumDetailScreen(onBack: () -> Unit, viewModel: AlbumDetailViewModel = hilt
     var manualScoreText by rememberSaveable { mutableStateOf("") }
     var menuExpanded by rememberSaveable { mutableStateOf(false) }
     val snackbarHost = remember { SnackbarHostState() }
+    val refreshResult by viewModel.refreshResult.collectAsStateWithLifecycle()
     Scaffold(snackbarHost = { SnackbarHost(snackbarHost) }) { padding ->
         when (state) {
             AlbumDetailUiState.Loading -> Column(Modifier.fillMaxSize().padding(padding), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) { Text(stringResource(R.string.error_generic)) }
@@ -466,7 +481,17 @@ fun AlbumDetailScreen(onBack: () -> Unit, viewModel: AlbumDetailViewModel = hilt
                     Spacer(Modifier.weight(1f))
                     Box {
                         IconButton(onClick = { menuExpanded = true }) { Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.edit_album)) }
-                        DropdownMenu(menuExpanded, { menuExpanded = false }) { DropdownMenuItem(text = { Text(stringResource(R.string.delete_album)) }, onClick = { menuExpanded = false; showDelete = true }, leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) }) }
+                        DropdownMenu(menuExpanded, { menuExpanded = false }) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.refresh_metadata), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                onClick = { menuExpanded = false; viewModel.refreshMetadata() },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.delete_album), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                onClick = { menuExpanded = false; showDelete = true },
+                                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
+                            )
+                        }
                     }
                 }
                 CoverPlaceholder(Modifier.fillMaxWidth().height(if (value.album.coverUri == null) 150.dp else 220.dp))
@@ -485,6 +510,9 @@ fun AlbumDetailScreen(onBack: () -> Unit, viewModel: AlbumDetailViewModel = hilt
                     if (value.album.manualScoreOverride != null) TextButton(onClick = { viewModel.updateAlbum(value.album.copy(manualScoreOverride = null)) }) { Text(stringResource(R.string.clear_override)) }
                 }
                 if (value.score?.usedEqualWeightsFallback == true) Text(stringResource(R.string.weighted_fallback), style = MaterialTheme.typography.bodySmall)
+                if (refreshResult is com.youneko.rate.data.musicbrainz.Resource.Error) {
+                    Text(stringResource(R.string.refresh_metadata_error), color = MaterialTheme.colorScheme.error)
+                }
                 ReviewEditor(
                     label = stringResource(R.string.album_review), initial = value.album.reviewText.orEmpty(), max = 4000,
                     onChanged = { viewModel.updateAlbum(value.album.copy(reviewText = it)) },
@@ -599,7 +627,24 @@ class StandaloneViewModel @javax.inject.Inject constructor(
 fun SettingsScreen(viewModel: ScoreSettingsViewModel = hiltViewModel()) {
     val mode by viewModel.scoreMode.collectAsStateWithLifecycle()
     val dynamicColor by viewModel.dynamicColor.collectAsStateWithLifecycle()
+    val applicationLanguage = AppCompatDelegate.getApplicationLocales().toLanguageTags()
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(stringResource(R.string.language), style = MaterialTheme.typography.titleLarge)
+        FilterChip(
+            selected = applicationLanguage.isBlank(),
+            onClick = { AppCompatDelegate.setApplicationLocales(LocaleListCompat.getEmptyLocaleList()) },
+            label = { Text(stringResource(R.string.language_system), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        )
+        FilterChip(
+            selected = applicationLanguage == "en",
+            onClick = { AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags("en")) },
+            label = { Text(stringResource(R.string.language_english), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        )
+        FilterChip(
+            selected = applicationLanguage == "vi",
+            onClick = { AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags("vi")) },
+            label = { Text(stringResource(R.string.language_vietnamese), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        )
         Text(stringResource(R.string.score_mode), style = MaterialTheme.typography.titleLarge)
         FilterChip(
             selected = mode == ScoreMode.SIMPLE,
