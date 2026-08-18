@@ -129,6 +129,16 @@ class Phase6CreditsTest {
     }
 
     @Test
+    fun manualTrackCreditSurvivesMusicBrainzRefresh() = runBlocking {
+        val creditDao = FakeCreditDao()
+        creditDao.upsertAll(listOf(CreditEntity("manual-1", null, "track-1", "Local Producer", role = "Producer", sourceProvider = "manual")))
+        val result = MusicBrainzCreditsService(FakeApi(), creditDao, FakeCacheDao(), FakeTrackDao(), json)
+            .loadTrackCredits(album(), "track-1", forceRefresh = true)
+        assertTrue(result is com.youneko.rate.data.musicbrainz.Resource.Success)
+        assertTrue(creditDao.saved.last().any { it.personName == "Local Producer" && it.sourceProvider.contains("manual") })
+    }
+
+    @Test
     fun emptyRecordingRelationsProduceEmptySuccessNotError() = runBlocking {
         val api = FakeApi().apply { recordingResponse = MbRecording("recording-empty") }
         val service = MusicBrainzCreditsService(api, FakeCreditDao(), FakeCacheDao(), FakeTrackDao(), json)
@@ -254,14 +264,18 @@ class Phase6CreditsTest {
 
     private class FakeCreditDao : CreditDao {
         val saved = mutableListOf<List<CreditEntity>>()
-        override suspend fun upsertAll(credits: List<CreditEntity>) { saved += credits }
+        private val rows = mutableListOf<CreditEntity>()
+        override suspend fun upsertAll(credits: List<CreditEntity>) {
+            saved += credits
+            credits.forEach { credit -> rows.removeAll { it.id == credit.id }; rows += credit }
+        }
         override fun observeForItem(albumId: String, trackId: String?): Flow<List<CreditEntity>> = flowOf(emptyList())
         override fun observeForAlbum(albumId: String): Flow<List<CreditEntity>> = flowOf(emptyList())
-        override suspend fun findAlbumCredits(albumId: String): List<CreditEntity> = emptyList()
-        override suspend fun findTrackCredits(trackId: String): List<CreditEntity> = emptyList()
-        override suspend fun deleteAlbumCredits(albumId: String) = Unit
-        override suspend fun deleteTrackCredits(trackId: String) = Unit
-        override suspend fun deleteTrackCreditsForAlbum(albumId: String) = Unit
+        override suspend fun findAlbumCredits(albumId: String): List<CreditEntity> = rows.filter { it.albumId == albumId && it.trackId == null }
+        override suspend fun findTrackCredits(trackId: String): List<CreditEntity> = rows.filter { it.trackId == trackId }
+        override suspend fun deleteAlbumCredits(albumId: String) { rows.removeAll { it.albumId == albumId && it.trackId == null } }
+        override suspend fun deleteTrackCredits(trackId: String) { rows.removeAll { it.trackId == trackId } }
+        override suspend fun deleteTrackCreditsForAlbum(albumId: String) { rows.removeAll { it.albumId == albumId || it.trackId == "track-1" } }
     }
 
     private class FakeTrackDao(
