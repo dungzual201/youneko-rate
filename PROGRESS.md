@@ -55,3 +55,14 @@ Regression `AudioAnalysisTest`, `CoverArtTest` và `Phase6CreditsTest` đã đư
 Full local verification sau toàn bộ thay đổi đã PASS: `assembleDebug`, `testDebugUnitTest` và `lintDebug` (`BUILD SUCCESSFUL`). GitHub Actions [Android Build #32157021878](https://github.com/dungzual201/youneko-rate/actions/runs/32157021878) trên SHA `9518bb8eef7c1dee63dabe9f87ec29416ec1ed09` cũng PASS `assembleDebug`, debug unit tests, MainActivity launch regression và artifact upload.
 
 APK local: `app/build/outputs/apk/debug/youneko-rate-phase13.apk`, khoảng 27 MB, SHA-256 `4b67cec64663d2eba47ab8f80671575d221e3cd08ca5a8c329c99d62da4d35f3`. Sandbox không có emulator/adb, nên chưa có kiểm thử thiết bị thật hoặc screenshot. Phase 9 vẫn bị khóa cho tới khi nhận đủ sáu ảnh xác nhận E4; không fake screenshot.
+
+
+## Hotfix Credit Source Picker và Phase 9 — 2026-08-18
+
+Đã triển khai các mục A→F của `FIX_CREDITS_SOURCE_PICKER_AND_PHASE9.md`. Credits hiện dùng typed `SourceResult`, Hilt multibinding đủ sáu nguồn file tags/MusicBrainz/Discogs/Genius/Deezer/iTunes, source picker có chip bật/tắt, thứ tự ưu tiên và hai chế độ xem riêng/gộp. Credits fetch chạy supervisorScope theo từng source; cache key chứa scope/provider/enabled-source hash/provider version. Discogs/Genius token được che trong Settings, lưu AES-GCM Android Keystore, có nút kiểm tra token; manual URL/MBID được lưu Room qua schema 11 và được dùng trước search tự động.
+
+Phase 9 core đã có RatingScale 5 sao/10 điểm/100 điểm với canonical storage 5 sao, Settings selector và numeric editor trên TrackRow; CalculateAlbumScoreUseCase vẫn là nguồn sự thật cho simple/weighted/manual score. Rate tab không còn lọc album vừa vote xong khỏi danh sách; Room Flow có `distinctUntilChanged()` và score state vẫn cập nhật. Không thêm bất kỳ playback class hoặc preview nào.
+
+Focused tests PASS sau lần sửa cuối: `Phase9SourcePickerTest`, `CalculateAlbumScoreUseCaseTest`, `Phase6CreditsTest`, `CoverArtTest` — tổng 29 tests trong focused invocation. Compile/KSP/unit-test compilation PASS; full `assembleDebug`, toàn bộ `testDebugUnitTest` và `lintDebug` cần chạy sau khi hoàn tất commit-local changes. Schema artifact mới là Room version 11 với `external_links` và `MIGRATION_10_11`.
+
+Sandbox không có emulator/adb, nên chưa thể xác minh thủ công Settings token/source picker, per-source/merge UI, numeric rating editor hoặc Rate tab sau vote và không tạo screenshot giả. Cần build APK, push CI xanh, rồi chờ ảnh thiết bị thật theo checklist Phase 9.

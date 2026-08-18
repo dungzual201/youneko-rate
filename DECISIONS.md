@@ -265,3 +265,24 @@ Full verification local ngày 2026-08-18: `:app:assembleDebug`, `:app:testDebugU
 | BUG-0017 | Credits album chỉ đọc release-scope, khiến track credits không xuất hiện khi xem toàn album. | Thêm DAO union album credits + credits của mọi track thuộc album; track route vẫn filter theo trackId. | Phase6CreditsTest và compile PASS |
 | BUG-0018 | Cover lookup lấy candidate đầu tiên theo text, có thể sai album trùng tên. | Thêm CoverMatch title/artist/metadata scoring, loại ứng viên không đạt và chỉ chọn ảnh lớn nhất trong tập hợp hợp lệ. | CoverArtTest match regression PASS |
 | BUG-0019 | Cover source/manual provenance mất khi import session đi qua WorkManager. | Serialize `coverSource` trong ImportSelection, truyền vào AlbumDraft cùng coverUpdatedAt và đánh dấu Manual khi chọn thiết bị/URL. | Compile/KSP PASS; cần ảnh thiết bị |
+
+
+## Quyết định hotfix Credit Source Picker và Phase 9 — 2026-08-18
+
+| Mã | Quyết định | Lý do và tác động | Trạng thái |
+|---|---|---|---|
+| D-0076 | Chuẩn hóa provider credits qua `CreditSource` multibinding và `SourceResult` typed state (`Success`, `Empty`, `NeedsToken`, `Offline`, `RateLimited`, `NoMatch`, `Error`). | `NeedsToken`/offline/rate-limit không còn bị biến thành list rỗng; UI có thể giải thích đúng nguyên nhân và Hilt luôn nhận đủ sáu source: file tags, MusicBrainz, Discogs, Genius, Deezer, iTunes. | Đã triển khai; focused tests và compile PASS |
+| D-0077 | Cache credits dùng key chứa scope + external id + provider + enabled-source hash + provider version. | Đổi tập nguồn đang bật hoặc đổi implementation không được đọc nhầm cache cũ; mỗi provider vẫn giữ TTL, limiter và failure boundary riêng. | Đã triển khai; cache regression PASS |
+| D-0078 | Source picker lưu active set, priority order và merge mode trong DataStore; fetch các source active bằng `supervisorScope` với coroutine riêng. | Người dùng có thể bật/tắt nguồn và xem riêng hoặc gộp; lỗi một nguồn không hủy nguồn còn lại, source trên cùng thắng khi merge. | Đã triển khai; compile PASS; cần manual device verification |
+| D-0079 | Discogs/Genius token tiếp tục lưu qua AES-GCM Android Keystore; Settings che token, có nút kiểm tra status và không log credential. | Token không xuất hiện trong UI/log/backup; người dùng nhận status HTTP rõ ràng và link hướng dẫn tạo token. | Đã triển khai; compile PASS |
+| D-0080 | URL/MBID credits thủ công được parse, lưu trong Room `external_links` và truyền thành manual release/song id trước search tự động. | Người dùng có thể chọn đúng release/song khi search không đủ; schema migration 10→11 bảo toàn dữ liệu cũ và manual link không bị tự động thay thế. | Đã triển khai; parser regression PASS |
+| D-0081 | RatingScale hỗ trợ 5 sao, 10 điểm và 100 điểm nhưng lưu canonical value theo 5 sao để tương thích dữ liệu cũ. | Thay đổi thang hiển thị không làm mất rating; album score vẫn dùng cùng `CalculateAlbumScoreUseCase` và weighted/manual override hiện có. | Đã triển khai; rating-scale regression PASS |
+| D-0082 | Rate tab hiển thị toàn bộ album trong Room Flow thay vì loại ngay album vừa đủ số bài đã vote; thêm `distinctUntilChanged()` cho nguồn album. | Vote không làm item biến mất khỏi danh sách; trạng thái score/rated count cập nhật tại chỗ và người dùng vẫn có thể mở album để sửa. | Đã triển khai; compile PASS; cần manual device verification |
+
+| Mã | Bug và nguyên nhân gốc | Cách sửa | Test bảo vệ |
+|---|---|---|---|
+| BUG-0020 | Credits UI chỉ nhận kết quả MusicBrainz vì provider phụ bị quy về list rỗng hoặc không được đăng ký đủ vào Hilt Set. | Dùng `SourceResult`, đăng ký đủ sáu adapter, render per-source state/chip và merge sau khi từng source hoàn tất. | `Phase9SourcePickerTest`, compile/KSP và focused credits tests PASS |
+| BUG-0021 | Cache credits không phân biệt tập nguồn đang bật nên có thể trả dữ liệu stale sau khi đổi source picker. | Thêm enabled-source hash/provider version vào cache key và cập nhật fixture cache regression. | `Phase6CreditsTest.cacheWithinThirtyDaysReturnsWithoutRecordingRequest`, focused tests PASS |
+| BUG-0022 | Rate tab lọc album đã đủ số vote ra khỏi danh sách, tạo cảm giác item bị mất ngay sau khi chấm. | RateScreen render toàn bộ `state.albums`; Room Flow vẫn cung cấp score/ratedCount mới. | Code regression và compile PASS; cần xác nhận trên thiết bị thật |
+
+Không thêm playback, preview audio, MediaPlayer, ExoPlayer, Media3, MediaSession hay AudioTrack. Audio vẫn chỉ dùng MediaExtractor + MediaCodec decode PCM cho phân tích.
