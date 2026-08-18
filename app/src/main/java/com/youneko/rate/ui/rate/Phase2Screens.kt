@@ -98,6 +98,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -110,6 +111,7 @@ import com.youneko.rate.data.local.entity.AlbumEntity
 import com.youneko.rate.data.local.entity.TrackEntity
 import com.youneko.rate.ui.artwork.CoverArtImage
 import com.youneko.rate.domain.usecase.ScoreMode
+import com.youneko.rate.domain.usecase.RatingScale
 import com.youneko.rate.ui.musicbrainz.MusicBrainzSearchPanel
 import com.youneko.rate.ui.musicbrainz.MusicBrainzSearchViewModel
 import kotlinx.coroutines.delay
@@ -318,12 +320,12 @@ fun RateScreen(onAddAlbum: () -> Unit, onImportTags: () -> Unit, onOpenAlbum: (S
         Spacer(Modifier.height(20.dp))
         Text(stringResource(R.string.albums_in_progress), style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(8.dp))
-        val inProgress = state.albums.filter { it.tracks.isNotEmpty() && it.score?.ratedCount != it.tracks.size }
-        if (inProgress.isEmpty()) {
+        val rateItems = state.albums
+        if (rateItems.isEmpty()) {
             EmptyLibrary(onAddAlbum, hasQuery = false)
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(inProgress, key = { it.album.id }) { item -> AlbumListRow(item, onOpenAlbum) }
+                items(rateItems, key = { it.album.id }) { item -> AlbumListRow(item, onOpenAlbum) }
             }
         }
     }
@@ -489,6 +491,7 @@ fun AlbumDetailScreen(
     var menuExpanded by rememberSaveable { mutableStateOf(false) }
     val snackbarHost = remember { SnackbarHostState() }
     val refreshResult by viewModel.refreshResult.collectAsStateWithLifecycle()
+    val ratingScale by viewModel.ratingScale.collectAsStateWithLifecycle()
     Scaffold(snackbarHost = { SnackbarHost(snackbarHost) }) { padding ->
         when (state) {
             AlbumDetailUiState.Loading -> Column(Modifier.fillMaxSize().padding(padding), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) { Text(stringResource(R.string.error_generic)) }
@@ -557,6 +560,7 @@ fun AlbumDetailScreen(
                     TrackRow(
                         track = track,
                         onChanged = viewModel::updateTrack,
+                        ratingScale = ratingScale,
                         onViewCredits = { onViewCredits(value.album.id, track.id, value.album.mbid) },
                         onAnalyzeTrack = { onAnalyzeTrack(track.id) },
                     )
@@ -637,6 +641,7 @@ private fun CoverArtFullscreenDialog(model: Any, onDismiss: () -> Unit) {
 private fun TrackRow(
     track: TrackEntity,
     onChanged: (TrackEntity) -> Unit,
+    ratingScale: RatingScale = RatingScale.FIVE_STARS,
     onViewCredits: () -> Unit = {},
     onAnalyzeTrack: () -> Unit = {},
 ) {
@@ -663,7 +668,18 @@ private fun TrackRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text("${track.trackNumber ?: "•"}. ${track.title}", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, maxLines = 3, overflow = TextOverflow.Ellipsis)
-            StarRatingBar(track.stars, { onChanged(track.copy(stars = it)) }, { onChanged(track.copy(stars = null)) }, step = 0.5)
+            if (ratingScale == RatingScale.FIVE_STARS) {
+                StarRatingBar(track.stars, { onChanged(track.copy(stars = it)) }, { onChanged(track.copy(stars = null)) }, step = 0.5)
+            } else {
+                OutlinedTextField(
+                    value = ratingScale.fromStars(track.stars)?.format2().orEmpty(),
+                    onValueChange = { value -> onChanged(track.copy(stars = ratingScale.toStars(value.toDoubleOrNull()?.coerceIn(0.0, ratingScale.max.toDouble())))) },
+                    label = { Text(ratingScale.label) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true,
+                    modifier = Modifier.width(112.dp),
+                )
+            }
             IconButton(onClick = { actionsOpen = true }) {
                 Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.track_actions))
             }
@@ -731,6 +747,7 @@ class StandaloneViewModel @javax.inject.Inject constructor(
 @Composable
 fun SettingsScreen(viewModel: ScoreSettingsViewModel = hiltViewModel()) {
     val mode by viewModel.scoreMode.collectAsStateWithLifecycle()
+    val ratingScale by viewModel.ratingScale.collectAsStateWithLifecycle()
     val offlineOnly by viewModel.offlineOnly.collectAsStateWithLifecycle()
     val dynamicColor by viewModel.dynamicColor.collectAsStateWithLifecycle()
     val discogsEnabled by viewModel.discogsEnabled.collectAsStateWithLifecycle()
@@ -740,6 +757,10 @@ fun SettingsScreen(viewModel: ScoreSettingsViewModel = hiltViewModel()) {
     val geniusEnabled by viewModel.geniusEnabled.collectAsStateWithLifecycle()
     val geniusToken by viewModel.geniusToken.collectAsStateWithLifecycle()
     val showCreditSources by viewModel.showCreditSources.collectAsStateWithLifecycle()
+    val creditSourceOrder by viewModel.creditSourceOrder.collectAsStateWithLifecycle()
+    val activeCreditSources by viewModel.activeCreditSources.collectAsStateWithLifecycle()
+    val creditsMergeMode by viewModel.creditsMergeMode.collectAsStateWithLifecycle()
+    val tokenTestResult by viewModel.tokenTestResult.collectAsStateWithLifecycle()
     val applicationLanguage = AppCompatDelegate.getApplicationLocales().toLanguageTags()
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(stringResource(R.string.language), style = MaterialTheme.typography.titleLarge)
@@ -769,6 +790,10 @@ fun SettingsScreen(viewModel: ScoreSettingsViewModel = hiltViewModel()) {
             onClick = { viewModel.setScoreMode(ScoreMode.WEIGHTED_BY_DURATION) },
             label = { Text(stringResource(R.string.weighted_average)) },
         )
+        Text(stringResource(R.string.rating_scale), style = MaterialTheme.typography.titleMedium)
+        com.youneko.rate.domain.usecase.RatingScale.entries.forEach { scale ->
+            FilterChip(selected = ratingScale == scale, onClick = { viewModel.setRatingScale(scale) }, label = { Text(scale.label) })
+        }
         FilterChip(
             selected = dynamicColor,
             onClick = { viewModel.setDynamicColor(!dynamicColor) },
@@ -791,9 +816,13 @@ fun SettingsScreen(viewModel: ScoreSettingsViewModel = hiltViewModel()) {
             value = discogsToken,
             onValueChange = viewModel::setDiscogsToken,
             label = { Text(stringResource(R.string.provider_api_key)) },
+            visualTransformation = PasswordVisualTransformation(),
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
+        Text(stringResource(R.string.credits_token_help_discogs), style = MaterialTheme.typography.bodySmall)
+        Button(onClick = { viewModel.testDiscogsToken(discogsToken) }, enabled = discogsToken.isNotBlank()) { Text(stringResource(R.string.credits_test_token)) }
+        tokenTestResult["discogs"]?.let { code -> Text(if (code == 200) stringResource(R.string.credits_token_valid) else stringResource(R.string.credits_token_invalid, code), color = if (code == 200) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error) }
         Text(stringResource(R.string.provider_lastfm), style = MaterialTheme.typography.titleMedium)
         FilterChip(
             selected = lastFmEnabled,
@@ -817,13 +846,37 @@ fun SettingsScreen(viewModel: ScoreSettingsViewModel = hiltViewModel()) {
             value = geniusToken,
             onValueChange = viewModel::setGeniusToken,
             label = { Text(stringResource(R.string.provider_api_key)) },
+            visualTransformation = PasswordVisualTransformation(),
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
+        Text(stringResource(R.string.credits_token_help_genius), style = MaterialTheme.typography.bodySmall)
+        Button(onClick = { viewModel.testGeniusToken(geniusToken) }, enabled = geniusToken.isNotBlank()) { Text(stringResource(R.string.credits_test_token)) }
+        tokenTestResult["genius"]?.let { code -> Text(if (code == 200) stringResource(R.string.credits_token_valid) else stringResource(R.string.credits_token_invalid, code), color = if (code == 200) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error) }
         FilterChip(
             selected = showCreditSources,
             onClick = { viewModel.setShowCreditSources(!showCreditSources) },
             label = { Text(stringResource(R.string.credits_show_sources)) },
+        )
+        HorizontalDivider()
+        Text(stringResource(R.string.credits_sources_settings), style = MaterialTheme.typography.titleLarge)
+        Text(stringResource(R.string.credits_source_order), style = MaterialTheme.typography.bodySmall)
+        creditSourceOrder.forEach { id ->
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                FilterChip(
+                    selected = id in activeCreditSources || id == com.youneko.rate.data.credits.CreditSourceId.FILE_TAG,
+                    onClick = { viewModel.setCreditSourceEnabled(id, id !in activeCreditSources) },
+                    label = { Text(id.displayName, maxLines = 3, overflow = TextOverflow.Ellipsis) },
+                )
+                Spacer(Modifier.weight(1f))
+                TextButton(onClick = { viewModel.moveCreditSource(id, -1) }) { Text(stringResource(R.string.credits_move_up)) }
+                TextButton(onClick = { viewModel.moveCreditSource(id, 1) }) { Text(stringResource(R.string.credits_move_down)) }
+            }
+        }
+        FilterChip(
+            selected = creditsMergeMode,
+            onClick = { viewModel.setCreditsMergeMode(!creditsMergeMode) },
+            label = { Text(stringResource(R.string.credits_view_merged)) },
         )
         TextButton(onClick = viewModel::clearMetadataCache) { Text(stringResource(R.string.metadata_cache_clear)) }
         Text(stringResource(R.string.settings_body), style = MaterialTheme.typography.bodyMedium)

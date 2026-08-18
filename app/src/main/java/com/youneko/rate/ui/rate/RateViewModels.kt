@@ -7,6 +7,9 @@ import com.youneko.rate.data.AlbumDraft
 import com.youneko.rate.data.AlbumRepository
 import com.youneko.rate.data.SettingsStore
 import com.youneko.rate.data.musicbrainz.AlbumMetadataRefreshService
+import com.youneko.rate.data.credits.CreditSourceId
+import com.youneko.rate.data.discogs.DiscogsCreditsService
+import com.youneko.rate.data.genius.GeniusCreditsService
 import com.youneko.rate.data.musicbrainz.CoverArtService
 import com.youneko.rate.data.musicbrainz.Resource
 import com.youneko.rate.data.TrackDraft
@@ -14,6 +17,7 @@ import com.youneko.rate.data.local.dao.RemoteMetadataCacheDao
 import com.youneko.rate.data.local.entity.AlbumEntity
 import com.youneko.rate.data.local.entity.TrackEntity
 import com.youneko.rate.domain.usecase.ScoreMode
+import com.youneko.rate.domain.usecase.RatingScale
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
@@ -68,7 +72,7 @@ class LibraryViewModel @Inject constructor(
     private val query = MutableStateFlow("")
     private val error = MutableStateFlow<String?>(null)
     private val scoreMode = settings.scoreMode.map { if (it == "WEIGHTED_BY_DURATION") ScoreMode.WEIGHTED_BY_DURATION else ScoreMode.SIMPLE }
-    private val rawAlbums = scoreMode.flatMapLatest { repository.observeAlbums(it) }
+    private val rawAlbums = scoreMode.flatMapLatest { repository.observeAlbums(it) }.distinctUntilChanged()
     private val searchIds = query
         .debounce(400)
         .distinctUntilChanged()
@@ -123,6 +127,7 @@ class AlbumDetailViewModel @Inject constructor(
     private var hasObservedContent = false
     private var exitEventSent = false
     private val scoreMode = settings.scoreMode.map { if (it == "WEIGHTED_BY_DURATION") ScoreMode.WEIGHTED_BY_DURATION else ScoreMode.SIMPLE }
+    val ratingScale: StateFlow<RatingScale> = settings.ratingScale.map(RatingScale::parse).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RatingScale.FIVE_STARS)
     private val albumData = scoreMode.flatMapLatest { repository.observeAlbum(albumId, it) }
     val releaseUrl: StateFlow<String?> = albumData
         .map { value -> value?.album?.mbid?.let { "https://musicbrainz.org/release/$it" } }
@@ -271,10 +276,13 @@ class AlbumEditorViewModel @Inject constructor(
 class ScoreSettingsViewModel @Inject constructor(
     private val settings: SettingsStore,
     private val remoteMetadataCacheDao: RemoteMetadataCacheDao,
+    private val discogsService: DiscogsCreditsService,
+    private val geniusService: GeniusCreditsService,
 ) : ViewModel() {
     val offlineOnly = settings.offlineOnly.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
     val dynamicColor: StateFlow<Boolean> = settings.dynamicColor
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+    val ratingScale: StateFlow<RatingScale> = settings.ratingScale.map(RatingScale::parse).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RatingScale.FIVE_STARS)
     val scoreMode: StateFlow<ScoreMode> = settings.scoreMode
         .map { if (it == "WEIGHTED_BY_DURATION") ScoreMode.WEIGHTED_BY_DURATION else ScoreMode.SIMPLE }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ScoreMode.SIMPLE)
@@ -285,7 +293,13 @@ class ScoreSettingsViewModel @Inject constructor(
     val geniusEnabled = settings.geniusEnabled.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
     val geniusToken = settings.geniusToken.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
     val showCreditSources = settings.showCreditSources.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+    val creditSourceOrder = settings.creditSourceOrder.map(CreditSourceId::parse).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), CreditSourceId.defaultOrder)
+    val activeCreditSources = settings.activeCreditSources.map { CreditSourceId.parse(it).toSet() }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), setOf(CreditSourceId.FILE_TAG, CreditSourceId.MUSICBRAINZ))
+    val creditsMergeMode = settings.creditsMergeMode.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+    private val _tokenTestResult = MutableStateFlow<Map<String, Int>>(emptyMap())
+    val tokenTestResult: StateFlow<Map<String, Int>> = _tokenTestResult.asStateFlow()
 
+    fun setRatingScale(scale: RatingScale) = viewModelScope.launch(Dispatchers.IO) { settings.setRatingScale(scale.name) }
     fun setScoreMode(mode: ScoreMode) = viewModelScope.launch(Dispatchers.IO) {
         settings.setScoreMode(mode.name)
     }
@@ -303,5 +317,20 @@ class ScoreSettingsViewModel @Inject constructor(
     fun setGeniusEnabled(enabled: Boolean) = viewModelScope.launch(Dispatchers.IO) { settings.setGeniusEnabled(enabled) }
     fun setGeniusToken(token: String) = viewModelScope.launch(Dispatchers.IO) { settings.setGeniusToken(token) }
     fun setShowCreditSources(enabled: Boolean) = viewModelScope.launch(Dispatchers.IO) { settings.setShowCreditSources(enabled) }
+    fun setCreditSourceEnabled(id: CreditSourceId, enabled: Boolean) = viewModelScope.launch(Dispatchers.IO) {
+        val next = activeCreditSources.value.toMutableSet().apply { if (enabled) add(id) else remove(id) }
+        if (id == CreditSourceId.FILE_TAG) next.add(id)
+        settings.setActiveCreditSources(CreditSourceId.encode(next))
+        if (id == CreditSourceId.DISCOGS) settings.setDiscogsEnabled(enabled)
+        if (id == CreditSourceId.GENIUS) settings.setGeniusEnabled(enabled)
+    }
+    fun moveCreditSource(id: CreditSourceId, direction: Int) = viewModelScope.launch(Dispatchers.IO) {
+        val values = creditSourceOrder.value.toMutableList()
+        val index = values.indexOf(id); val target = (index + direction).coerceIn(0, values.lastIndex)
+        if (index >= 0 && index != target) { val item = values.removeAt(index); values.add(target, item); settings.setCreditSourceOrder(CreditSourceId.encode(values)) }
+    }
+    fun setCreditsMergeMode(enabled: Boolean) = viewModelScope.launch(Dispatchers.IO) { settings.setCreditsMergeMode(enabled) }
+    fun testDiscogsToken(token: String) = viewModelScope.launch(Dispatchers.IO) { _tokenTestResult.value = _tokenTestResult.value + ("discogs" to discogsService.testToken(token)) }
+    fun testGeniusToken(token: String) = viewModelScope.launch(Dispatchers.IO) { _tokenTestResult.value = _tokenTestResult.value + ("genius" to geniusService.testToken(token)) }
     fun clearMetadataCache() = viewModelScope.launch(Dispatchers.IO) { remoteMetadataCacheDao.deleteAll() }
 }
