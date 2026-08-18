@@ -10,6 +10,9 @@
         android:supportsRtl="true"
         android:localeConfig="@xml/locales_config"
         android:theme="@style/Theme.YounekoRate">
+        <receiver
+            android:name=".data.audio.AudioAnalysisCancelReceiver"
+            android:exported="false" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

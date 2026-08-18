@@ -16,11 +16,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -29,9 +33,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -42,6 +48,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -63,6 +70,47 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.serialization.json.Json
 
+enum class AnalyzeStep(val labelVi: String) {
+    READING_HEADER("Đang đọc thông tin file…"),
+    DECODING("Đang giải mã âm thanh…"),
+    FFT("Đang phân tích phổ tần (FFT)…"),
+    COMPUTING("Đang tính toán chỉ số…"),
+    SAVING("Đang lưu kết quả…"),
+}
+
+sealed interface AnalyzeUiState {
+    data object Idle : AnalyzeUiState
+    data class Running(
+        val currentFileName: String,
+        val currentIndex: Int,
+        val totalFiles: Int,
+        val step: AnalyzeStep,
+        val stepProgress: Float,
+        val elapsedMs: Long,
+    ) : AnalyzeUiState
+    data class Failed(val fileName: String, val reason: String) : AnalyzeUiState
+}
+
+private fun WorkInfo?.toAnalyzeUiState(): AnalyzeUiState {
+    if (this == null) return AnalyzeUiState.Idle
+    val active = state == WorkInfo.State.RUNNING || state == WorkInfo.State.ENQUEUED
+    if (!active) {
+        return if (state == WorkInfo.State.FAILED) AnalyzeUiState.Failed(
+            progress.getString(AudioAnalysisWorker.KEY_FILE_NAME).orEmpty(),
+            progress.getString(AudioAnalysisWorker.KEY_ERROR).orEmpty().ifBlank { "Không thể phân tích file." },
+        ) else AnalyzeUiState.Idle
+    }
+    val step = AnalyzeStep.entries.getOrElse(progress.getInt(AudioAnalysisWorker.KEY_STEP, 0)) { AnalyzeStep.READING_HEADER }
+    return AnalyzeUiState.Running(
+        progress.getString(AudioAnalysisWorker.KEY_FILE_NAME).orEmpty().ifBlank { "audio" },
+        progress.getInt(AudioAnalysisWorker.KEY_FILE_INDEX, 1),
+        progress.getInt(AudioAnalysisWorker.KEY_TOTAL_FILES, 1).coerceAtLeast(1),
+        step,
+        progress.getFloat(AudioAnalysisWorker.KEY_STEP_PROGRESS, -1f),
+        0L,
+    )
+}
+
 @HiltViewModel
 class AudioAnalysisViewModel @Inject constructor(
     @ApplicationContext context: android.content.Context,
@@ -70,21 +118,23 @@ class AudioAnalysisViewModel @Inject constructor(
 ) : ViewModel() {
     private val workManager = WorkManager.getInstance(context)
     val analyses = dao.observeAll().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-    val workInfos = workManager.getWorkInfosForUniqueWorkFlow(UNIQUE_WORK).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val workInfos = workManager.getWorkInfosForUniqueWorkFlow(AudioAnalysisWorker.UNIQUE_WORK).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun enqueue(uri: String) {
+        val fileName = Uri.parse(uri).lastPathSegment.orEmpty().substringAfterLast('/').ifBlank { "audio" }
         val request = OneTimeWorkRequestBuilder<AudioAnalysisWorker>()
-            .setInputData(workDataOf(AudioAnalysisWorker.KEY_URI to uri))
+            .setInputData(workDataOf(
+                AudioAnalysisWorker.KEY_URI to uri,
+                AudioAnalysisWorker.KEY_FILE_NAME to fileName,
+                AudioAnalysisWorker.KEY_FILE_INDEX to 1,
+                AudioAnalysisWorker.KEY_TOTAL_FILES to 1,
+            ))
             .setBackoffCriteria(androidx.work.BackoffPolicy.EXPONENTIAL, 10, TimeUnit.SECONDS)
             .build()
-        workManager.enqueueUniqueWork(UNIQUE_WORK, ExistingWorkPolicy.REPLACE, request)
+        workManager.enqueueUniqueWork(AudioAnalysisWorker.UNIQUE_WORK, ExistingWorkPolicy.REPLACE, request)
     }
 
-    fun cancel() = workManager.cancelUniqueWork(UNIQUE_WORK)
-
-    companion object {
-        private const val UNIQUE_WORK = "audio-quality-analysis"
-    }
+    fun cancel() = workManager.cancelUniqueWork(AudioAnalysisWorker.UNIQUE_WORK)
 }
 
 @Composable
@@ -99,22 +149,40 @@ fun AudioAnalysisScreen(viewModel: AudioAnalysisViewModel = hiltViewModel()) {
         viewModel.enqueue(uri.toString())
     }
     val latest = analyses.firstOrNull()
-    val work = workInfos.firstOrNull()
-    Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Text(stringResource(R.string.analyze), style = MaterialTheme.typography.headlineSmall)
-        Text(stringResource(R.string.audio_quality_phase8_body), style = MaterialTheme.typography.bodyMedium)
-        Button(onClick = { picker.launch(arrayOf("audio/*")) }) { Text(stringResource(R.string.audio_analysis_choose_file)) }
-        if (work?.state == WorkInfo.State.RUNNING || work?.state == WorkInfo.State.ENQUEUED) {
-            LinearProgressIndicator(Modifier.fillMaxWidth())
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                TextButton(onClick = viewModel::cancel) { Text(stringResource(R.string.audio_analysis_cancel)) }
-            }
+    val analyzeState = workInfos.firstOrNull().toAnalyzeUiState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    var hadRunning by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(analyzeState) {
+        if (analyzeState is AnalyzeUiState.Running) hadRunning = true
+        if (hadRunning && analyzeState is AnalyzeUiState.Idle) {
+            snackbarHostState.showSnackbar("Đã huỷ phân tích")
+            hadRunning = false
         }
-        latest?.let { AnalysisCard(it, onExplain = { explain = true }) }
-            ?: Text(stringResource(R.string.audio_analysis_empty), style = MaterialTheme.typography.bodyLarge)
+    }
+    Box(Modifier.fillMaxSize()) {
+        Column(
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(stringResource(R.string.analyze), style = MaterialTheme.typography.headlineSmall)
+            Text(stringResource(R.string.audio_quality_phase8_body), style = MaterialTheme.typography.bodyMedium)
+            Button(enabled = analyzeState !is AnalyzeUiState.Running, onClick = { picker.launch(arrayOf("audio/*")) }) {
+                Text(stringResource(R.string.audio_analysis_choose_file))
+            }
+            when (val state = analyzeState) {
+                is AnalyzeUiState.Running -> AnalyzeRunningCard(state, viewModel::cancel)
+                is AnalyzeUiState.Failed -> Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(state.fileName, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Text(state.reason, color = MaterialTheme.colorScheme.error)
+                    }
+                }
+                else -> Unit
+            }
+            latest?.let { AnalysisCard(it, onExplain = { explain = true }) }
+                ?: Text(stringResource(R.string.audio_analysis_empty), style = MaterialTheme.typography.bodyLarge)
+        }
+        SnackbarHost(snackbarHostState, Modifier.align(Alignment.BottomCenter))
     }
     if (explain) {
         AlertDialog(
@@ -124,6 +192,33 @@ fun AudioAnalysisScreen(viewModel: AudioAnalysisViewModel = hiltViewModel()) {
             confirmButton = { TextButton(onClick = { explain = false }) { Text(stringResource(R.string.close)) } },
         )
     }
+}
+
+@Composable
+private fun AnalyzeRunningCard(state: AnalyzeUiState.Running, onCancel: () -> Unit) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Đang phân tích (${state.currentIndex}/${state.totalFiles})", style = MaterialTheme.typography.titleMedium)
+            Text(displayFileName(state.currentFileName), maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(state.step.labelVi, Modifier.animateContentSize())
+            if (state.stepProgress in 0f..1f) {
+                LinearProgressIndicator(progress = { state.stepProgress }, Modifier.fillMaxWidth())
+                Text("${(state.stepProgress * 100).toInt()}%", style = MaterialTheme.typography.labelSmall)
+            } else {
+                LinearProgressIndicator(Modifier.fillMaxWidth())
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = onCancel) { Text(stringResource(R.string.audio_analysis_cancel)) }
+            }
+        }
+    }
+}
+
+private fun displayFileName(value: String): String {
+    if (value.length <= 72) return value
+    val extension = value.substringAfterLast('.', "").takeIf { it.isNotBlank() }?.let { ".$it" }.orEmpty()
+    val prefixLength = ((72 - extension.length - 1) / 2).coerceAtLeast(12)
+    return value.take(prefixLength) + "…" + value.takeLast((72 - prefixLength - 1).coerceAtLeast(extension.length))
 }
 
 @Composable
