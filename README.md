@@ -108,3 +108,10 @@ Các lệnh kiểm chứng phase 2:
 ```
 
 `testDebugUnitTest` bao phủ usecase tính điểm; `RateDaoTest` trong `androidTest` bao phủ Room FTS4 search và cascade delete. Connected Android tests cần emulator/device Android phù hợp nên CI debug workflow hiện vẫn chạy unit tests và compile AndroidTest source; không giả định có emulator trong sandbox.
+
+
+## Giai đoạn 3 — Local tag import
+
+Tab Analyze hiện cho phép chọn một hoặc nhiều file nhạc bằng SAF hoặc chọn cả thư mục. Preview hiển thị nhóm album theo artist/album/year, sắp xếp nhiều disc, tách bài lẻ khi thiếu ALBUM, cho bỏ chọn track, sửa title/artist, chọn cover và quyết định merge album trùng. Worker đọc tags bằng jaudiotagger trên IO, lưu metadata và cover local qua Room/app storage, báo progress và có thể cancel; audio không được upload, stream hoặc decode ở giai đoạn này.
+
+Dedupe chuẩn hóa Unicode/diacritics và giữ nguyên stars, review, highlight, skip của người dùng khi metadata trùng được import lại. Kiểm chứng Phase 3 gồm `clean assembleDebug`, `testDebugUnitTest`, compile AndroidTest và CI Android Build; connected instrumentation vẫn cần emulator/device thật.
