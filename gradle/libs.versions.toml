@@ -27,6 +27,7 @@ androidxTestRunner = "1.7.0"
 androidxTestCore = "1.6.1"
 robolectric = "4.14.1"
 coil = "2.7.0"
+jtransforms = "3.1"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
@@ -73,6 +74,7 @@ androidx-test-runner = { module = "androidx.test:runner", version.ref = "android
 androidx-test-core = { module = "androidx.test:core", version.ref = "androidxTestCore" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 coil-compose = { module = "io.coil-kt:coil-compose", version.ref = "coil" }
+jtransforms = { module = "com.github.wendykierp:JTransforms", version.ref = "jtransforms" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
