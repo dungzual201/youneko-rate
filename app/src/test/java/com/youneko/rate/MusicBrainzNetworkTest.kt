@@ -217,6 +217,7 @@ class MusicBrainzNetworkTest {
     private class FakeSettingsStore : SettingsStore {
         override val offlineOnly = flowOf(false)
         override val ratingStep = flowOf(0.5)
+        override val ratingScale = flowOf("FIVE_STARS")
         override val scoreMode = flowOf("SIMPLE")
         override val gridView = flowOf(true)
         override val dynamicColor = flowOf(false)
@@ -229,8 +230,12 @@ class MusicBrainzNetworkTest {
         override val geniusEnabled = flowOf(false)
         override val geniusToken = flowOf("")
         override val showCreditSources = flowOf(false)
+        override val creditSourceOrder = flowOf("FILE_TAG,MUSICBRAINZ,DISCOGS,GENIUS,DEEZER,ITUNES")
+        override val activeCreditSources = flowOf("FILE_TAG,MUSICBRAINZ")
+        override val creditsMergeMode = flowOf(false)
         override suspend fun setOfflineOnly(value: Boolean) = Unit
         override suspend fun setRatingStep(value: Double) = Unit
+        override suspend fun setRatingScale(value: String) = Unit
         override suspend fun setScoreMode(value: String) = Unit
         override suspend fun setGridView(value: Boolean) = Unit
         override suspend fun setDynamicColor(value: Boolean) = Unit
@@ -243,5 +248,8 @@ class MusicBrainzNetworkTest {
         override suspend fun setGeniusEnabled(value: Boolean) = Unit
         override suspend fun setGeniusToken(value: String) = Unit
         override suspend fun setShowCreditSources(value: Boolean) = Unit
+        override suspend fun setCreditSourceOrder(value: String) = Unit
+        override suspend fun setActiveCreditSources(value: String) = Unit
+        override suspend fun setCreditsMergeMode(value: Boolean) = Unit
     }
 }

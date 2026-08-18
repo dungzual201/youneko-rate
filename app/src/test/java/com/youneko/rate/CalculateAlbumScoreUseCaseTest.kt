@@ -3,6 +3,7 @@ package com.youneko.rate
 import com.youneko.rate.domain.usecase.CalculateAlbumScoreUseCase
 import com.youneko.rate.domain.usecase.ScoreMode
 import com.youneko.rate.domain.usecase.TrackScoreInput
+import com.youneko.rate.domain.usecase.RatingScale
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -60,6 +61,13 @@ class CalculateAlbumScoreUseCaseTest {
         val result = calculate(listOf(TrackScoreInput(4.0, null), TrackScoreInput(4.25, null)))
         assertEquals(4.13, result?.average ?: 0.0, 0.0)
         assertEquals("4.13", result?.displayAverage)
+    }
+
+    @Test fun ratingScaleConvertsLegacyFiveStarsWithoutDataLoss() {
+        assertEquals(10.0, RatingScale.TEN_POINT.fromStars(5.0) ?: 0.0, 0.0)
+        assertEquals(100.0, RatingScale.HUNDRED_POINT.fromStars(5.0) ?: 0.0, 0.0)
+        assertEquals(3.5, RatingScale.TEN_POINT.toStars(7.0) ?: 0.0, 0.0)
+        assertEquals(3.5, RatingScale.HUNDRED_POINT.toStars(70.0) ?: 0.0, 0.0)
     }
 
     @Test fun oneTrackAlbumWorks() {

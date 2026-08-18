@@ -82,6 +82,7 @@ class AlbumNavigationHotfixTest {
 private class FakeSettingsStore : SettingsStore {
     override val offlineOnly = MutableStateFlow(false)
     override val ratingStep = MutableStateFlow(0.5)
+    override val ratingScale = MutableStateFlow("FIVE_STARS")
     override val scoreMode = MutableStateFlow("SIMPLE")
     override val gridView = MutableStateFlow(true)
     override val dynamicColor = MutableStateFlow(false)
@@ -94,8 +95,12 @@ private class FakeSettingsStore : SettingsStore {
     override val geniusEnabled = MutableStateFlow(false)
     override val geniusToken = MutableStateFlow("")
     override val showCreditSources = MutableStateFlow(false)
+    override val creditSourceOrder = MutableStateFlow("FILE_TAG,MUSICBRAINZ,DISCOGS,GENIUS,DEEZER,ITUNES")
+    override val activeCreditSources = MutableStateFlow("FILE_TAG,MUSICBRAINZ")
+    override val creditsMergeMode = MutableStateFlow(false)
     override suspend fun setOfflineOnly(value: Boolean) { offlineOnly.value = value }
     override suspend fun setRatingStep(value: Double) { ratingStep.value = value }
+    override suspend fun setRatingScale(value: String) { ratingScale.value = value }
     override suspend fun setScoreMode(value: String) { scoreMode.value = value }
     override suspend fun setGridView(value: Boolean) { gridView.value = value }
     override suspend fun setDynamicColor(value: Boolean) { dynamicColor.value = value }
@@ -108,6 +113,9 @@ private class FakeSettingsStore : SettingsStore {
     override suspend fun setGeniusEnabled(value: Boolean) { geniusEnabled.value = value }
     override suspend fun setGeniusToken(value: String) { geniusToken.value = value }
     override suspend fun setShowCreditSources(value: Boolean) { showCreditSources.value = value }
+    override suspend fun setCreditSourceOrder(value: String) { creditSourceOrder.value = value }
+    override suspend fun setActiveCreditSources(value: String) { activeCreditSources.value = value }
+    override suspend fun setCreditsMergeMode(value: Boolean) { creditsMergeMode.value = value }
 }
 
 private class FakeAlbumRepository(private val saveResult: String = "id") : AlbumRepository {

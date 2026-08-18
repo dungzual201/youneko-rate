@@ -214,8 +214,8 @@ class Phase6CreditsTest {
     fun cacheWithinThirtyDaysReturnsWithoutRecordingRequest() = runBlocking {
         val now = System.currentTimeMillis()
         val cache = FakeCacheDao()
-        cache.values["credits:v2:track:recording-1"] = RemoteMetadataCacheEntity(
-            key = "credits:v2:track:recording-1",
+        cache.values["credits:v3:track:recording-1:musicbrainz:default:provider-v3"] = RemoteMetadataCacheEntity(
+            key = "credits:v3:track:recording-1:musicbrainz:default:provider-v3",
             provider = "musicbrainz",
             jsonBody = "{\"values\":[{\"id\":\"credit-1\",\"albumId\":null,\"trackId\":\"track-1\",\"personName\":\"Cached Producer\",\"personMbid\":\"person-1\",\"role\":\"producer\",\"instrumentOrAttribute\":null,\"sourceProvider\":\"musicbrainz\",\"sourceUrl\":\"https://musicbrainz.org/artist/person-1\",\"sortOrder\":0}]}",
             fetchedAt = now - 1_000,
@@ -235,12 +235,12 @@ class Phase6CreditsTest {
     @Test
     fun expiredCacheIsIgnored() = runBlocking {
         val cache = FakeCacheDao()
-        cache.values["credits:v2:track:recording-1"] = RemoteMetadataCacheEntity(
-            key = "credits:v2:track:recording-1", provider = "musicbrainz", jsonBody = "{\"values\":[]}",
+        cache.values["credits:v3:track:recording-1:musicbrainz:default:provider-v3"] = RemoteMetadataCacheEntity(
+            key = "credits:v3:track:recording-1:musicbrainz:default:provider-v3", provider = "musicbrainz", jsonBody = "{\"values\":[]}",
             fetchedAt = 0L, expiresAt = 1L,
         )
         val service = MusicBrainzCreditsService(FakeApi(), FakeCreditDao(), cache, FakeTrackDao(), json)
-        assertNull(service.readCache("credits:v2:track:recording-1"))
+        assertNull(service.readCache("credits:v3:track:recording-1:musicbrainz:default:provider-v3"))
     }
 
     private fun album() = AlbumEntity("album-1", "Album", "artist-1", mbid = "release-1", createdAt = 0L, updatedAt = 0L)
