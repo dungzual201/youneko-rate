@@ -82,6 +82,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -95,6 +96,8 @@ import com.youneko.rate.data.LibraryAlbum
 import com.youneko.rate.data.local.entity.AlbumEntity
 import com.youneko.rate.data.local.entity.TrackEntity
 import com.youneko.rate.domain.usecase.ScoreMode
+import com.youneko.rate.ui.musicbrainz.MusicBrainzSearchPanel
+import com.youneko.rate.ui.musicbrainz.MusicBrainzSearchViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -107,7 +110,9 @@ fun LibraryScreen(
     viewModel: LibraryViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val onlineViewModel: MusicBrainzSearchViewModel = hiltViewModel()
     var showFilters by rememberSaveable { mutableStateOf(false) }
+    var onlineMode by rememberSaveable { mutableStateOf(false) }
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
@@ -115,7 +120,10 @@ fun LibraryScreen(
         ) {
             OutlinedTextField(
                 value = state.query,
-                onValueChange = viewModel::setQuery,
+                onValueChange = { query ->
+                    viewModel.setQuery(query)
+                    if (onlineMode) onlineViewModel.setQuery(query)
+                },
                 modifier = Modifier.weight(1f),
                 singleLine = true,
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
@@ -132,8 +140,12 @@ fun LibraryScreen(
                 )
             }
         }
+        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(selected = !onlineMode, onClick = { onlineMode = false }, label = { Text(stringResource(R.string.local_search)) })
+            FilterChip(selected = onlineMode, onClick = { onlineMode = true; onlineViewModel.setQuery(state.query) }, label = { Text(stringResource(R.string.online_search)) })
+        }
         Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(stringResource(R.string.library_count, state.albums.size), style = MaterialTheme.typography.labelLarge)
+            Text(pluralStringResource(R.plurals.library_count, state.albums.size, state.albums.size), style = MaterialTheme.typography.labelLarge)
             Spacer(Modifier.weight(1f))
             SortMenu(state.sort, viewModel::setSort)
         }
@@ -154,6 +166,7 @@ fun LibraryScreen(
                 items(state.albums, key = { it.album.id }) { item -> AlbumListRow(item, onOpenAlbum) }
             }
         }
+        if (onlineMode) MusicBrainzSearchPanel(onlineViewModel)
     }
     if (showFilters) {
         ModalBottomSheet(onDismissRequest = { showFilters = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
@@ -212,7 +225,7 @@ private fun FilterSheet(
 @Composable
 private fun EmptyLibrary(onAdd: () -> Unit, hasQuery: Boolean) {
     Column(Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        Text("ฅ^•ﻌ•^ฅ", style = MaterialTheme.typography.displaySmall, color = MaterialTheme.colorScheme.primary)
+        Icon(Icons.Default.Pets, contentDescription = null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.primary)
         Text(stringResource(if (hasQuery) R.string.no_results else R.string.library_empty_title), style = MaterialTheme.typography.headlineSmall)
         Text(stringResource(if (hasQuery) R.string.no_results_hint else R.string.library_empty_body), modifier = Modifier.padding(vertical = 8.dp))
         Button(onClick = onAdd) { Icon(Icons.Default.Add, contentDescription = null); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.add_album)) }
@@ -265,13 +278,14 @@ private fun CoverPlaceholder(modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun RateScreen(onAddAlbum: () -> Unit, onOpenAlbum: (String) -> Unit, viewModel: LibraryViewModel = hiltViewModel()) {
+fun RateScreen(onAddAlbum: () -> Unit, onImportTags: () -> Unit, onOpenAlbum: (String) -> Unit, viewModel: LibraryViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var showStandalone by rememberSaveable { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = onAddAlbum) { Icon(Icons.Default.Add, contentDescription = null); Spacer(Modifier.width(6.dp)); Text(stringResource(R.string.add_album)) }
             OutlinedButton(onClick = { showStandalone = true }) { Text(stringResource(R.string.add_standalone)) }
+            OutlinedButton(onClick = onImportTags) { Text(stringResource(R.string.import_music)) }
         }
         Spacer(Modifier.height(20.dp))
         Text(stringResource(R.string.albums_in_progress), style = MaterialTheme.typography.headlineSmall)
@@ -295,6 +309,8 @@ private fun StandaloneDialog(onDismiss: () -> Unit) {
     var title by rememberSaveable { mutableStateOf("") }
     var artist by rememberSaveable { mutableStateOf("") }
     var error by rememberSaveable { mutableStateOf<String?>(null) }
+    val titleRequired = stringResource(R.string.validation_title)
+    val artistRequired = stringResource(R.string.validation_artist)
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.standalone_dialog)) },
@@ -307,7 +323,7 @@ private fun StandaloneDialog(onDismiss: () -> Unit) {
         },
         confirmButton = {
             TextButton(onClick = {
-                if (title.isBlank()) error = "Tên bài không được để trống" else if (artist.isBlank()) error = "Tên nghệ sĩ không được để trống" else {
+                if (title.isBlank()) error = titleRequired else if (artist.isBlank()) error = artistRequired else {
                     scope.launch {
                         repository.saveStandalone(title, artist, null)
                         onDismiss()

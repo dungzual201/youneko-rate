@@ -9,6 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.LibraryMusic
+import androidx.compose.material.icons.filled.Pets
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -24,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.size
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -64,10 +66,11 @@ fun YounekoNavHost() {
     val isSettings = currentDestination?.route == "settings"
     val isDetail = currentDestination?.route?.startsWith("album/") == true
     val isEditor = currentDestination?.route == "addAlbum"
+    val isImport = currentDestination?.route == "importTags"
 
     Scaffold(
         topBar = {
-            if (!isDetail && !isEditor) {
+            if (!isDetail && !isEditor && !isImport) {
                 TopAppBar(
                     title = { Text(if (isSettings) stringResource(R.string.settings) else stringResource(R.string.app_name)) },
                     actions = {
@@ -79,7 +82,7 @@ fun YounekoNavHost() {
             }
         },
         bottomBar = {
-            if (!isSettings && !isDetail && !isEditor) {
+            if (!isSettings && !isDetail && !isEditor && !isImport) {
                 NavigationBar {
                     destinations.forEach { destination ->
                         val selected = currentDestination?.hierarchy?.any { it.route == destination.route } == true
@@ -110,12 +113,14 @@ fun YounekoNavHost() {
             composable("rate") {
                 RateScreen(
                     onAddAlbum = { navController.navigate("addAlbum") },
+                    onImportTags = { navController.navigate("importTags") },
                     onOpenAlbum = { navController.navigate("album/$it") },
                 )
             }
-            composable("analyze") { ImportScreen(onDone = { navController.navigate("library") { popUpTo("analyze") { inclusive = true } } }) }
+            composable("analyze") { AudioQualityPlaceholder() }
             composable("stats") { PlaceholderScreen(R.string.stats, R.string.stats_empty_body, "▥  ▥  ▥") }
             composable("settings") { SettingsScreen() }
+            composable("importTags") { ImportScreen(onDone = { navController.popBackStack() }) }
             composable("addAlbum") {
                 AlbumEditorScreen(onSaved = { navController.navigate("album/$it") { popUpTo("library") } }, onCancel = { navController.popBackStack() })
             }
@@ -123,6 +128,15 @@ fun YounekoNavHost() {
                 AlbumDetailScreen(onBack = { navController.popBackStack() })
             }
         }
+    }
+}
+
+@Composable
+private fun AudioQualityPlaceholder() {
+    Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+        Icon(Icons.Default.Pets, contentDescription = null, modifier = Modifier.padding(12.dp).size(64.dp), tint = MaterialTheme.colorScheme.primary)
+        Text(stringResource(R.string.analyze), style = MaterialTheme.typography.headlineSmall)
+        Text(stringResource(R.string.audio_quality_phase8_body), modifier = Modifier.padding(horizontal = 24.dp), style = MaterialTheme.typography.bodyLarge)
     }
 }
 
