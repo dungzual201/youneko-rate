@@ -90,7 +90,7 @@ class ImportWorker(
                 if (group.isStandalone) {
                     tracks.forEach { track ->
                         runCatching {
-                            repository.saveStandalone(track.title, group.artist, track.listenedDate)
+                            repository.saveStandalone(track.title, group.artist, track.listenedDate, track.uri, track.fileName)
                         }.onSuccess { imported++ }
                             .onFailure { failures += "${track.fileName}: Không thể lưu bài" }
                     }
@@ -123,6 +123,8 @@ class ImportWorker(
                                             title = track.title,
                                             discNumber = track.discNumber ?: 1,
                                             durationMs = track.durationMs,
+                                            sourceUri = track.uri,
+                                            fileName = track.fileName,
                                         )
                                     },
                                 ),

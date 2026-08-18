@@ -138,6 +138,8 @@ data class MbRelation(
     @SerialName("target-type") val targetType: String? = null,
     @SerialName("target-credit") val targetCredit: String? = null,
     @SerialName("source-credit") val sourceCredit: String? = null,
+    val begin: String? = null,
+    val end: String? = null,
     val attributes: List<String> = emptyList(),
     @SerialName("attribute-values") val attributeValues: Map<String, String> = emptyMap(),
     @SerialName("attribute-ids") val attributeIds: Map<String, String> = emptyMap(),

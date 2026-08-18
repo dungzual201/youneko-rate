@@ -123,6 +123,8 @@ object ImportMergePolicy {
         discNumber = existing.discNumber ?: incoming.discNumber,
         durationMs = existing.durationMs ?: incoming.durationMs,
         listenedDate = existing.listenedDate ?: incoming.listenedDate,
+        sourceUri = existing.sourceUri ?: incoming.uri,
+        fileName = existing.fileName ?: incoming.fileName,
         stars = existing.stars,
         reviewText = existing.reviewText,
         isSkip = existing.isSkip,

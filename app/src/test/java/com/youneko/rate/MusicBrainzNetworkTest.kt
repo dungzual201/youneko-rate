@@ -204,6 +204,7 @@ class MusicBrainzNetworkTest {
         val entries = linkedMapOf<String, RemoteMetadataCacheEntity>()
         override suspend fun find(key: String) = entries[key]
         override suspend fun upsert(value: RemoteMetadataCacheEntity) { entries[value.key] = value }
+        override suspend fun deleteAll() { entries.clear() }
         override suspend fun delete(key: String) { entries.remove(key) }
     }
 
@@ -221,6 +222,10 @@ class MusicBrainzNetworkTest {
         override val dynamicColor = flowOf(false)
         override val sortOrder = flowOf("NEWEST")
         override val unfinishedOnly = flowOf(false)
+        override val discogsEnabled = flowOf(false)
+        override val discogsToken = flowOf("")
+        override val lastFmEnabled = flowOf(false)
+        override val lastFmApiKey = flowOf("")
         override suspend fun setOfflineOnly(value: Boolean) = Unit
         override suspend fun setRatingStep(value: Double) = Unit
         override suspend fun setScoreMode(value: String) = Unit
@@ -228,5 +233,9 @@ class MusicBrainzNetworkTest {
         override suspend fun setDynamicColor(value: Boolean) = Unit
         override suspend fun setSortOrder(value: String) = Unit
         override suspend fun setUnfinishedOnly(value: Boolean) = Unit
+        override suspend fun setDiscogsEnabled(value: Boolean) = Unit
+        override suspend fun setDiscogsToken(value: String) = Unit
+        override suspend fun setLastFmEnabled(value: Boolean) = Unit
+        override suspend fun setLastFmApiKey(value: String) = Unit
     }
 }

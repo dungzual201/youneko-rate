@@ -84,6 +84,8 @@ data class TrackEntity(
     val recordingMbid: String? = null,
     val workMbid: String? = null,
     val isrc: String? = null,
+    val sourceUri: String? = null,
+    val fileName: String? = null,
     val createdAt: Long,
     val updatedAt: Long,
 )
@@ -117,6 +119,8 @@ data class CreditEntity(
     val sourceProvider: String,
     val sourceUrl: String? = null,
     val sortOrder: Int = 0,
+    val beginDate: String? = null,
+    val endDate: String? = null,
 )
 
 @Entity(
@@ -154,10 +158,16 @@ data class AudioAnalysisEntity(
     val durationMs: Long? = null,
     val encoderTag: String? = null,
     val cutoffHz: Double? = null,
+    val rolloffSlope: Double? = null,
+    val dynamicRangeDb: Double? = null,
+    val truePeakDbtp: Double? = null,
+    val clippingPercent: Double? = null,
     val verdict: String = "KHÔNG XÁC ĐỊNH",
     val confidence: Int = 0,
     val reasonsJson: String = "[]",
+    val spectrumJson: String = "[]",
     val spectrogramPngPath: String? = null,
+    val engineVersion: String = "phase8-v1",
     val analyzedAt: Long,
 )
 

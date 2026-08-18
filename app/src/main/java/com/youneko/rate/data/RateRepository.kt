@@ -47,6 +47,8 @@ data class TrackDraft(
     val discNumber: Int = 1,
     val durationMs: Long? = null,
     val recordingMbid: String? = null,
+    val sourceUri: String? = null,
+    val fileName: String? = null,
     val id: String = UUID.randomUUID().toString(),
 )
 
@@ -63,7 +65,7 @@ interface AlbumRepository {
     suspend fun searchEntityIds(query: String): Set<String>
     suspend fun saveAlbum(draft: AlbumDraft): String
     suspend fun saveAlbumBatched(draft: AlbumDraft, batchSize: Int = 50): String
-    suspend fun saveStandalone(title: String, artistName: String, listenedDate: String?): String
+    suspend fun saveStandalone(title: String, artistName: String, listenedDate: String?, sourceUri: String? = null, fileName: String? = null): String
     suspend fun updateTrack(track: TrackEntity)
     suspend fun updateAlbum(album: AlbumEntity)
     suspend fun deleteAlbum(id: String)
@@ -163,6 +165,8 @@ class RateRepository @Inject constructor(
                 discNumber = item.discNumber,
                 durationMs = item.durationMs,
                 recordingMbid = item.recordingMbid,
+                sourceUri = item.sourceUri,
+                fileName = item.fileName,
                 createdAt = now,
                 updatedAt = now,
             )
@@ -217,6 +221,8 @@ class RateRepository @Inject constructor(
                 discNumber = item.discNumber,
                 durationMs = item.durationMs,
                 recordingMbid = item.recordingMbid,
+                sourceUri = item.sourceUri,
+                fileName = item.fileName,
                 createdAt = now,
                 updatedAt = now,
             )
@@ -279,7 +285,7 @@ class RateRepository @Inject constructor(
         }
     }
 
-    override suspend fun saveStandalone(title: String, artistName: String, listenedDate: String?): String {
+    override suspend fun saveStandalone(title: String, artistName: String, listenedDate: String?, sourceUri: String?, fileName: String?): String {
         require(title.isNotBlank()) { "Tên bài không được để trống" }
         val now = System.currentTimeMillis()
         val artist = artistDao.findByName(artistName.trim()) ?: ArtistEntity(
@@ -288,7 +294,7 @@ class RateRepository @Inject constructor(
         if (artistDao.findById(artist.id) == null) artistDao.insert(artist)
         val track = TrackEntity(
             id = UUID.randomUUID().toString(), title = title.trim(), isStandalone = true,
-            listenedDate = listenedDate, createdAt = now, updatedAt = now,
+            listenedDate = listenedDate, sourceUri = sourceUri, fileName = fileName, createdAt = now, updatedAt = now,
         )
         trackDao.insert(track)
         ftsDao.upsert(LibrarySearchFtsEntity(track.id, "track", "$title $artistName"))
@@ -350,6 +356,8 @@ class RateRepository @Inject constructor(
                 discNumber = track.discNumber,
                 durationMs = track.durationMs,
                 listenedDate = track.listenedDate,
+                sourceUri = track.uri,
+                fileName = track.fileName,
                 createdAt = now,
                 updatedAt = now,
             )

@@ -33,7 +33,7 @@ object AppModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): YounekoDatabase =
         Room.databaseBuilder(context, YounekoDatabase::class.java, "youneko_rate.db")
-            .addMigrations(YounekoDatabase.MIGRATION_1_2, YounekoDatabase.MIGRATION_2_3, YounekoDatabase.MIGRATION_3_4)
+            .addMigrations(YounekoDatabase.MIGRATION_1_2, YounekoDatabase.MIGRATION_2_3, YounekoDatabase.MIGRATION_3_4, YounekoDatabase.MIGRATION_4_5, YounekoDatabase.MIGRATION_5_6, YounekoDatabase.MIGRATION_6_7, YounekoDatabase.MIGRATION_7_8)
             .build()
 
     @Provides

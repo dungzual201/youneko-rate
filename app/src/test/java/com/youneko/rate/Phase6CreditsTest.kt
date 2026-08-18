@@ -90,6 +90,48 @@ class Phase6CreditsTest {
     }
 
     @Test
+    fun amortageRecordingRelationsLabelsAndWorkWritersAreAllMerged() = runBlocking {
+        val releaseFixture = javaClass.classLoader?.getResourceAsStream("fixtures/release_amortage.json")
+            ?.bufferedReader()?.use { it.readText() } ?: throw FileNotFoundException("release_amortage.json")
+        val workFixture = javaClass.classLoader?.getResourceAsStream("fixtures/work_earthquake.json")
+            ?.bufferedReader()?.use { it.readText() } ?: throw FileNotFoundException("work_earthquake.json")
+        val release = json.decodeFromString<MbRelease>(releaseFixture)
+        val work = json.decodeFromString<MbWork>(workFixture)
+        val recording = release.media.flatMap { it.tracks }.first { it.title == "earthquake" }.recording
+        requireNotNull(recording)
+        assertTrue(recording.relations.size >= 13)
+
+        val api = FakeApi().apply {
+            releaseResponse = release
+            workResponses[work.id] = work
+        }
+        val creditDao = FakeCreditDao()
+        val trackDao = FakeTrackDao(TrackEntity("earthquake-track", "album-1", "earthquake", recordingMbid = recording.id, createdAt = 0L, updatedAt = 0L))
+        val service = MusicBrainzCreditsService(api, creditDao, FakeCacheDao(), trackDao, json)
+        val result = service.loadAlbumCredits(amortageAlbum(), forceRefresh = true)
+        assertTrue(result is com.youneko.rate.data.musicbrainz.Resource.Success)
+
+        val trackCredits = creditDao.saved.last().filter { it.trackId == "earthquake-track" }
+        assertTrue("recording relations must be preserved", trackCredits.size >= 13)
+        assertTrue(trackCredits.any { it.personName == "Manny Marroquin" && it.role == "Mix" })
+        assertEquals(3, trackCredits.count { it.role == "Assistant mix" })
+        assertTrue(trackCredits.any { it.personName == "The Wavys" && it.role == "Producer" })
+        assertTrue(trackCredits.any { it.personName == "The Wavys" && it.role == "Programming" })
+        assertTrue(trackCredits.any { it.personName == "Sarah Troy" && it.role == "Background vocals" })
+        assertTrue(trackCredits.any { it.personName == "BLISSOO LIMITED" && it.role == "Phonographic copyright" && it.beginDate == "2025" && it.endDate == "2025" })
+        assertEquals(5, trackCredits.count { it.role == "Writer" })
+    }
+
+    @Test
+    fun emptyRecordingRelationsProduceEmptySuccessNotError() = runBlocking {
+        val api = FakeApi().apply { recordingResponse = MbRecording("recording-empty") }
+        val service = MusicBrainzCreditsService(api, FakeCreditDao(), FakeCacheDao(), FakeTrackDao(), json)
+        val result = service.loadTrackCredits(album(), "track-1", forceRefresh = true)
+        assertTrue(result is com.youneko.rate.data.musicbrainz.Resource.Success)
+        assertTrue((result as com.youneko.rate.data.musicbrainz.Resource.Success).value.credits.isEmpty())
+    }
+
+    @Test
     fun creditsUseLookupEndpointsAndNeverSearch() = runBlocking {
         val api = FakeApi()
         val service = MusicBrainzCreditsService(api, FakeCreditDao(), FakeCacheDao(), FakeTrackDao(), json)
@@ -168,11 +210,15 @@ class Phase6CreditsTest {
 
     private fun album() = AlbumEntity("album-1", "Album", "artist-1", mbid = "release-1", createdAt = 0L, updatedAt = 0L)
 
+    private fun amortageAlbum() = AlbumEntity("album-1", "AMORTAGE", "artist-1", mbid = "42911e58-a29f-451b-91a4-38938ac19608", createdAt = 0L, updatedAt = 0L)
+
     private class FakeApi : MusicBrainzApi {
         var searchCalls = 0
         var releaseCalls = 0
         var recordingCalls = 0
         var releaseResponse: MbRelease? = null
+        var recordingResponse: MbRecording? = null
+        val workResponses = mutableMapOf<String, MbWork>()
         override suspend fun search(entity: String, query: String, format: String, limit: Int, offset: Int): MbSearchResponse {
             searchCalls++
             return MbSearchResponse()
@@ -183,15 +229,16 @@ class Phase6CreditsTest {
         }
         override suspend fun lookupRecording(mbid: String, includes: String, format: String): MbRecording {
             recordingCalls++
-            return MbRecording(mbid)
+            return recordingResponse ?: MbRecording(mbid)
         }
-        override suspend fun lookupWork(mbid: String, includes: String, format: String) = MbWork(mbid)
+        override suspend fun lookupWork(mbid: String, includes: String, format: String) = workResponses[mbid] ?: MbWork(mbid)
     }
 
     private class FakeCacheDao : RemoteMetadataCacheDao {
         val values = mutableMapOf<String, RemoteMetadataCacheEntity>()
         override suspend fun find(key: String) = values[key]
         override suspend fun upsert(value: RemoteMetadataCacheEntity) { values[value.key] = value }
+        override suspend fun deleteAll() { values.clear() }
         override suspend fun delete(key: String) { values.remove(key) }
     }
 
@@ -199,6 +246,7 @@ class Phase6CreditsTest {
         val saved = mutableListOf<List<CreditEntity>>()
         override suspend fun upsertAll(credits: List<CreditEntity>) { saved += credits }
         override fun observeForItem(albumId: String, trackId: String?): Flow<List<CreditEntity>> = flowOf(emptyList())
+        override fun observeForAlbum(albumId: String): Flow<List<CreditEntity>> = flowOf(emptyList())
         override suspend fun deleteAlbumCredits(albumId: String) = Unit
         override suspend fun deleteTrackCredits(trackId: String) = Unit
     }

@@ -36,7 +36,7 @@ import com.youneko.rate.data.local.entity.TrackEntity
         LibrarySearchFtsEntity::class,
         ImportSessionEntity::class,
     ],
-    version = 4,
+    version = 8,
     exportSchema = true,
 )
 @TypeConverters(YounekoTypeConverters::class)
@@ -155,6 +155,36 @@ abstract class YounekoDatabase : RoomDatabase() {
                     selectionsJson TEXT NOT NULL,
                     createdAt INTEGER NOT NULL
                 )""")
+            }
+        }
+
+        val MIGRATION_4_5: Migration = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE credits ADD COLUMN beginDate TEXT")
+                db.execSQL("ALTER TABLE credits ADD COLUMN endDate TEXT")
+            }
+        }
+
+        val MIGRATION_5_6: Migration = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE tracks ADD COLUMN sourceUri TEXT")
+                db.execSQL("ALTER TABLE tracks ADD COLUMN fileName TEXT")
+            }
+        }
+
+        val MIGRATION_6_7: Migration = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE audio_analysis ADD COLUMN rolloffSlope REAL")
+                db.execSQL("ALTER TABLE audio_analysis ADD COLUMN dynamicRangeDb REAL")
+                db.execSQL("ALTER TABLE audio_analysis ADD COLUMN truePeakDbtp REAL")
+                db.execSQL("ALTER TABLE audio_analysis ADD COLUMN clippingPercent REAL")
+                db.execSQL("ALTER TABLE audio_analysis ADD COLUMN engineVersion TEXT NOT NULL DEFAULT 'phase8-v1'")
+            }
+        }
+
+        val MIGRATION_7_8: Migration = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE audio_analysis ADD COLUMN spectrumJson TEXT NOT NULL DEFAULT '[]'")
             }
         }
     }

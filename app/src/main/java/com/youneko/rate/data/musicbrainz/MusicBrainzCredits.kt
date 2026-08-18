@@ -33,6 +33,8 @@ private data class CachedCredit(
     val sourceProvider: String,
     val sourceUrl: String? = null,
     val sortOrder: Int,
+    val beginDate: String? = null,
+    val endDate: String? = null,
 )
 
 @Serializable
@@ -57,8 +59,8 @@ enum class CreditGroup {
 fun creditGroupForRole(role: String): CreditGroup = when (role.trim().lowercase()) {
     "composer", "lyricist", "writer", "arranger", "orchestrator", "librettist" -> CreditGroup.WRITING
     "producer", "executive producer", "co-producer" -> CreditGroup.PRODUCTION
-    "recording engineer", "mix", "mixing engineer", "mastering", "mastering engineer", "programming", "editor" -> CreditGroup.ENGINEERING
-    "vocal", "instrument", "performer", "conductor", "orchestra" -> CreditGroup.PERFORMANCE
+    "recording", "engineer", "recording engineer", "mix", "assistant mix", "mixing engineer", "mastering", "mastering engineer", "programming", "editor" -> CreditGroup.ENGINEERING
+    "vocal", "lead vocals", "background vocals", "instrument", "performer", "conductor", "orchestra" -> CreditGroup.PERFORMANCE
     "label", "publisher", "copyright", "phonographic copyright" -> CreditGroup.RELEASE
     else -> CreditGroup.OTHER
 }
@@ -70,6 +72,8 @@ data class CreditCandidate(
     val instrumentOrAttribute: String?,
     val sourceProvider: String,
     val sourceUrl: String?,
+    val beginDate: String? = null,
+    val endDate: String? = null,
 )
 
 object CreditMerger {
@@ -90,6 +94,8 @@ object CreditMerger {
                     sourceProvider = samePerson.map { it.sourceProvider }.distinct().joinToString(","),
                     sourceUrl = samePerson.firstNotNullOfOrNull { it.sourceUrl },
                     sortOrder = index,
+                    beginDate = samePerson.firstNotNullOfOrNull { it.beginDate },
+                    endDate = samePerson.firstNotNullOfOrNull { it.endDate },
                 )
             }
 
@@ -111,7 +117,7 @@ class MusicBrainzCreditsService @Inject constructor(
     private val json: Json,
 ) {
     fun observeCredits(albumId: String, trackId: String?): Flow<List<CreditEntity>> =
-        creditDao.observeForItem(albumId, trackId)
+        if (trackId == null) creditDao.observeForAlbum(albumId) else creditDao.observeForItem(albumId, trackId)
 
     suspend fun loadAlbumCredits(
         album: AlbumEntity,
@@ -158,7 +164,11 @@ class MusicBrainzCreditsService @Inject constructor(
                 ?: runCatching { api.lookupRecording(recordingMbid) }.getOrNull()
             if (recording != null) {
                 candidates += relationCandidates(recording.relations, "https://musicbrainz.org/recording/$recordingMbid")
-                recording.relations.mapNotNull { it.work?.id }.distinct().forEach { workMbid ->
+                val workMbids = recording.relations.mapNotNull { it.work?.id }.distinct()
+                workMbids.firstOrNull()?.let { workMbid ->
+                    if (track.workMbid != workMbid) trackDao.update(track.copy(workMbid = workMbid))
+                }
+                workMbids.forEach { workMbid ->
                     coroutineContext.ensureActive()
                     runCatching { api.lookupWork(workMbid) }.getOrNull()?.let { work ->
                         candidates += relationCandidates(work.relations, "https://musicbrainz.org/work/$workMbid")
@@ -205,11 +215,14 @@ class MusicBrainzCreditsService @Inject constructor(
         onProgress(0, 1)
         val recording = runCatching { api.lookupRecording(recordingMbid) }.getOrElse { return@withContext it.toNetworkError() }
         val candidates = relationCandidates(recording.relations, "https://musicbrainz.org/recording/$recordingMbid").toMutableList()
-        recording.relations.mapNotNull { it.work?.id }.distinct().forEach { workMbid ->
+        val workMbids = recording.relations.mapNotNull { it.work?.id }.distinct()
+        workMbids.firstOrNull()?.let { workMbid ->
+            if (track.workMbid != workMbid) trackDao.update(track.copy(workMbid = workMbid))
+        }
+        workMbids.forEach { workMbid ->
             coroutineContext.ensureActive()
             runCatching { api.lookupWork(workMbid) }.getOrNull()?.let { work ->
-                                    candidates += relationCandidates(work.relations, "https://musicbrainz.org/work/$workMbid")
-
+                candidates += relationCandidates(work.relations, "https://musicbrainz.org/work/$workMbid")
             }
         }
         val credits = CreditMerger.merge(album.id, trackId, candidates)
@@ -236,38 +249,51 @@ class MusicBrainzCreditsService @Inject constructor(
 
     private fun relationCandidates(relations: List<MbRelation>, sourceUrl: String): List<CreditCandidate> =
         relations.mapNotNull { relation ->
-            val targetType = relation.targetType?.lowercase()
-            if (targetType != null && targetType !in setOf("artist", "label")) return@mapNotNull null
+            val targetType = relation.targetType?.trim()?.lowercase()
+            if (targetType == "url" || (targetType != null && targetType !in setOf("artist", "label"))) return@mapNotNull null
             val person = relation.artist
             val label = relation.label
-            val name = person?.name ?: label?.name ?: return@mapNotNull null
-            val task = relation.attributeValues["task"].orEmpty().trim().lowercase()
-            val role = when {
-                relation.type.equals("engineer", ignoreCase = true) && task == "mix" -> "Mixing engineer"
-                relation.type.equals("engineer", ignoreCase = true) && task == "mastering" -> "Mastering engineer"
-                else -> relation.type.ifBlank { "unknown" }
+            val name = person?.name?.takeIf { it.isNotBlank() } ?: label?.name?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            val attributes = relation.attributes.map { it.trim().lowercase() }.filter { it.isNotBlank() }.distinct()
+            val task = relation.attributeValues.entries.firstOrNull { it.key.equals("task", ignoreCase = true) }?.value.orEmpty().trim().lowercase()
+            val type = relation.type.trim().lowercase()
+            val role = when (type) {
+                "mix" -> if (attributes.any { it == "assistant" }) "Assistant mix" else "Mix"
+                "vocal" -> if (attributes.any { it == "background vocals" }) "Background vocals" else "Lead vocals"
+                "engineer" -> when (task) {
+                    "mix" -> "Mixing engineer"
+                    "mastering" -> "Mastering engineer"
+                    else -> "Engineer"
+                }
+                "producer" -> "Producer"
+                "programming" -> "Programming"
+                "recording" -> "Recording"
+                "phonographic copyright" -> "Phonographic copyright"
+                "composer", "lyricist", "writer" -> "Writer"
+                else -> relation.type.ifBlank { "Unknown" }.replaceFirstChar { it.uppercase() }
             }
+            val consumedAttributes = setOf("assistant", "background vocals")
             CreditCandidate(
                 personName = name,
                 personMbid = person?.id ?: label?.id,
                 role = role,
-                instrumentOrAttribute = relation.attributes
-                    .filterNot { it.equals("task", ignoreCase = true) }
-                    .distinct()
-                    .joinToString(", ")
-                    .ifBlank { null },
+                instrumentOrAttribute = attributes.filterNot { it in consumedAttributes }.joinToString(", ").ifBlank { null },
                 sourceProvider = MUSICBRAINZ_CREDITS,
                 sourceUrl = person?.id?.let { "https://musicbrainz.org/artist/$it" } ?: label?.id?.let { "https://musicbrainz.org/label/$it" } ?: sourceUrl,
+                beginDate = relation.begin,
+                endDate = relation.end,
             )
         }
 
     private fun toCached(value: CreditEntity) = CachedCredit(
         value.id, value.albumId, value.trackId, value.personName, value.personMbid, value.role,
         value.instrumentOrAttribute, value.sourceProvider, value.sourceUrl, value.sortOrder,
+        value.beginDate, value.endDate,
     )
 
     private fun fromCached(value: CachedCredit) = CreditEntity(
         value.id, value.albumId, value.trackId, value.personName, value.personMbid, value.role,
         value.instrumentOrAttribute, value.sourceProvider, value.sourceUrl, value.sortOrder,
+        value.beginDate, value.endDate,
     )
 }

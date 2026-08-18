@@ -105,6 +105,9 @@ interface CreditDao {
     @Query("SELECT * FROM credits WHERE albumId = :albumId AND ((:trackId IS NULL AND trackId IS NULL) OR trackId = :trackId) ORDER BY sortOrder, personName COLLATE NOCASE")
     fun observeForItem(albumId: String, trackId: String?): Flow<List<CreditEntity>>
 
+    @Query("SELECT * FROM credits WHERE albumId = :albumId ORDER BY trackId IS NOT NULL, trackId, sortOrder, personName COLLATE NOCASE")
+    fun observeForAlbum(albumId: String): Flow<List<CreditEntity>>
+
     @Query("DELETE FROM credits WHERE albumId = :albumId AND trackId IS NULL")
     suspend fun deleteAlbumCredits(albumId: String)
 
@@ -119,6 +122,9 @@ interface AudioAnalysisDao {
 
     @Query("SELECT * FROM audio_analysis ORDER BY analyzedAt DESC")
     fun observeAll(): Flow<List<AudioAnalysisEntity>>
+
+    @Query("SELECT * FROM audio_analysis WHERE trackId = :trackId ORDER BY analyzedAt DESC LIMIT 1")
+    fun observeLatestForTrack(trackId: String): Flow<AudioAnalysisEntity?>
 }
 
 @Dao
@@ -128,6 +134,9 @@ interface RemoteMetadataCacheDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(value: RemoteMetadataCacheEntity)
+
+    @Query("DELETE FROM remote_metadata_cache")
+    suspend fun deleteAll()
 
     @Query("DELETE FROM remote_metadata_cache WHERE key = :key")
     suspend fun delete(key: String)
