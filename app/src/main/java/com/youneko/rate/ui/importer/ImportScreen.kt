@@ -30,6 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -65,10 +66,6 @@ fun ImportScreen(
             Button(onClick = { filePicker.launch(arrayOf("audio/*")) }) { Text(stringResource(R.string.import_file)) }
             OutlinedButton(onClick = { folderPicker.launch(null) }) { Text(stringResource(R.string.import_folder)) }
         }
-        if (state.isReading) {
-            CircularProgressIndicator()
-            Text(stringResource(R.string.import_reading))
-        }
         if (state.groups.isNotEmpty()) {
             Text(stringResource(R.string.import_preview), style = MaterialTheme.typography.titleLarge)
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -78,7 +75,6 @@ fun ImportScreen(
             }
             state.workId?.let {
                 if (state.workState == androidx.work.WorkInfo.State.RUNNING || state.workState == androidx.work.WorkInfo.State.ENQUEUED) {
-                    val progress = if (state.progressTotal > 0) state.progressCurrent.toFloat() / state.progressTotal else null
                     // Progress is rendered in a modal dialog below, not at the bottom of this list.
                 } else if (state.workState == androidx.work.WorkInfo.State.SUCCEEDED) {
                     Text(stringResource(R.string.import_done, state.importedCount), color = MaterialTheme.colorScheme.primary)
@@ -94,6 +90,19 @@ fun ImportScreen(
             Text(stringResource(R.string.import_failures), style = MaterialTheme.typography.titleMedium)
             state.failures.take(8).forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
         }
+    }
+    if (state.isReading) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text(stringResource(R.string.import_title)) },
+            text = {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    CircularProgressIndicator()
+                    Text(stringResource(R.string.import_reading))
+                }
+            },
+            confirmButton = {},
+        )
     }
     val workRunning = state.workState == androidx.work.WorkInfo.State.RUNNING || state.workState == androidx.work.WorkInfo.State.ENQUEUED
     if (workRunning) {
