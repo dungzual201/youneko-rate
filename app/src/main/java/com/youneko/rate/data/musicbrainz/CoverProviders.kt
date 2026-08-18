@@ -14,6 +14,8 @@ data class ItunesAlbum(
     val collectionName: String? = null,
     val artistName: String? = null,
     val artworkUrl100: String? = null,
+    val trackCount: Int? = null,
+    val releaseDate: String? = null,
 )
 
 interface ItunesCoverApi {
@@ -35,6 +37,8 @@ data class DeezerAlbum(
     val title: String? = null,
     val artist: DeezerArtist? = null,
     val coverXl: String? = null,
+    val nbTracks: Int? = null,
+    val releaseDate: String? = null,
 )
 
 @Serializable

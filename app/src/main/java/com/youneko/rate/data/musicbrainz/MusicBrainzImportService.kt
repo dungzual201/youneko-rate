@@ -56,6 +56,8 @@ class MusicBrainzImportService @Inject constructor(
                     releaseMbid = preview.releaseId,
                     albumTitle = preview.title,
                     artistName = preview.artist,
+                    trackCount = preview.tracks.size.takeIf { it > 0 },
+                    releaseYear = preview.year?.toIntOrNull(),
                 )
                 repository.mergeMusicBrainzMetadata(
                     album.id,
@@ -69,6 +71,7 @@ class MusicBrainzImportService @Inject constructor(
                         coverUri = (cover as? CoverResult.Success)?.localUri,
                         coverSource = (cover as? CoverResult.Success)?.sourceProvider,
                         coverWidth = (cover as? CoverResult.Success)?.width,
+                        coverUpdatedAt = (cover as? CoverResult.Success)?.let { System.currentTimeMillis() },
                         tracks = emptyList(),
                         mbid = preview.releaseId,
                         releaseGroupMbid = preview.releaseGroupId,
@@ -101,6 +104,8 @@ class MusicBrainzImportService @Inject constructor(
             releaseMbid = preview.releaseId,
             albumTitle = preview.title,
             artistName = preview.artist,
+            trackCount = preview.tracks.size.takeIf { it > 0 },
+            releaseYear = preview.year?.toIntOrNull(),
         )
         val coverUri = (coverResult as? CoverResult.Success)?.localUri
         currentCoroutineContext().ensureActive()
@@ -117,6 +122,7 @@ class MusicBrainzImportService @Inject constructor(
             coverUri = coverUri,
             coverSource = (coverResult as? CoverResult.Success)?.sourceProvider,
             coverWidth = (coverResult as? CoverResult.Success)?.width,
+            coverUpdatedAt = (coverResult as? CoverResult.Success)?.let { System.currentTimeMillis() },
             tracks = preview.tracks.map { track ->
                 TrackDraft(
                     title = track.title,
