@@ -8,7 +8,7 @@ interface MusicBrainzApi {
     @GET("{entity}")
     suspend fun search(
         @Path("entity") entity: String,
-        @Query("query") query: String,
+        @Query(value = "query", encoded = true) query: String,
         @Query("fmt") format: String = "json",
         @Query("limit") limit: Int = 25,
         @Query("offset") offset: Int = 0,

@@ -120,6 +120,7 @@ class Phase6CreditsTest {
         val values = mutableMapOf<String, RemoteMetadataCacheEntity>()
         override suspend fun find(key: String) = values[key]
         override suspend fun upsert(value: RemoteMetadataCacheEntity) { values[value.key] = value }
+        override suspend fun delete(key: String) { values.remove(key) }
     }
 
     private class FakeCreditDao : CreditDao {

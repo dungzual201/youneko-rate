@@ -128,6 +128,9 @@ interface RemoteMetadataCacheDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(value: RemoteMetadataCacheEntity)
+
+    @Query("DELETE FROM remote_metadata_cache WHERE key = :key")
+    suspend fun delete(key: String)
 }
 
 @Dao

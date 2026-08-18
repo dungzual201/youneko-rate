@@ -94,6 +94,7 @@
     <string name="unfinished_only">Chưa chấm xong</string>
     <string name="clear_filters">Xoá bộ lọc</string>
     <string name="no_results">Không có kết quả phù hợp</string>
+    <string name="no_results_for_query">Không tìm thấy kết quả cho “%1$s”.</string>
     <string name="no_results_hint">Thử xoá bộ lọc hoặc thêm album thủ công.</string>
     <string name="albums_in_progress">Đang chấm dở</string>
     <string name="album_detail">Chi tiết album</string>

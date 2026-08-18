@@ -29,7 +29,9 @@ object NetworkModule {
     @Singleton
     fun provideMusicBrainzJson(): Json = Json {
         ignoreUnknownKeys = true
+        coerceInputValues = true
         explicitNulls = false
+        isLenient = true
     }
 
     @Provides
@@ -49,7 +51,7 @@ object NetworkModule {
             .addInterceptor(TokenBucketInterceptor(bucket))
             .addInterceptor(MusicBrainzRetryInterceptor())
         if (BuildConfig.DEBUG) {
-            builder.addInterceptor(HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BASIC })
+            builder.addInterceptor(HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BODY })
         }
         return builder.build()
     }

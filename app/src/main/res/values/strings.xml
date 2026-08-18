@@ -94,6 +94,7 @@
     <string name="unfinished_only">Unfinished ratings</string>
     <string name="clear_filters">Clear filters</string>
     <string name="no_results">No matching results</string>
+    <string name="no_results_for_query">No results for “%1$s”.</string>
     <string name="no_results_hint">Try clearing filters or adding an album manually.</string>
     <string name="albums_in_progress">In progress</string>
     <string name="album_detail">Album detail</string>

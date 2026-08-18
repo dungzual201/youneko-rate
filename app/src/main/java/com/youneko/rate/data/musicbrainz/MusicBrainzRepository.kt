@@ -11,6 +11,8 @@ import com.youneko.rate.data.local.dao.SearchHistoryDao
 import com.youneko.rate.data.local.entity.RemoteMetadataCacheEntity
 import com.youneko.rate.data.local.entity.SearchHistoryEntity
 import java.io.IOException
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -19,10 +21,13 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.serialization.SerializationException
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import retrofit2.HttpException
+
+internal data class SearchPage(
+    val items: List<MusicBrainzSearchItem>,
+    val totalCount: Int,
+)
 
 @Singleton
 class MusicBrainzRepository @Inject constructor(
@@ -32,19 +37,37 @@ class MusicBrainzRepository @Inject constructor(
     private val historyDao: SearchHistoryDao,
     private val settings: SettingsStore,
 ) {
-    suspend fun search(entity: String, query: String, offset: Int = 0): Resource<List<MusicBrainzSearchItem>> = try {
+    suspend fun search(entity: String, query: String, offset: Int = 0): Resource<List<MusicBrainzSearchItem>> =
+        when (val result = searchPage(entity, query, offset)) {
+            is Resource.Success -> Resource.Success(result.value.items)
+            is Resource.Error -> result
+            Resource.Loading -> Resource.Loading
+        }
+
+    private suspend fun searchPage(entity: String, query: String, offset: Int): Resource<SearchPage> = try {
         if (settings.offlineOnly.first()) return Resource.Error(NetworkError.OFFLINE)
-        val key = "search:$entity:${query.trim()}:$offset"
+        val normalizedQuery = query.trim()
+        if (normalizedQuery.length < 2) return Resource.Error(NetworkError.NO_RESULTS)
+        val key = "search:$entity:$normalizedQuery:$offset"
         val cached = cacheDao.find(key)
         val now = System.currentTimeMillis()
         if (cached != null && cached.expiresAt > now) {
-            return decodeSearch(cached.jsonBody, entity)
+            when (val decoded = decodeSearchPage(cached.jsonBody, entity)) {
+                is Resource.Success -> if (decoded.value.items.isNotEmpty()) return decoded
+                is Resource.Error, Resource.Loading -> Unit
+            }
+            // Do not let an old empty/invalid cache permanently hide live results.
+            cacheDao.delete(key)
         }
-        val response = api.search(entity = entity, query = query, offset = offset)
+
+        val encodedQuery = encodeLuceneQuery(normalizedQuery)
+        val response = api.search(entity = entity, query = encodedQuery, offset = offset)
+        val page = response.toSearchPage(entity)
+        if (page.items.isEmpty() || response.count <= 0) return Resource.Error(NetworkError.NO_RESULTS)
+
         saveCache(key, json.encodeToString(response), now)
-        historyDao.insert(SearchHistoryEntity(UUID.randomUUID().toString(), query.trim(), now))
-        response.toSearchItems(entity).takeIf { it.isNotEmpty() }?.let { Resource.Success(it) }
-            ?: Resource.Error(NetworkError.NO_RESULTS)
+        historyDao.insert(SearchHistoryEntity(UUID.randomUUID().toString(), normalizedQuery, now))
+        Resource.Success(page)
     } catch (error: Throwable) {
         error.toNetworkError()
     }
@@ -69,11 +92,11 @@ class MusicBrainzRepository @Inject constructor(
         .catch { emit(emptyList()) }
         .flowOn(Dispatchers.IO)
 
-    fun searchPager(entity: String, query: String): Flow<PagingData<MusicBrainzSearchItem>> = (Pager(
+    fun searchPager(entity: String, query: String): Flow<PagingData<MusicBrainzSearchItem>> = Pager(
         config = PagingConfig(pageSize = 25, initialLoadSize = 25, enablePlaceholders = false),
     ) {
         createSearchPagingSource(entity, query)
-    }).flow
+    }.flow
         .catch { emit(PagingData.empty()) }
         .flowOn(Dispatchers.IO)
 
@@ -81,12 +104,15 @@ class MusicBrainzRepository @Inject constructor(
         object : PagingSource<Int, MusicBrainzSearchItem>() {
             override suspend fun load(params: LoadParams<Int>): LoadResult<Int, MusicBrainzSearchItem> = try {
                 val offset = params.key ?: 0
-                when (val result = search(entity, query, offset)) {
-                    is Resource.Success -> LoadResult.Page(
-                        data = result.value,
-                        prevKey = if (offset == 0) null else (offset - 25).coerceAtLeast(0),
-                        nextKey = if (result.value.size < 25) null else offset + result.value.size,
-                    )
+                when (val result = searchPage(entity, query, offset)) {
+                    is Resource.Success -> {
+                        val page = result.value
+                        LoadResult.Page(
+                            data = page.items,
+                            prevKey = if (offset == 0) null else (offset - params.loadSize).coerceAtLeast(0),
+                            nextKey = if (page.items.isEmpty() || offset + page.items.size >= page.totalCount) null else offset + page.items.size,
+                        )
+                    }
                     is Resource.Error -> LoadResult.Error(IOException(result.message ?: result.kind.name))
                     Resource.Loading -> LoadResult.Page(emptyList(), null, null)
                 }
@@ -113,14 +139,31 @@ class MusicBrainzRepository @Inject constructor(
         )
     }
 
-    private fun decodeSearch(body: String, entity: String): Resource<List<MusicBrainzSearchItem>> =
-        runCatching { json.decodeFromString<MbSearchResponse>(body).toSearchItems(entity) }
-            .fold(
-                onSuccess = { it.takeIf(List<MusicBrainzSearchItem>::isNotEmpty)?.let { value -> Resource.Success(value) } ?: Resource.Error(NetworkError.NO_RESULTS) },
-                onFailure = { Resource.Error(NetworkError.PARSE_ERROR, "Không đọc được cache tìm kiếm") },
-            )
+    private fun decodeSearchPage(body: String, entity: String): Resource<SearchPage> =
+        runCatching {
+            val response = json.decodeFromString<MbSearchResponse>(body)
+            response.toSearchPage(entity)
+        }.fold(
+            onSuccess = { page ->
+                page.items.takeIf { it.isNotEmpty() }?.let { Resource.Success(page) }
+                    ?: Resource.Error(NetworkError.NO_RESULTS)
+            },
+            onFailure = { Resource.Error(NetworkError.PARSE_ERROR, "Không đọc được cache tìm kiếm") },
+        )
 
     companion object {
         const val CACHE_TTL_MS = 30L * 24L * 60L * 60L * 1_000L
     }
 }
+
+internal fun MbSearchResponse.toSearchPage(entity: String): SearchPage = SearchPage(
+    items = toSearchItems(entity),
+    totalCount = count,
+)
+
+internal fun escapeLuceneQuery(query: String): String = query.map { character ->
+    if (character in "+-&|!(){}[]^\"~*?:\\/") "\\$character" else character.toString()
+}.joinToString("")
+
+internal fun encodeLuceneQuery(query: String): String =
+    URLEncoder.encode(escapeLuceneQuery(query), StandardCharsets.UTF_8.name()).replace("+", "%20")

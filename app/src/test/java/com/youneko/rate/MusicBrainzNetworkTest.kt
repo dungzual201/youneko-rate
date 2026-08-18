@@ -84,6 +84,15 @@ class MusicBrainzNetworkTest {
     }
 
     @Test
+    fun repositoryDoesNotCacheZeroResultResponse() = runTest {
+        val api = FakeApi().apply { response = MbSearchResponse(count = 0) }
+        val cache = FakeCacheDao()
+        val result = repository(api, cache).search("release-group", "zzzzqqqq")
+        assertTrue(result is Resource.Error)
+        assertTrue(cache.entries.isEmpty())
+    }
+
+    @Test
     fun repositoryMapsHttp429ToRateLimitedError() = runTest {
         val api = FakeApi().apply { error = HttpException(Response.error<MbSearchResponse>(429, "".toResponseBody("application/json".toMediaType()))) }
         val result = repository(api, FakeCacheDao()).search("release-group", "album")
@@ -159,10 +168,11 @@ class MusicBrainzNetworkTest {
     private class FakeApi : MusicBrainzApi {
         var searchCalls = 0
         var error: Throwable? = null
+        var response = MbSearchResponse(count = 1, releaseGroups = listOf(com.youneko.rate.data.musicbrainz.MbReleaseGroup("id", "Album")))
         override suspend fun search(entity: String, query: String, format: String, limit: Int, offset: Int): MbSearchResponse {
             searchCalls++
             error?.let { throw it }
-            return MbSearchResponse(releaseGroups = listOf(com.youneko.rate.data.musicbrainz.MbReleaseGroup("id", "Album")))
+            return response
         }
         override suspend fun lookupRelease(mbid: String, includes: String, format: String) =
             com.youneko.rate.data.musicbrainz.MbRelease(mbid, "Release")
@@ -176,6 +186,7 @@ class MusicBrainzNetworkTest {
         val entries = linkedMapOf<String, RemoteMetadataCacheEntity>()
         override suspend fun find(key: String) = entries[key]
         override suspend fun upsert(value: RemoteMetadataCacheEntity) { entries[value.key] = value }
+        override suspend fun delete(key: String) { entries.remove(key) }
     }
 
     private class FakeHistoryDao : SearchHistoryDao {

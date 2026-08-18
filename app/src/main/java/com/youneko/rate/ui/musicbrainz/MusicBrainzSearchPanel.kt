@@ -82,7 +82,7 @@ fun MusicBrainzSearchPanel(
                     }
                 }
                 is LoadState.NotLoading -> if (results.itemCount == 0) {
-                    Text(stringResource(R.string.no_results))
+                    Text(stringResource(R.string.no_results_for_query, query))
                 } else {
                     Text(pluralStringResource(R.plurals.online_result_count, results.itemCount, results.itemCount))
                 }

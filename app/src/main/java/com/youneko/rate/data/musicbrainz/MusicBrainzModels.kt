@@ -16,10 +16,11 @@ data class MbSearchResponse(
 
 @Serializable
 data class MbArtist(
-    val id: String,
+    val id: String = "",
     val name: String = "",
     @SerialName("sort-name") val sortName: String? = null,
     val disambiguation: String? = null,
+    val aliases: List<MbAlias> = emptyList(),
 )
 
 @Serializable
@@ -30,44 +31,101 @@ data class MbArtistCredit(
 
 @Serializable
 data class MbReleaseGroup(
-    val id: String,
+    val id: String = "",
     val title: String = "",
+    @SerialName("type-id") val typeId: String? = null,
+    val score: Int? = null,
     @SerialName("primary-type") val primaryType: String? = null,
+    @SerialName("primary-type-id") val primaryTypeId: String? = null,
     @SerialName("first-release-date") val firstReleaseDate: String? = null,
+    @SerialName("secondary-types") val secondaryTypes: List<String> = emptyList(),
+    @SerialName("secondary-type-ids") val secondaryTypeIds: List<String> = emptyList(),
     val disambiguation: String? = null,
+    @SerialName("artist-credit-id") val artistCreditId: String? = null,
     @SerialName("artist-credit") val artistCredit: List<MbArtistCredit> = emptyList(),
     val releases: List<MbRelease> = emptyList(),
+    val tags: List<MbTag> = emptyList(),
 )
 
 @Serializable
 data class MbRelease(
-    val id: String,
+    val id: String = "",
     val title: String = "",
+    val score: Int? = null,
+    val count: Int? = null,
+    val status: String? = null,
     @SerialName("status-id") val statusId: String? = null,
+    val packaging: String? = null,
+    @SerialName("packaging-id") val packagingId: String? = null,
+    @SerialName("artist-credit-id") val artistCreditId: String? = null,
     @SerialName("date") val date: String? = null,
     val country: String? = null,
+    @SerialName("text-representation") val textRepresentation: MbTextRepresentation? = null,
+    @SerialName("release-events") val releaseEvents: List<MbReleaseEvent> = emptyList(),
+    val barcode: String? = null,
+    val asin: String? = null,
     @SerialName("artist-credit") val artistCredit: List<MbArtistCredit> = emptyList(),
-    val media: List<MbMedium> = emptyList(),
-    val labels: List<MbLabelInfo> = emptyList(),
-    val relations: List<MbRelation> = emptyList(),
     @SerialName("release-group") val releaseGroup: MbReleaseGroup? = null,
+    @SerialName("label-info") val labelInfo: List<MbLabelInfo> = emptyList(),
+    @SerialName("track-count") val trackCount: Int? = null,
+    val media: List<MbMedium> = emptyList(),
+    val tags: List<MbTag> = emptyList(),
+    val relations: List<MbRelation> = emptyList(),
 )
 
 @Serializable
 data class MbLabelInfo(
     val label: MbLabel? = null,
-    val catalogNumber: String? = null,
+    @SerialName("catalog-number") val catalogNumber: String? = null,
 )
 
 @Serializable
 data class MbLabel(val id: String? = null, val name: String? = null)
 
 @Serializable
+data class MbAlias(
+    @SerialName("sort-name") val sortName: String? = null,
+    @SerialName("type-id") val typeId: String? = null,
+    val name: String = "",
+    val locale: String? = null,
+    val type: String? = null,
+    val primary: Boolean? = null,
+    @SerialName("begin-date") val beginDate: String? = null,
+    @SerialName("end-date") val endDate: String? = null,
+)
+
+@Serializable
+data class MbTextRepresentation(
+    val language: String? = null,
+    val script: String? = null,
+)
+
+@Serializable
+data class MbArea(
+    val id: String = "",
+    val name: String = "",
+    @SerialName("sort-name") val sortName: String? = null,
+    @SerialName("iso-3166-1-codes") val iso31661Codes: List<String> = emptyList(),
+)
+
+@Serializable
+data class MbReleaseEvent(
+    val date: String? = null,
+    val area: MbArea? = null,
+)
+
+@Serializable
+data class MbTag(
+    val count: Int = 0,
+    val name: String = "",
+)
+
+@Serializable
 data class MbUrl(val resource: String? = null)
 
 @Serializable
 data class MbWork(
-    val id: String,
+    val id: String = "",
     val title: String = "",
     val relations: List<MbRelation> = emptyList(),
 )
@@ -86,9 +144,12 @@ data class MbRelation(
 
 @Serializable
 data class MbMedium(
+    val id: String? = null,
     val position: Int? = null,
     val format: String? = null,
     val title: String? = null,
+    @SerialName("disc-count") val discCount: Int? = null,
+    @SerialName("track-count") val trackCount: Int? = null,
     val tracks: List<MbTrack> = emptyList(),
 )
 
@@ -104,7 +165,7 @@ data class MbTrack(
 
 @Serializable
 data class MbRecording(
-    val id: String,
+    val id: String = "",
     val title: String = "",
     val length: Long? = null,
     @SerialName("artist-credit") val artistCredit: List<MbArtistCredit> = emptyList(),
@@ -191,7 +252,7 @@ fun MbReleaseGroup.toSearchItem() = MusicBrainzSearchItem(
     title = title,
     artist = artistCredit.joinToString(", ") { it.name ?: it.artist?.name.orEmpty() },
     year = firstReleaseDate?.take(4),
-    score = null,
+    score = score,
     subtitle = listOfNotNull(primaryType, disambiguation).joinToString(" · ").ifBlank { null },
 )
 
@@ -201,7 +262,7 @@ fun MbRelease.toSearchItem() = MusicBrainzSearchItem(
     title = title,
     artist = artistCredit.joinToString(", ") { it.name ?: it.artist?.name.orEmpty() },
     year = date?.take(4),
-    score = null,
+    score = score,
     subtitle = listOfNotNull(country, releaseGroup?.title).joinToString(" · ").ifBlank { null },
 )
 
@@ -226,7 +287,7 @@ fun MbRelease.toPreview(
     releaseGroupId = releaseGroupId,
     year = date?.take(4),
     country = country,
-    label = labels.firstOrNull()?.label?.name,
+    label = labelInfo.firstOrNull()?.label?.name,
     tracks = media.flatMapIndexed { discIndex, medium ->
         medium.tracks.mapIndexed { trackIndex, track ->
             MusicBrainzPreviewTrack(

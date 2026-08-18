@@ -165,3 +165,14 @@ Nguồn Phase 5: `NETWORK_SOURCES_PHASE5.md`; không commit API key hoặc crede
 |---|---|---|---|
 | BUG-0005 | Crash thực tế là `SecurityException: Permission denied (missing INTERNET permission?)`; app gọi MusicBrainz nhưng manifest chưa khai báo quyền `android.permission.INTERNET` (và chưa khai báo network state). | Thêm `INTERNET` và `ACCESS_NETWORK_STATE` trực tiếp dưới `<manifest>`, ngoài `<application>`; không dùng `tools:node="remove"`. | `NetworkManifestTest` dùng Robolectric PackageManager kiểm tra cả hai permission; merged manifest report đã xác nhận quyền tồn tại. |
 | BUG-0006 | Exception mạng từ Retrofit/OkHttp/Paging có thể thoát coroutine boundary và làm app crash, thay vì trở thành trạng thái lỗi có thể retry. | Thêm `Throwable.toNetworkError()`, bọc search/lookup/import, `PagingSource.load` luôn trả `LoadResult.Error`, Flow có `catch`, và `CoroutineExceptionHandler` chỉ làm lưới an toàn cuối. UI có resource riêng cho NO_CONNECTION, TIMEOUT, RATE_LIMITED, SERVER_ERROR, BAD_REQUEST, PARSE_ERROR, UNKNOWN và nút thử lại. | `MusicBrainzNetworkTest` kiểm tra 7 mapping, PagingSource trả `LoadResult.Error`; full unit test và lint PASS. |
+
+
+## Bug log — Online search trả rỗng sau Phase 6
+
+| Mã | Bug và nguyên nhân gốc | Cách sửa | Test bảo vệ |
+|---|---|---|---|
+| BUG-0007 | Search online có thể hiện empty dù API HTTP 200 vì response DTO chưa mô hình hóa đầy đủ các key gạch ngang (`label-info`, `catalog-number`, `track-count`, `release-events`, `text-representation`, aliases và các field type/primary IDs). Ngoài ra cache cũ có thể giữ response rỗng; repository lưu cache trước khi kiểm tra `count/items`, và query tự do chưa escape/percent-encode ký tự đặc biệt Lucene. | Bật `HttpLoggingInterceptor.Level.BODY` chỉ trong debug; cấu hình `Json` với `ignoreUnknownKeys`, `coerceInputValues`, `explicitNulls=false`, `isLenient=true`; bổ sung `@SerialName`/nullable defaults toàn bộ DTO; escape Lucene rồi UTF-8 percent-encode, Retrofit dùng `@Query(encoded=true)`; xóa cache cũ rỗng/invalid và chỉ cache response có item; Paging dừng theo top-level `count`; empty-state hiển thị chính keyword. | `MusicBrainzSearchHotfixTest` parse response thật release-group/release, parse thiếu field, mapper không rỗng, kiểm tra URL/query/UTF-8 escape; `MusicBrainzNetworkTest` kiểm tra không cache `count=0`; full assemble/unit test/lint PASS. |
+
+### Quy tắc DTO MusicBrainz
+
+Mọi key JSON có gạch ngang phải có `@SerialName` tương ứng trong DTO (`release-groups`, `release-group`, `artist-credit`, `first-release-date`, `primary-type`, `secondary-types`, `label-info`, `catalog-number`, `track-count`, `disc-count`, `release-events`, `text-representation`, `status-id`, `packaging-id`, `type-id`, `sort-name`, `iso-3166-1-codes` và các biến thể tương tự). DTO dùng `nullable + default` cho field có thể vắng; không dùng default rỗng để che lỗi response ở tầng repository.
