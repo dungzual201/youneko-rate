@@ -148,29 +148,41 @@ fun LibraryScreen(
             FilterChip(selected = !onlineMode, onClick = { onlineMode = false }, label = { Text(stringResource(R.string.local_search)) })
             FilterChip(selected = onlineMode, onClick = { onlineMode = true; onlineViewModel.setQuery(state.query) }, label = { Text(stringResource(R.string.online_search)) })
         }
-        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(pluralStringResource(R.plurals.library_count, state.albums.size, state.albums.size), style = MaterialTheme.typography.labelLarge)
-            Spacer(Modifier.weight(1f))
-            SortMenu(state.sort, viewModel::setSort)
-        }
-        Spacer(Modifier.height(8.dp))
-        if (state.albums.isEmpty()) {
-            EmptyLibrary(onAddAlbum, hasQuery = state.query.isNotBlank() || state.unfinishedOnly)
-        } else if (state.gridView) {
-            LazyVerticalGrid(
-                columns = GridCells.Adaptive(160.dp),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                items(state.albums, key = { it.album.id }) { item -> AlbumCard(item, onOpenAlbum) }
+        if (!onlineMode) {
+            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(pluralStringResource(R.plurals.library_count, state.albums.size, state.albums.size), style = MaterialTheme.typography.labelLarge)
+                Spacer(Modifier.weight(1f))
+                SortMenu(state.sort, viewModel::setSort)
+            }
+            Spacer(Modifier.height(8.dp))
+            if (state.albums.isEmpty()) {
+                EmptyLibrary(onAddAlbum, hasQuery = state.query.isNotBlank() || state.unfinishedOnly)
+            } else if (state.gridView) {
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(160.dp),
+                    modifier = Modifier.weight(1f),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    items(state.albums, key = { it.album.id }) { item -> AlbumCard(item, onOpenAlbum) }
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    items(state.albums, key = { it.album.id }) { item -> AlbumListRow(item, onOpenAlbum) }
+                }
             }
         } else {
-            LazyColumn(contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(state.albums, key = { it.album.id }) { item -> AlbumListRow(item, onOpenAlbum) }
-            }
+            MusicBrainzSearchPanel(
+                viewModel = onlineViewModel,
+                onImported = onOpenAlbum,
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+            )
         }
-        if (onlineMode) MusicBrainzSearchPanel(onlineViewModel, onImported = onOpenAlbum)
     }
     if (showFilters) {
         ModalBottomSheet(onDismissRequest = { showFilters = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {

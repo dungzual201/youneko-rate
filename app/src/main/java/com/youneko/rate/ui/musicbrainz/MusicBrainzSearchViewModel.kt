@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import com.youneko.rate.data.musicbrainz.ImportConflictChoice
+import com.youneko.rate.data.musicbrainz.MusicBrainzImportProgress
 import com.youneko.rate.data.musicbrainz.MusicBrainzImportService
 import com.youneko.rate.data.musicbrainz.MusicBrainzPreview
 import com.youneko.rate.data.musicbrainz.MusicBrainzRepository
@@ -14,6 +15,7 @@ import com.youneko.rate.data.musicbrainz.toNetworkError
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -22,6 +24,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 
@@ -38,6 +41,9 @@ class MusicBrainzSearchViewModel @Inject constructor(
     val pendingImport: StateFlow<MusicBrainzPreview?> = _pendingImport.asStateFlow()
     private val _importResult = MutableStateFlow<Resource<String>?>(null)
     val importResult: StateFlow<Resource<String>?> = _importResult.asStateFlow()
+    private val _importProgress = MutableStateFlow<MusicBrainzImportProgress?>(null)
+    val importProgress: StateFlow<MusicBrainzImportProgress?> = _importProgress.asStateFlow()
+    private var importJob: Job? = null
 
     private val networkExceptionHandler = CoroutineExceptionHandler { _, throwable ->
         val error = throwable.toNetworkError()
@@ -47,10 +53,11 @@ class MusicBrainzSearchViewModel @Inject constructor(
 
     val pagedResults: Flow<PagingData<MusicBrainzSearchItem>> = query
         .debounce(400)
+        .map { it.trim() }
         .distinctUntilChanged()
         .flatMapLatest { value ->
-            if (value.isBlank()) flowOf(PagingData.empty())
-            else repository.searchPager("release-group", value.trim())
+            if (value.length < 2) flowOf(PagingData.empty())
+            else repository.searchPager("release-group", value)
         }
         .cachedIn(viewModelScope)
 
@@ -88,9 +95,21 @@ class MusicBrainzSearchViewModel @Inject constructor(
     fun resolveImport(choice: ImportConflictChoice) {
         val value = _pendingImport.value ?: return
         _pendingImport.value = null
+        if (choice == ImportConflictChoice.CANCEL) return
+        importJob?.cancel()
         _importResult.value = Resource.Loading
-        viewModelScope.launch(networkExceptionHandler) {
-            _importResult.value = importService.import(value, choice)
+        importJob = viewModelScope.launch(networkExceptionHandler) {
+            _importResult.value = importService.import(value, choice) { progress ->
+                _importProgress.value = progress
+            }
+            _importProgress.value = null
         }
+    }
+
+    fun cancelImport() {
+        importJob?.cancel()
+        importJob = null
+        _importProgress.value = null
+        _importResult.value = null
     }
 }
