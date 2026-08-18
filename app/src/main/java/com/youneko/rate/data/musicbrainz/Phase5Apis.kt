@@ -18,12 +18,20 @@ interface MusicBrainzReleaseGroupApi {
 
 interface CoverArtApi {
     @Streaming
+    @GET("release-group/{mbid}/front-1200")
+    suspend fun groupFront1200(@Path("mbid") mbid: String): Response<ResponseBody>
+
+    @Streaming
     @GET("release-group/{mbid}/front-500")
     suspend fun groupFront500(@Path("mbid") mbid: String): Response<ResponseBody>
 
     @Streaming
     @GET("release-group/{mbid}/front-250")
     suspend fun groupFront250(@Path("mbid") mbid: String): Response<ResponseBody>
+
+    @Streaming
+    @GET("release/{mbid}/front-1200")
+    suspend fun front1200(@Path("mbid") mbid: String): Response<ResponseBody>
 
     @Streaming
     @GET("release/{mbid}/front-500")

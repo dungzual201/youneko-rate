@@ -1,6 +1,7 @@
 package com.youneko.rate.data.musicbrainz
 
 import android.content.Context
+import android.graphics.BitmapFactory
 import android.net.Uri
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
@@ -12,6 +13,12 @@ import okhttp3.ResponseBody
 import retrofit2.Response
 
 object CoverArtUrls {
+    fun releaseGroupFront1200(releaseGroupMbid: String): String =
+        "https://coverartarchive.org/release-group/$releaseGroupMbid/front-1200"
+
+    fun releaseFront1200(releaseMbid: String): String =
+        "https://coverartarchive.org/release/$releaseMbid/front-1200"
+
     fun releaseGroupFront250(releaseGroupMbid: String): String =
         "https://coverartarchive.org/release-group/$releaseGroupMbid/front-250"
 
@@ -25,8 +32,12 @@ object CoverArtUrls {
         "https://coverartarchive.org/release/$releaseMbid/front-500"
 
     fun listCandidates(releaseGroupMbid: String?, releaseMbid: String?): List<String> = buildList {
-        releaseGroupMbid?.takeIf(String::isNotBlank)?.let { add(releaseGroupFront250(it)) }
-        releaseMbid?.takeIf(String::isNotBlank)?.let { add(releaseFront250(it)) }
+        releaseGroupMbid?.takeIf(String::isNotBlank)?.let {
+            add(releaseGroupFront1200(it)); add(releaseGroupFront500(it)); add(releaseGroupFront250(it))
+        }
+        releaseMbid?.takeIf(String::isNotBlank)?.let {
+            add(releaseFront1200(it)); add(releaseFront500(it)); add(releaseFront250(it))
+        }
     }
 }
 
@@ -68,11 +79,13 @@ class CoverArtService @Inject constructor(
         fileName: String,
     ): CoverResult = withContext(Dispatchers.IO) {
         val requests = buildList<suspend () -> Response<ResponseBody>> {
-            releaseGroupMbid?.takeIf(String::isNotBlank)?.let { mbid ->
+                releaseGroupMbid?.takeIf(String::isNotBlank)?.let { mbid ->
+                add { api.groupFront1200(mbid) }
                 add { api.groupFront500(mbid) }
                 add { api.groupFront250(mbid) }
             }
             releaseMbid?.takeIf(String::isNotBlank)?.let { mbid ->
+                add { api.front1200(mbid) }
                 add { api.front500(mbid) }
                 add { api.front250(mbid) }
             }
@@ -95,8 +108,15 @@ class CoverArtService @Inject constructor(
             }
             if (!response.isSuccessful || response.body() == null) continue
             return@withContext runCatching {
-                response.body()!!.byteStream().use { input ->
-                    destination.outputStream().use { output -> input.copyTo(output) }
+                val bytes = response.body()!!.bytes()
+                val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                    ?: error("Cover Art Archive image could not be decoded")
+                try {
+                    destination.outputStream().use { output ->
+                        check(bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 92, output)) { "Could not encode cover JPEG" }
+                    }
+                } finally {
+                    bitmap.recycle()
                 }
                 CoverResult.Success(destination.toURI().toString())
             }.getOrElse { CoverResult.Error(it) }

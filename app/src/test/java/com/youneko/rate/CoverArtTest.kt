@@ -22,13 +22,21 @@ import retrofit2.Retrofit
 @Config(application = YounekoRateApplication::class, sdk = [35])
 class CoverArtTest {
     @Test
-    fun urlBuilderUsesReleaseGroupThenReleaseFront250() {
+    fun urlBuilderUsesReleaseGroupThenReleaseQualityFallback() {
         assertEquals(
             listOf(
+                "https://coverartarchive.org/release-group/group/front-1200",
+                "https://coverartarchive.org/release-group/group/front-500",
                 "https://coverartarchive.org/release-group/group/front-250",
+                "https://coverartarchive.org/release/release/front-1200",
+                "https://coverartarchive.org/release/release/front-500",
                 "https://coverartarchive.org/release/release/front-250",
             ),
             CoverArtUrls.listCandidates("group", "release"),
+        )
+        assertEquals(
+            "https://coverartarchive.org/release-group/group/front-1200",
+            CoverArtUrls.releaseGroupFront1200("group"),
         )
         assertEquals(
             "https://coverartarchive.org/release-group/group/front-500",
@@ -44,7 +52,7 @@ class CoverArtTest {
     fun all404ReturnsNotFoundInsteadOfNetworkError() {
         runBlocking {
         MockWebServer().use { server ->
-            repeat(4) { server.enqueue(MockResponse().setResponseCode(404)) }
+            repeat(6) { server.enqueue(MockResponse().setResponseCode(404)) }
             val api = Retrofit.Builder()
                 .baseUrl(server.url("/"))
                 .client(OkHttpClient.Builder().followRedirects(true).followSslRedirects(true).build())
@@ -54,7 +62,7 @@ class CoverArtTest {
             val service = CoverArtService(api, context)
             val result = service.downloadToFile("group", "release", "cover-art-test.jpg")
             assertTrue(result is CoverResult.NotFound)
-            assertEquals(4, server.requestCount)
+            assertEquals(6, server.requestCount)
             File(context.filesDir, "covers/cover-art-test.jpg").delete()
         }
     }

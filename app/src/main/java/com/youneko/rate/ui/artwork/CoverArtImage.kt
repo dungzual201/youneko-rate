@@ -55,7 +55,7 @@ fun CoverArtImage(
             imageLoader = imageLoader,
             contentDescription = null,
             modifier = clipped,
-            contentScale = ContentScale.Crop,
+            contentScale = ContentScale.Fit,
             placeholder = painterResource(placeholder),
             error = painterResource(placeholder),
             onError = { if (index < models.lastIndex) index++ },
@@ -70,7 +70,7 @@ private fun CoverArtPlaceholder(modifier: Modifier, @DrawableRes placeholder: In
             painter = painterResource(placeholder),
             contentDescription = null,
             modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop,
+            contentScale = ContentScale.Fit,
         )
     }
 }
