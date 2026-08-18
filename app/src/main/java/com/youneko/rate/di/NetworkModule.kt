@@ -6,6 +6,8 @@ import com.youneko.rate.data.musicbrainz.MusicBrainzApi
 import com.youneko.rate.data.discogs.DiscogsApi
 import com.youneko.rate.data.musicbrainz.MusicBrainzReleaseGroupApi
 import com.youneko.rate.data.musicbrainz.CoverArtApi
+import com.youneko.rate.data.musicbrainz.DeezerCoverApi
+import com.youneko.rate.data.musicbrainz.ItunesCoverApi
 import com.youneko.rate.data.musicbrainz.MusicBrainzRetryInterceptor
 import com.youneko.rate.data.musicbrainz.TokenBucket
 import com.youneko.rate.data.musicbrainz.TokenBucketInterceptor
@@ -116,6 +118,24 @@ object NetworkModule {
         .writeTimeout(30, TimeUnit.SECONDS)
         .cache(Cache(context.cacheDir.resolve("cover-art-http"), 20L * 1024L * 1024L))
         .build()
+
+    @Provides
+    @Singleton
+    fun provideItunesCoverApi(@Named("coverArt") client: OkHttpClient, json: Json): ItunesCoverApi = Retrofit.Builder()
+        .baseUrl("https://itunes.apple.com/")
+        .client(client)
+        .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+        .build()
+        .create(ItunesCoverApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideDeezerCoverApi(@Named("coverArt") client: OkHttpClient, json: Json): DeezerCoverApi = Retrofit.Builder()
+        .baseUrl("https://api.deezer.com/")
+        .client(client)
+        .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+        .build()
+        .create(DeezerCoverApi::class.java)
 
     @Provides
     @Singleton

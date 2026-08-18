@@ -50,6 +50,13 @@ class MusicBrainzImportService @Inject constructor(
         when (val loaded = loadRelease(mbid, album.releaseGroupMbid)) {
             is Resource.Success -> {
                 val preview = loaded.value
+                val cover = coverArtService.downloadForAlbum(
+                    albumId = album.id,
+                    releaseGroupMbid = preview.releaseGroupId,
+                    releaseMbid = preview.releaseId,
+                    albumTitle = preview.title,
+                    artistName = preview.artist,
+                )
                 repository.mergeMusicBrainzMetadata(
                     album.id,
                     AlbumDraft(
@@ -59,10 +66,9 @@ class MusicBrainzImportService @Inject constructor(
                         albumType = "ALBUM",
                         genreTags = emptyList(),
                         listenedDate = null,
-                        coverUri = when (val cover = coverArtService.downloadForAlbum(album.id, preview.releaseGroupId, preview.releaseId)) {
-                            is CoverResult.Success -> cover.localUri
-                            else -> null
-                        },
+                        coverUri = (cover as? CoverResult.Success)?.localUri,
+                        coverSource = (cover as? CoverResult.Success)?.sourceProvider,
+                        coverWidth = (cover as? CoverResult.Success)?.width,
                         tracks = emptyList(),
                         mbid = preview.releaseId,
                         releaseGroupMbid = preview.releaseGroupId,
@@ -89,10 +95,12 @@ class MusicBrainzImportService @Inject constructor(
         onProgress(MusicBrainzImportProgress(MusicBrainzImportStage.RELEASE, 1, 1))
         currentCoroutineContext().ensureActive()
         onProgress(MusicBrainzImportProgress(MusicBrainzImportStage.COVER, 0, 1))
-        val coverResult = coverArtService.downloadToFile(
+        val coverResult = coverArtService.downloadForAlbum(
+            albumId = "pending-${preview.releaseId}",
             releaseGroupMbid = preview.releaseGroupId,
             releaseMbid = preview.releaseId,
-            fileName = "pending-${preview.releaseId}.jpg",
+            albumTitle = preview.title,
+            artistName = preview.artist,
         )
         val coverUri = (coverResult as? CoverResult.Success)?.localUri
         currentCoroutineContext().ensureActive()
@@ -107,6 +115,8 @@ class MusicBrainzImportService @Inject constructor(
             genreTags = emptyList(),
             listenedDate = null,
             coverUri = coverUri,
+            coverSource = (coverResult as? CoverResult.Success)?.sourceProvider,
+            coverWidth = (coverResult as? CoverResult.Success)?.width,
             tracks = preview.tracks.map { track ->
                 TrackDraft(
                     title = track.title,
@@ -128,7 +138,12 @@ class MusicBrainzImportService @Inject constructor(
                 val id = repository.saveAlbumBatched(draft)
                 val finalCoverUri = coverUri?.let { coverArtService.promoteToAlbumFile(it, id) }
                 if (finalCoverUri != null) repository.observeAlbum(id).first()?.album?.let { album ->
-                    repository.updateAlbum(album.copy(coverUri = finalCoverUri, coverThumbUri = finalCoverUri))
+                    repository.updateAlbum(album.copy(
+                        coverUri = finalCoverUri,
+                        coverThumbUri = finalCoverUri,
+                        coverSource = (coverResult as? CoverResult.Success)?.sourceProvider,
+                        coverWidth = (coverResult as? CoverResult.Success)?.width,
+                    ))
                 }
                 onProgress(MusicBrainzImportProgress(MusicBrainzImportStage.SAVING, totalTracks, totalTracks))
                 Resource.Success(id)
@@ -137,7 +152,12 @@ class MusicBrainzImportService @Inject constructor(
                 repository.mergeMusicBrainzMetadata(match, draft)
                 val finalCoverUri = coverUri?.let { coverArtService.promoteToAlbumFile(it, match) }
                 if (finalCoverUri != null) repository.observeAlbum(match).first()?.album?.let { album ->
-                    repository.updateAlbum(album.copy(coverUri = finalCoverUri, coverThumbUri = finalCoverUri))
+                    repository.updateAlbum(album.copy(
+                        coverUri = finalCoverUri,
+                        coverThumbUri = finalCoverUri,
+                        coverSource = (coverResult as? CoverResult.Success)?.sourceProvider,
+                        coverWidth = (coverResult as? CoverResult.Success)?.width,
+                    ))
                 }
                 onProgress(MusicBrainzImportProgress(MusicBrainzImportStage.SAVING, totalTracks, totalTracks))
                 Resource.Success(match)

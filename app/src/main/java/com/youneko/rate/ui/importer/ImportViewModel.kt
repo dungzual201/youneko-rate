@@ -13,6 +13,9 @@ import com.youneko.rate.data.importer.ImportSelection
 import com.youneko.rate.data.importer.ImportWorker
 import com.youneko.rate.data.importer.ImportDedupe
 import com.youneko.rate.data.importer.LocalAudioTagReader
+import com.youneko.rate.data.musicbrainz.CoverArtService
+import com.youneko.rate.data.musicbrainz.CoverCandidate
+import com.youneko.rate.data.musicbrainz.CoverResult
 import com.youneko.rate.data.importer.stableKey
 import com.youneko.rate.data.local.dao.ImportSessionDao
 import com.youneko.rate.data.local.entity.ImportSessionEntity
@@ -44,12 +47,15 @@ import kotlinx.serialization.json.Json
     val error: String? = null,
     val sourceUris: List<String> = emptyList(),
     val sourceIsTree: Boolean = false,
+    val coverCandidates: Map<String, List<CoverCandidate>> = emptyMap(),
+    val coverLoadingKey: String? = null,
 )
 
 @HiltViewModel
 class ImportViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val importSessionDao: ImportSessionDao,
+    private val coverArtService: CoverArtService,
 ) : ViewModel() {
     private val _state = MutableStateFlow(ImportUiState())
     val state: StateFlow<ImportUiState> = _state.asStateFlow()
@@ -117,6 +123,35 @@ class ImportViewModel @Inject constructor(
         val key = group.stableKey()
         val old = _state.value.selections[key] ?: return
         _state.value = _state.value.copy(selections = _state.value.selections + (key to old.copy(coverUri = uri)))
+    }
+
+    fun loadCoverCandidates(group: ImportGroup) {
+        val key = group.stableKey()
+        _state.value = _state.value.copy(coverLoadingKey = key)
+        viewModelScope.launch {
+            val candidates = withContext(Dispatchers.IO) {
+                coverArtService.searchCandidates(group.displayTitle, group.artist)
+            }
+            _state.value = _state.value.copy(
+                coverCandidates = _state.value.coverCandidates + (key to candidates),
+                coverLoadingKey = null,
+            )
+        }
+    }
+
+    fun chooseCoverCandidate(group: ImportGroup, candidate: CoverCandidate) {
+        val key = group.stableKey()
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                coverArtService.cacheCandidate(candidate, "picker-${UUID.randomUUID()}.jpg")
+            }
+            if (result is CoverResult.Success) setCover(group, result.localUri)
+            _state.value = _state.value.copy(coverCandidates = _state.value.coverCandidates - key)
+        }
+    }
+
+    fun closeCoverPicker(group: ImportGroup) {
+        _state.value = _state.value.copy(coverCandidates = _state.value.coverCandidates - group.stableKey())
     }
 
     fun enqueueImport() {

@@ -36,7 +36,7 @@ import com.youneko.rate.data.local.entity.TrackEntity
         LibrarySearchFtsEntity::class,
         ImportSessionEntity::class,
     ],
-    version = 8,
+    version = 9,
     exportSchema = true,
 )
 @TypeConverters(YounekoTypeConverters::class)
@@ -185,6 +185,13 @@ abstract class YounekoDatabase : RoomDatabase() {
         val MIGRATION_7_8: Migration = object : Migration(7, 8) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE audio_analysis ADD COLUMN spectrumJson TEXT NOT NULL DEFAULT '[]'")
+            }
+        }
+
+        val MIGRATION_8_9: Migration = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE albums ADD COLUMN coverSource TEXT")
+                db.execSQL("ALTER TABLE albums ADD COLUMN coverWidth INTEGER")
             }
         }
     }

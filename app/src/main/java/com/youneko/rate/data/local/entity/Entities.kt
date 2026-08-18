@@ -51,6 +51,8 @@ data class AlbumEntity(
     val discogsReleaseId: String? = null,
     val deezerId: String? = null,
     val sourceProvider: String? = null,
+    val coverSource: String? = null,
+    val coverWidth: Int? = null,
     val metadataFetchedAt: Long? = null,
     val createdAt: Long,
     val updatedAt: Long,

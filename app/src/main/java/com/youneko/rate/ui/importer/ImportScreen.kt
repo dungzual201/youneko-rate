@@ -10,6 +10,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
@@ -34,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.youneko.rate.R
@@ -47,12 +52,6 @@ fun ImportScreen(
     viewModel: ImportViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    var coverGroup by rememberSaveable { mutableStateOf<String?>(null) }
-    val coverPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        val key = coverGroup
-        if (uri != null && key != null) state.groups.firstOrNull { it.stableKey() == key }?.let { viewModel.setCover(it, uri.toString()) }
-        coverGroup = null
-    }
     val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isNotEmpty()) viewModel.readSelections(uris, false)
     }
@@ -70,7 +69,7 @@ fun ImportScreen(
             Text(stringResource(R.string.import_preview), style = MaterialTheme.typography.titleLarge)
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(state.groups, key = { it.stableKey() }) { group ->
-                    ImportGroupCard(group, state, viewModel, onChooseCover = { coverGroup = group.stableKey(); coverPicker.launch(arrayOf("image/*")) })
+                    ImportGroupCard(group, state, viewModel, onChooseCover = { viewModel.loadCoverCandidates(group) })
                 }
             }
             state.workId?.let {
@@ -90,6 +89,39 @@ fun ImportScreen(
             Text(stringResource(R.string.import_failures), style = MaterialTheme.typography.titleMedium)
             state.failures.take(8).forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
         }
+    }
+    val pickerEntry = state.coverCandidates.entries.firstOrNull()
+    val pickerGroup = pickerEntry?.key?.let { key -> state.groups.firstOrNull { it.stableKey() == key } }
+    if (pickerEntry != null && pickerGroup != null) {
+        AlertDialog(
+            onDismissRequest = { viewModel.closeCoverPicker(pickerGroup) },
+            title = { Text("Chọn ảnh bìa khác") },
+            text = {
+                if (pickerEntry.value.isEmpty()) {
+                    Text("Không tìm thấy ảnh bìa từ iTunes, Deezer hoặc Cover Art Archive.")
+                } else {
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(3),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        items(pickerEntry.value) { candidate ->
+                            Column(
+                                Modifier.padding(4.dp).clickable { viewModel.chooseCoverCandidate(pickerGroup, candidate) },
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                            ) {
+                                AsyncImage(
+                                    model = candidate.url,
+                                    contentDescription = candidate.sourceProvider,
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                                Text(candidate.sourceProvider, style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { viewModel.closeCoverPicker(pickerGroup) }) { Text(stringResource(R.string.cancel)) } },
+        )
     }
     if (state.isReading) {
         AlertDialog(
