@@ -8,6 +8,7 @@ import com.youneko.rate.data.musicbrainz.CoverArtApi
 import com.youneko.rate.data.musicbrainz.CoverResult
 import com.youneko.rate.data.musicbrainz.CoverArtService
 import com.youneko.rate.data.musicbrainz.CoverArtUrls
+import com.youneko.rate.data.musicbrainz.CoverMatch
 import java.io.File
 import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
@@ -46,6 +47,13 @@ class CoverArtTest {
             "https://coverartarchive.org/release/release/front-500",
             CoverArtUrls.releaseFront500("release"),
         )
+    }
+
+    @Test
+    fun coverMatchRejectsWrongArtistAndFiveTrackMismatch() {
+        assertTrue(!CoverMatch.passes("AMORTAGE", "JISOO", "AMORTAGE", "OTHER", 4, 4, 2025, 2025))
+        assertTrue(!CoverMatch.passes("AMORTAGE", "JISOO", "AMORTAGE", "JISOO", 4, 9, 2025, 2020))
+        assertTrue(CoverMatch.passes("Bài hát (feat. X)", "Phùng Khánh Linh", "Bai hat", "Phung Khanh Linh", null, null, null, null))
     }
 
     @Test

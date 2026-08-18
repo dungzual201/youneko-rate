@@ -120,8 +120,7 @@ class Phase6CreditsTest {
         assertTrue(albumCredits.none { it.role == "Mix" || it.role == "Background vocals" })
         assertTrue(trackCredits.any { it.personName == "Manny Marroquin" && it.role == "Mix" })
         assertEquals(3, trackCredits.count { it.role == "Assistant mix" })
-        assertTrue(trackCredits.any { it.personName == "The Wavys" && it.role == "Producer" })
-        assertTrue(trackCredits.any { it.personName == "The Wavys" && it.role == "Programming" })
+        assertTrue(trackCredits.any { it.personName == "The Wavys" && it.role.contains("Producer") && it.role.contains("Programming") })
         assertTrue(trackCredits.any { it.personName == "Sarah Troy" && it.role == "Background vocals" })
         assertTrue(trackCredits.any { it.personName == "BLISSOO LIMITED" && it.role == "Phonographic copyright" && it.beginDate == "2025" && it.endDate == "2025" })
         assertEquals(5, trackCredits.count { it.role == "Writer" })
@@ -189,6 +188,26 @@ class Phase6CreditsTest {
         assertEquals(2, merged.size)
         assertTrue(merged.any { it.personName == "Beyoncé" && it.instrumentOrAttribute == "piano" })
         assertTrue(merged.any { it.personName == "山田 太郎" && it.instrumentOrAttribute == "guitar" })
+    }
+
+    @Test
+    fun mergerCombinesSourcesAndRolesWithinRoleGroup() {
+        val merged = CreditMerger.merge(
+            albumId = null,
+            trackId = "track-1",
+            candidates = listOf(
+                CreditCandidate("Phung Khanh Linh", null, "Producer", null, "discogs", null),
+                CreditCandidate("Phùng Khánh Linh", null, "Programming", null, "file_tags", null),
+                CreditCandidate("Phùng Khánh Linh", null, "Producer", null, "genius", null),
+            ),
+        )
+        assertEquals(1, merged.size)
+        assertEquals("Phùng Khánh Linh", merged.single().personName)
+        assertTrue(merged.single().role.contains("Producer"))
+        assertTrue(merged.single().role.contains("Programming"))
+        assertTrue(merged.single().sourceProvider.contains("discogs"))
+        assertTrue(merged.single().sourceProvider.contains("file_tags"))
+        assertTrue(merged.single().sourceProvider.contains("genius"))
     }
 
     @Test
@@ -272,6 +291,8 @@ class Phase6CreditsTest {
         override fun observeForItem(albumId: String, trackId: String?): Flow<List<CreditEntity>> = flowOf(emptyList())
         override fun observeForAlbum(albumId: String): Flow<List<CreditEntity>> = flowOf(emptyList())
         override suspend fun findAlbumCredits(albumId: String): List<CreditEntity> = rows.filter { it.albumId == albumId && it.trackId == null }
+        override fun observeForAlbumWithTracks(albumId: String): Flow<List<CreditEntity>> = flowOf(rows.filter { it.albumId == albumId || it.trackId == "track-1" })
+        override suspend fun findForAlbumWithTracks(albumId: String): List<CreditEntity> = rows.filter { it.albumId == albumId || it.trackId == "track-1" }
         override suspend fun findTrackCredits(trackId: String): List<CreditEntity> = rows.filter { it.trackId == trackId }
         override suspend fun deleteAlbumCredits(albumId: String) { rows.removeAll { it.albumId == albumId && it.trackId == null } }
         override suspend fun deleteTrackCredits(trackId: String) { rows.removeAll { it.trackId == trackId } }

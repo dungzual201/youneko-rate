@@ -226,6 +226,9 @@ class MusicBrainzNetworkTest {
         override val discogsToken = flowOf("")
         override val lastFmEnabled = flowOf(false)
         override val lastFmApiKey = flowOf("")
+        override val geniusEnabled = flowOf(false)
+        override val geniusToken = flowOf("")
+        override val showCreditSources = flowOf(false)
         override suspend fun setOfflineOnly(value: Boolean) = Unit
         override suspend fun setRatingStep(value: Double) = Unit
         override suspend fun setScoreMode(value: String) = Unit
@@ -237,5 +240,8 @@ class MusicBrainzNetworkTest {
         override suspend fun setDiscogsToken(value: String) = Unit
         override suspend fun setLastFmEnabled(value: Boolean) = Unit
         override suspend fun setLastFmApiKey(value: String) = Unit
+        override suspend fun setGeniusEnabled(value: Boolean) = Unit
+        override suspend fun setGeniusToken(value: String) = Unit
+        override suspend fun setShowCreditSources(value: Boolean) = Unit
     }
 }

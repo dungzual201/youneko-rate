@@ -91,6 +91,9 @@ private class FakeSettingsStore : SettingsStore {
     override val discogsToken = MutableStateFlow("")
     override val lastFmEnabled = MutableStateFlow(false)
     override val lastFmApiKey = MutableStateFlow("")
+    override val geniusEnabled = MutableStateFlow(false)
+    override val geniusToken = MutableStateFlow("")
+    override val showCreditSources = MutableStateFlow(false)
     override suspend fun setOfflineOnly(value: Boolean) { offlineOnly.value = value }
     override suspend fun setRatingStep(value: Double) { ratingStep.value = value }
     override suspend fun setScoreMode(value: String) { scoreMode.value = value }
@@ -102,6 +105,9 @@ private class FakeSettingsStore : SettingsStore {
     override suspend fun setDiscogsToken(value: String) { discogsToken.value = value }
     override suspend fun setLastFmEnabled(value: Boolean) { lastFmEnabled.value = value }
     override suspend fun setLastFmApiKey(value: String) { lastFmApiKey.value = value }
+    override suspend fun setGeniusEnabled(value: Boolean) { geniusEnabled.value = value }
+    override suspend fun setGeniusToken(value: String) { geniusToken.value = value }
+    override suspend fun setShowCreditSources(value: Boolean) { showCreditSources.value = value }
 }
 
 private class FakeAlbumRepository(private val saveResult: String = "id") : AlbumRepository {
