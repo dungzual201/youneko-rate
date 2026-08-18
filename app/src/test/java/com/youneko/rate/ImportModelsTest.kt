@@ -5,12 +5,36 @@ import com.youneko.rate.data.importer.ImportDedupe
 import com.youneko.rate.data.importer.ImportGrouping
 import com.youneko.rate.data.importer.ImportMergePolicy
 import com.youneko.rate.data.importer.ImportedTrack
+import com.youneko.rate.data.importer.extensionFromDisplayName
+import com.youneko.rate.data.importer.extensionFromMagic
 import com.youneko.rate.data.local.entity.TrackEntity
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ImportModelsTest {
+    @Test
+    fun displayNameExtensionHandlesUnicodeMultipleDotsNoExtensionAndNull() {
+        assertEquals("flac", extensionFromDisplayName("a.b.flac"))
+        assertEquals("mp3", extensionFromDisplayName("tên có dấu.mp3"))
+        assertEquals("wav", extensionFromDisplayName("音楽.wav"))
+        assertEquals(null, extensionFromDisplayName("noext"))
+        assertEquals(null, extensionFromDisplayName(null))
+        assertEquals(null, extensionFromDisplayName("cover.jpg"))
+    }
+
+    @Test
+    fun magicBytesDetectSupportedAudioContainers() {
+        assertEquals("flac", extensionFromMagic("fLaC".encodeToByteArray()))
+        assertEquals("mp3", extensionFromMagic(byteArrayOf(0x49, 0x44, 0x33)))
+        assertEquals("wav", extensionFromMagic("RIFFxxxxWAVE".encodeToByteArray()))
+        assertEquals("ogg", extensionFromMagic("OggS........".encodeToByteArray()))
+        assertEquals("opus", extensionFromMagic("OggS....OpusHead".encodeToByteArray()))
+        assertEquals("m4a", extensionFromMagic(byteArrayOf(0, 0, 0, 0, 0x66, 0x74, 0x79, 0x70)))
+        assertEquals("aiff", extensionFromMagic("FORMxxxxAIFF".encodeToByteArray()))
+        assertEquals(null, extensionFromMagic("not audio".encodeToByteArray()))
+    }
+
     @Test
     fun groupingUsesAlbumArtistAlbumYearAndSortsDiscThenTrack() {
         val tags = listOf(
