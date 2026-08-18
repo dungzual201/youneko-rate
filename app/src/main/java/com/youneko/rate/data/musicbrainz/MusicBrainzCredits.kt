@@ -77,14 +77,14 @@ data class CreditCandidate(
 )
 
 object CreditMerger {
-    fun merge(albumId: String, trackId: String?, candidates: List<CreditCandidate>): List<CreditEntity> =
+    fun merge(albumId: String?, trackId: String?, candidates: List<CreditCandidate>): List<CreditEntity> =
         candidates
             .groupBy { normalize(it.personName) to normalize(it.role) }
             .values
             .mapIndexed { index, samePerson ->
                 val first = samePerson.first()
                 CreditEntity(
-                    id = UUID.nameUUIDFromBytes("$albumId:${trackId.orEmpty()}:${normalize(first.personName)}:${normalize(first.role)}".toByteArray()).toString(),
+                    id = UUID.nameUUIDFromBytes("${albumId ?: "track"}:${trackId.orEmpty()}:${normalize(first.personName)}:${normalize(first.role)}".toByteArray()).toString(),
                     albumId = albumId,
                     trackId = trackId,
                     personName = first.personName,
@@ -125,7 +125,7 @@ class MusicBrainzCreditsService @Inject constructor(
         onProgress: suspend (completed: Int, total: Int) -> Unit = { _, _ -> },
     ): Resource<CreditLoadReport> = withContext(Dispatchers.IO) {
         val releaseMbid = album.mbid ?: return@withContext Resource.Error(NetworkError.NO_RESULTS, "Album chưa có MusicBrainz MBID")
-        val cacheKey = "credits:album:$releaseMbid"
+        val cacheKey = "credits:v2:album:$releaseMbid"
         if (!forceRefresh) readCache(cacheKey)?.let { cached ->
             creditDao.deleteAlbumCredits(album.id)
             creditDao.upsertAll(cached)
@@ -176,7 +176,7 @@ class MusicBrainzCreditsService @Inject constructor(
                 }
                 successfulItems++
             }
-            credits += CreditMerger.merge(album.id, track.id, candidates)
+            credits += CreditMerger.merge(null, track.id, candidates)
             completed++
             onProgress(completed, total)
         }
@@ -185,6 +185,7 @@ class MusicBrainzCreditsService @Inject constructor(
             return@withContext Resource.Error(NetworkError.NO_CONNECTION, "Không tải được credits từ MusicBrainz")
         }
         creditDao.deleteAlbumCredits(album.id)
+        creditDao.deleteTrackCreditsForAlbum(album.id)
         creditDao.upsertAll(credits)
         cacheDao.upsert(
             com.youneko.rate.data.local.entity.RemoteMetadataCacheEntity(
@@ -206,7 +207,7 @@ class MusicBrainzCreditsService @Inject constructor(
     ): Resource<CreditLoadReport> = withContext(Dispatchers.IO) {
         val track = trackDao.findById(trackId) ?: return@withContext Resource.Error(NetworkError.NO_RESULTS, "Bài hát không tồn tại")
         val recordingMbid = track.recordingMbid ?: return@withContext Resource.Error(NetworkError.NO_RESULTS, "Bài hát chưa có recording MBID")
-        val cacheKey = "credits:track:$recordingMbid"
+        val cacheKey = "credits:v2:track:$recordingMbid"
         if (!forceRefresh) readCache(cacheKey)?.let { cached ->
             creditDao.deleteTrackCredits(trackId)
             creditDao.upsertAll(cached)
@@ -225,7 +226,7 @@ class MusicBrainzCreditsService @Inject constructor(
                 candidates += relationCandidates(work.relations, "https://musicbrainz.org/work/$workMbid")
             }
         }
-        val credits = CreditMerger.merge(album.id, trackId, candidates)
+        val credits = CreditMerger.merge(null, trackId, candidates)
         creditDao.deleteTrackCredits(trackId)
         creditDao.upsertAll(credits)
         cacheDao.upsert(

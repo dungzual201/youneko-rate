@@ -111,8 +111,13 @@ class Phase6CreditsTest {
         val result = service.loadAlbumCredits(amortageAlbum(), forceRefresh = true)
         assertTrue(result is com.youneko.rate.data.musicbrainz.Resource.Success)
 
-        val trackCredits = creditDao.saved.last().filter { it.trackId == "earthquake-track" }
+        val allCredits = creditDao.saved.last()
+        val trackCredits = allCredits.filter { it.trackId == "earthquake-track" }
+        val albumCredits = allCredits.filter { it.trackId == null }
         assertTrue("recording relations must be preserved", trackCredits.size >= 13)
+        assertTrue(trackCredits.all { it.albumId == null })
+        assertTrue(albumCredits.any { it.personName == "BLISSOO LIMITED" && it.albumId == "album-1" })
+        assertTrue(albumCredits.none { it.role == "Mix" || it.role == "Background vocals" })
         assertTrue(trackCredits.any { it.personName == "Manny Marroquin" && it.role == "Mix" })
         assertEquals(3, trackCredits.count { it.role == "Assistant mix" })
         assertTrue(trackCredits.any { it.personName == "The Wavys" && it.role == "Producer" })
@@ -180,10 +185,10 @@ class Phase6CreditsTest {
     fun cacheWithinThirtyDaysReturnsWithoutRecordingRequest() = runBlocking {
         val now = System.currentTimeMillis()
         val cache = FakeCacheDao()
-        cache.values["credits:track:recording-1"] = RemoteMetadataCacheEntity(
-            key = "credits:track:recording-1",
+        cache.values["credits:v2:track:recording-1"] = RemoteMetadataCacheEntity(
+            key = "credits:v2:track:recording-1",
             provider = "musicbrainz",
-            jsonBody = "{\"values\":[{\"id\":\"credit-1\",\"albumId\":\"album-1\",\"trackId\":\"track-1\",\"personName\":\"Cached Producer\",\"personMbid\":\"person-1\",\"role\":\"producer\",\"instrumentOrAttribute\":null,\"sourceProvider\":\"musicbrainz\",\"sourceUrl\":\"https://musicbrainz.org/artist/person-1\",\"sortOrder\":0}]}",
+            jsonBody = "{\"values\":[{\"id\":\"credit-1\",\"albumId\":null,\"trackId\":\"track-1\",\"personName\":\"Cached Producer\",\"personMbid\":\"person-1\",\"role\":\"producer\",\"instrumentOrAttribute\":null,\"sourceProvider\":\"musicbrainz\",\"sourceUrl\":\"https://musicbrainz.org/artist/person-1\",\"sortOrder\":0}]}",
             fetchedAt = now - 1_000,
             expiresAt = now + 30L * 24L * 60L * 60L * 1_000L,
         )
@@ -201,12 +206,12 @@ class Phase6CreditsTest {
     @Test
     fun expiredCacheIsIgnored() = runBlocking {
         val cache = FakeCacheDao()
-        cache.values["credits:track:recording-1"] = RemoteMetadataCacheEntity(
-            key = "credits:track:recording-1", provider = "musicbrainz", jsonBody = "{\"values\":[]}",
+        cache.values["credits:v2:track:recording-1"] = RemoteMetadataCacheEntity(
+            key = "credits:v2:track:recording-1", provider = "musicbrainz", jsonBody = "{\"values\":[]}",
             fetchedAt = 0L, expiresAt = 1L,
         )
         val service = MusicBrainzCreditsService(FakeApi(), FakeCreditDao(), cache, FakeTrackDao(), json)
-        assertNull(service.readCache("credits:track:recording-1"))
+        assertNull(service.readCache("credits:v2:track:recording-1"))
     }
 
     private fun album() = AlbumEntity("album-1", "Album", "artist-1", mbid = "release-1", createdAt = 0L, updatedAt = 0L)
@@ -254,6 +259,7 @@ class Phase6CreditsTest {
         override fun observeForAlbum(albumId: String): Flow<List<CreditEntity>> = flowOf(emptyList())
         override suspend fun deleteAlbumCredits(albumId: String) = Unit
         override suspend fun deleteTrackCredits(trackId: String) = Unit
+        override suspend fun deleteTrackCreditsForAlbum(albumId: String) = Unit
     }
 
     private class FakeTrackDao(
