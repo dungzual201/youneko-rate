@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Update
 import com.youneko.rate.data.local.entity.AlbumEntity
 import com.youneko.rate.data.local.entity.ArtistEntity
 import com.youneko.rate.data.local.entity.AudioAnalysisEntity
@@ -25,11 +26,14 @@ interface AlbumDao {
     @Query("SELECT * FROM albums WHERE id = :id LIMIT 1")
     suspend fun findById(id: String): AlbumEntity?
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun upsert(album: AlbumEntity)
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insert(album: AlbumEntity)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun upsertAll(albums: List<AlbumEntity>)
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertAll(albums: List<AlbumEntity>)
+
+    @Update(onConflict = OnConflictStrategy.ABORT)
+    suspend fun update(album: AlbumEntity)
 
     @Query("DELETE FROM albums WHERE id = :id")
     suspend fun deleteById(id: String)
@@ -49,8 +53,11 @@ interface ArtistDao {
     @Query("SELECT * FROM artists WHERE name = :name COLLATE NOCASE LIMIT 1")
     suspend fun findByName(name: String): ArtistEntity?
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun upsert(artist: ArtistEntity)
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insert(artist: ArtistEntity)
+
+    @Update(onConflict = OnConflictStrategy.ABORT)
+    suspend fun update(artist: ArtistEntity)
 }
 
 @Dao
@@ -67,11 +74,14 @@ interface TrackDao {
     @Query("SELECT * FROM tracks WHERE id = :id LIMIT 1")
     suspend fun findById(id: String): TrackEntity?
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun upsert(track: TrackEntity)
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insert(track: TrackEntity)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun upsertAll(tracks: List<TrackEntity>)
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertAll(tracks: List<TrackEntity>)
+
+    @Update(onConflict = OnConflictStrategy.ABORT)
+    suspend fun update(track: TrackEntity)
 
     @Query("DELETE FROM tracks WHERE id = :id")
     suspend fun deleteById(id: String)

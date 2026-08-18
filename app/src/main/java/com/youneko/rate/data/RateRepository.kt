@@ -115,7 +115,7 @@ class RateRepository @Inject constructor(
             createdAt = now,
             updatedAt = now,
         )
-        artistDao.upsert(artist)
+        if (artistDao.findById(artist.id) == null) artistDao.insert(artist)
         val albumId = UUID.randomUUID().toString()
         val album = AlbumEntity(
             id = albumId,
@@ -143,8 +143,8 @@ class RateRepository @Inject constructor(
             )
         }
         database.withTransaction {
-            albumDao.upsert(album)
-            trackDao.upsertAll(tracks)
+            albumDao.insert(album)
+            trackDao.insertAll(tracks)
             rebuildSearchIndex(albumId, album, artist, tracks)
         }
         return albumId
@@ -156,25 +156,25 @@ class RateRepository @Inject constructor(
         val artist = artistDao.findByName(artistName.trim()) ?: ArtistEntity(
             id = UUID.randomUUID().toString(), name = artistName.trim(), createdAt = now, updatedAt = now,
         )
-        artistDao.upsert(artist)
+        if (artistDao.findById(artist.id) == null) artistDao.insert(artist)
         val track = TrackEntity(
             id = UUID.randomUUID().toString(), title = title.trim(), isStandalone = true,
             listenedDate = listenedDate, createdAt = now, updatedAt = now,
         )
-        trackDao.upsert(track)
+        trackDao.insert(track)
         ftsDao.upsert(LibrarySearchFtsEntity(track.id, "track", "$title $artistName"))
         return track.id
     }
 
     override suspend fun updateTrack(track: TrackEntity) {
         val updated = track.copy(updatedAt = System.currentTimeMillis())
-        trackDao.upsert(updated)
+        trackDao.update(updated)
         ftsDao.deleteForEntity(track.id)
         ftsDao.upsert(LibrarySearchFtsEntity(track.id, "track", "${track.title} ${track.reviewText.orEmpty()}"))
     }
 
     override suspend fun updateAlbum(album: AlbumEntity) {
-        albumDao.upsert(album.copy(updatedAt = System.currentTimeMillis()))
+        albumDao.update(album.copy(updatedAt = System.currentTimeMillis()))
     }
 
     override suspend fun deleteAlbum(id: String) {

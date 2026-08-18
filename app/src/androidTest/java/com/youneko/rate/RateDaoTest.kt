@@ -9,6 +9,8 @@ import com.youneko.rate.data.RateRepository
 import com.youneko.rate.data.TrackDraft
 import com.youneko.rate.data.local.YounekoDatabase
 import com.youneko.rate.data.local.entity.AlbumEntity
+import com.youneko.rate.data.local.entity.AudioAnalysisEntity
+import com.youneko.rate.data.local.entity.CreditEntity
 import com.youneko.rate.data.local.entity.ArtistEntity
 import com.youneko.rate.data.local.entity.LibrarySearchFtsEntity
 import com.youneko.rate.data.local.entity.TrackEntity
@@ -43,8 +45,8 @@ class RateDaoTest {
         val id = UUID.randomUUID().toString()
         val now = System.currentTimeMillis()
         val artist = ArtistEntity(UUID.randomUUID().toString(), "Ado", createdAt = now, updatedAt = now)
-        database.artistDao().upsert(artist)
-        database.albumDao().upsert(AlbumEntity(id, "Kyougen", artist.id, reviewText = "vocals and energy", createdAt = now, updatedAt = now))
+        database.artistDao().insert(artist)
+        database.albumDao().insert(AlbumEntity(id, "Kyougen", artist.id, reviewText = "vocals and energy", createdAt = now, updatedAt = now))
         database.librarySearchFtsDao().upsert(LibrarySearchFtsEntity(id, "album", "Kyougen Ado vocals energy"))
         val result = database.librarySearchFtsDao().search("vocals")
         assertEquals(1, result.size)
@@ -57,9 +59,9 @@ class RateDaoTest {
         val artistId = UUID.randomUUID().toString()
         val albumId = UUID.randomUUID().toString()
         val trackId = UUID.randomUUID().toString()
-        database.artistDao().upsert(ArtistEntity(artistId, "Artist", createdAt = now, updatedAt = now))
-        database.albumDao().upsert(AlbumEntity(albumId, "Album", artistId, createdAt = now, updatedAt = now))
-        database.trackDao().upsert(TrackEntity(trackId, albumId, "Track", trackNumber = 1, createdAt = now, updatedAt = now))
+        database.artistDao().insert(ArtistEntity(artistId, "Artist", createdAt = now, updatedAt = now))
+        database.albumDao().insert(AlbumEntity(albumId, "Album", artistId, createdAt = now, updatedAt = now))
+        database.trackDao().insert(TrackEntity(trackId, albumId, "Track", trackNumber = 1, createdAt = now, updatedAt = now))
         assertNotNull(database.trackDao().findById(trackId))
         database.albumDao().deleteById(albumId)
         assertTrue(database.trackDao().findById(trackId) == null)
@@ -99,6 +101,44 @@ class RateDaoTest {
     }
 
     @Test
+    fun updateAlbumVariantsPreserveTracksCreditsAndAudioAnalysis() = runBlocking {
+        val repository = RateRepository(
+            database,
+            database.albumDao(),
+            database.artistDao(),
+            database.trackDao(),
+            database.librarySearchFtsDao(),
+            CalculateAlbumScoreUseCase(),
+        )
+        val now = System.currentTimeMillis()
+        val artist = ArtistEntity(UUID.randomUUID().toString(), "Artist", createdAt = now, updatedAt = now)
+        val album = AlbumEntity(UUID.randomUUID().toString(), "Album", artist.id, createdAt = now, updatedAt = now)
+        val tracks = (1..3).map { number ->
+            TrackEntity(UUID.randomUUID().toString(), album.id, "Track $number", trackNumber = number, createdAt = now, updatedAt = now)
+        }
+        database.artistDao().insert(artist)
+        database.albumDao().insert(album)
+        database.trackDao().insertAll(tracks)
+        database.creditDao().upsertAll(listOf(CreditEntity(UUID.randomUUID().toString(), albumId = album.id, personName = "Person", role = "Composer", sourceProvider = "test")))
+        database.audioAnalysisDao().upsert(AudioAnalysisEntity(UUID.randomUUID().toString(), albumId = album.id, fileName = "album.flac", fileUriOrPath = "file:///album.flac", fileHash = "hash", analyzedAt = now))
+
+        val albumUpdates = listOf(
+            album.copy(isFavorite = true),
+            album.copy(reviewText = "Review"),
+            album.copy(manualScoreOverride = 4.5),
+            album.copy(title = "Renamed", releaseYear = 2024, listenedDate = "2024-01-01"),
+            album.copy(coverUri = "content://cover", coverThumbUri = "content://cover-thumb"),
+        )
+        albumUpdates.forEach { update ->
+            repository.updateAlbum(update)
+            assertEquals(tracks.map { it.id }, database.trackDao().findForAlbum(album.id).map { it.id })
+            assertEquals(tracks.map { it.title }, database.trackDao().findForAlbum(album.id).map { it.title })
+            assertEquals(1, database.creditDao().observeForItem(album.id, null).first().size)
+            assertEquals(1, database.audioAnalysisDao().observeAll().first().count { it.albumId == album.id })
+        }
+    }
+
+    @Test
     fun albumInsertQueriesAllTracksAndDeleteEmitsNull() = runBlocking {
         val now = System.currentTimeMillis()
         val artistId = UUID.randomUUID().toString()
@@ -113,9 +153,9 @@ class RateDaoTest {
                 updatedAt = now,
             )
         }
-        database.artistDao().upsert(ArtistEntity(artistId, "Artist", createdAt = now, updatedAt = now))
-        database.albumDao().upsert(AlbumEntity(albumId, "Album", artistId, createdAt = now, updatedAt = now))
-        database.trackDao().upsertAll(tracks)
+        database.artistDao().insert(ArtistEntity(artistId, "Artist", createdAt = now, updatedAt = now))
+        database.albumDao().insert(AlbumEntity(albumId, "Album", artistId, createdAt = now, updatedAt = now))
+        database.trackDao().insertAll(tracks)
 
         assertEquals(tracks.map { it.id }, database.trackDao().findForAlbum(albumId).map { it.id })
         assertNotNull(database.albumDao().observeById(albumId).first { it != null })
