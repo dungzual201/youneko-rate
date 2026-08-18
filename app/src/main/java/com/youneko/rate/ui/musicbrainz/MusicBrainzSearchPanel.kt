@@ -1,22 +1,32 @@
 package com.youneko.rate.ui.musicbrainz
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Pets
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -24,37 +34,89 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.paging.LoadState
 import androidx.paging.compose.collectAsLazyPagingItems
 import com.youneko.rate.R
+import com.youneko.rate.data.musicbrainz.ImportConflictChoice
 import com.youneko.rate.data.musicbrainz.MusicBrainzPreview
 import com.youneko.rate.data.musicbrainz.MusicBrainzSearchItem
 import com.youneko.rate.data.musicbrainz.NetworkError
 import com.youneko.rate.data.musicbrainz.Resource
 
 @Composable
-fun MusicBrainzSearchPanel(viewModel: MusicBrainzSearchViewModel = hiltViewModel()) {
+fun MusicBrainzSearchPanel(
+    viewModel: MusicBrainzSearchViewModel = hiltViewModel(),
+    onImported: (String) -> Unit = {},
+) {
     val results = viewModel.pagedResults.collectAsLazyPagingItems()
     val preview by viewModel.preview.collectAsStateWithLifecycle()
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    val query by viewModel.queryText.collectAsStateWithLifecycle()
+    val pendingImport by viewModel.pendingImport.collectAsStateWithLifecycle()
+    val importResult by viewModel.importResult.collectAsStateWithLifecycle()
+    LaunchedEffect(importResult) {
+        val result = importResult
+        if (result is Resource.Success) onImported(result.value)
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
         Text(stringResource(R.string.online_results), style = MaterialTheme.typography.titleMedium)
-        when (val refresh = results.loadState.refresh) {
-            LoadState.Loading -> CircularProgressIndicator()
-            is LoadState.Error -> Text(stringResource(R.string.network_error), color = MaterialTheme.colorScheme.error)
-            is LoadState.NotLoading -> if (results.itemCount == 0) Text(stringResource(R.string.no_results))
-        }
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(results.itemCount) { index ->
-                results[index]?.let { MusicBrainzResultCard(it, viewModel::openPreview) }
+        if (query.isBlank()) {
+            Box(
+                modifier = Modifier.fillMaxSize().navigationBarsPadding(),
+                contentAlignment = Alignment.Center,
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Default.Pets, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Text(stringResource(R.string.online_enter_query))
+                }
             }
-            if (results.loadState.append is LoadState.Loading) {
-                item { CircularProgressIndicator() }
+        } else {
+            when (val refresh = results.loadState.refresh) {
+                LoadState.Loading -> Box(
+                    modifier = Modifier.fillMaxSize().navigationBarsPadding(),
+                    contentAlignment = Alignment.Center,
+                ) { CircularProgressIndicator() }
+                is LoadState.Error -> Box(
+                    modifier = Modifier.fillMaxWidth().navigationBarsPadding(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(stringResource(R.string.network_error), color = MaterialTheme.colorScheme.error)
+                        TextButton(onClick = results::retry) { Text(stringResource(R.string.retry)) }
+                    }
+                }
+                is LoadState.NotLoading -> if (results.itemCount == 0) {
+                    Text(stringResource(R.string.no_results))
+                } else {
+                    Text(pluralStringResource(R.plurals.online_result_count, results.itemCount, results.itemCount))
+                }
+            }
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(results.itemCount) { index ->
+                    results[index]?.let { MusicBrainzResultCard(it, viewModel::openPreview) }
+                }
+                if (results.loadState.append is LoadState.Loading) {
+                    item { Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }
+                }
+                if (results.loadState.append is LoadState.Error) {
+                    item { TextButton(onClick = results::retry) { Text(stringResource(R.string.retry)) } }
+                }
             }
         }
         preview?.let { value ->
             when (value) {
                 Resource.Loading -> CircularProgressIndicator()
                 is Resource.Error -> Text(networkErrorLabel(value.kind), color = MaterialTheme.colorScheme.error)
-                is Resource.Success -> MusicBrainzPreviewDialog(value.value, viewModel::closePreview)
+                is Resource.Success -> MusicBrainzPreviewDialog(
+                    value.value,
+                    onDismiss = viewModel::closePreview,
+                    onImport = viewModel::requestImport,
+                    onSelectRelease = viewModel::selectRelease,
+                )
             }
         }
+        importResult?.let { result ->
+            if (result is Resource.Error) Text(result.message ?: stringResource(R.string.network_error), color = MaterialTheme.colorScheme.error)
+        }
+    }
+    pendingImport?.let { previewValue ->
+        ImportConflictDialog(previewValue, viewModel::resolveImport)
     }
 }
 
@@ -74,7 +136,12 @@ private fun MusicBrainzResultCard(item: MusicBrainzSearchItem, onClick: (MusicBr
 }
 
 @Composable
-private fun MusicBrainzPreviewDialog(preview: MusicBrainzPreview, onDismiss: () -> Unit) {
+private fun MusicBrainzPreviewDialog(
+    preview: MusicBrainzPreview,
+    onDismiss: () -> Unit,
+    onImport: (MusicBrainzPreview) -> Unit,
+    onSelectRelease: (String) -> Unit,
+) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(preview.title) },
@@ -82,14 +149,37 @@ private fun MusicBrainzPreviewDialog(preview: MusicBrainzPreview, onDismiss: () 
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(preview.artist)
                 Text(listOfNotNull(preview.year, preview.country, preview.label).joinToString(" · "))
-                HorizontalDivider()
-                preview.tracks.forEach { track ->
-                    Text("${track.discNumber}.${track.trackNumber} ${track.title}")
+                if (preview.releaseOptions.size > 1) {
+                    Text(stringResource(R.string.online_choose_release), style = MaterialTheme.typography.titleSmall)
+                    preview.releaseOptions.forEach { option ->
+                        TextButton(onClick = { onSelectRelease(option.id) }) {
+                            Text(listOfNotNull(option.title, option.year, option.country).joinToString(" · "))
+                        }
+                    }
                 }
+                HorizontalDivider()
+                preview.tracks.forEach { track -> Text("${track.discNumber}.${track.trackNumber} ${track.title}") }
                 Text(stringResource(R.string.online_preview_read_only), style = MaterialTheme.typography.labelSmall)
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) } },
+        confirmButton = { Button(onClick = { onImport(preview) }) { Text(stringResource(R.string.import_save)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) } },
+    )
+}
+
+@Composable
+private fun ImportConflictDialog(preview: MusicBrainzPreview, onChoice: (ImportConflictChoice) -> Unit) {
+    AlertDialog(
+        onDismissRequest = { onChoice(ImportConflictChoice.CANCEL) },
+        title = { Text(stringResource(R.string.online_import_conflict_title)) },
+        text = {
+            Column {
+                Text(stringResource(R.string.online_import_conflict_body, preview.title))
+                TextButton(onClick = { onChoice(ImportConflictChoice.MERGE) }) { Text(stringResource(R.string.merge)) }
+                TextButton(onClick = { onChoice(ImportConflictChoice.CREATE_NEW) }) { Text(stringResource(R.string.create_new)) }
+            }
+        },
+        confirmButton = { TextButton(onClick = { onChoice(ImportConflictChoice.CANCEL) }) { Text(stringResource(R.string.cancel)) } },
     )
 }
 
