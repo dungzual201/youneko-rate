@@ -120,6 +120,7 @@ class Phase6CreditsTest {
         assertTrue(trackCredits.any { it.personName == "Sarah Troy" && it.role == "Background vocals" })
         assertTrue(trackCredits.any { it.personName == "BLISSOO LIMITED" && it.role == "Phonographic copyright" && it.beginDate == "2025" && it.endDate == "2025" })
         assertEquals(5, trackCredits.count { it.role == "Writer" })
+        assertTrue("performance relation must trigger work lookup", api.workCalls.contains(work.id))
     }
 
     @Test
@@ -216,6 +217,7 @@ class Phase6CreditsTest {
         var searchCalls = 0
         var releaseCalls = 0
         var recordingCalls = 0
+        val workCalls = mutableListOf<String>()
         var releaseResponse: MbRelease? = null
         var recordingResponse: MbRecording? = null
         val workResponses = mutableMapOf<String, MbWork>()
@@ -231,7 +233,10 @@ class Phase6CreditsTest {
             recordingCalls++
             return recordingResponse ?: MbRecording(mbid)
         }
-        override suspend fun lookupWork(mbid: String, includes: String, format: String) = workResponses[mbid] ?: MbWork(mbid)
+        override suspend fun lookupWork(mbid: String, includes: String, format: String): MbWork {
+            workCalls += mbid
+            return workResponses[mbid] ?: MbWork(mbid)
+        }
     }
 
     private class FakeCacheDao : RemoteMetadataCacheDao {
