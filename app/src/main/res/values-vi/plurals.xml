@@ -8,4 +8,8 @@
         <item quantity="one">%1$d kết quả</item>
         <item quantity="other">%1$d kết quả</item>
     </plurals>
+    <plurals name="track_count">
+        <item quantity="one">%1$d bài</item>
+        <item quantity="other">%1$d bài</item>
+    </plurals>
 </resources>

@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -30,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.size
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.paging.LoadState
@@ -38,6 +40,8 @@ import com.youneko.rate.R
 import com.youneko.rate.data.musicbrainz.ImportConflictChoice
 import com.youneko.rate.data.musicbrainz.MusicBrainzImportProgress
 import com.youneko.rate.data.musicbrainz.MusicBrainzImportStage
+import com.youneko.rate.data.musicbrainz.CoverArtUrls
+import com.youneko.rate.ui.artwork.CoverArtImage
 import com.youneko.rate.data.musicbrainz.MusicBrainzPreview
 import com.youneko.rate.data.musicbrainz.MusicBrainzSearchItem
 import com.youneko.rate.data.musicbrainz.NetworkError
@@ -63,7 +67,7 @@ fun MusicBrainzSearchPanel(
         Text(stringResource(R.string.online_results), style = MaterialTheme.typography.titleMedium)
         if (query.isBlank()) {
             Box(
-                modifier = Modifier.fillMaxSize().navigationBarsPadding(),
+                modifier = Modifier.fillMaxWidth().weight(1f).navigationBarsPadding(),
                 contentAlignment = Alignment.Center,
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -74,7 +78,7 @@ fun MusicBrainzSearchPanel(
         } else {
             when (val refresh = results.loadState.refresh) {
                 LoadState.Loading -> Box(
-                    modifier = Modifier.fillMaxSize().navigationBarsPadding(),
+                    modifier = Modifier.fillMaxWidth().weight(1f).navigationBarsPadding(),
                     contentAlignment = Alignment.Center,
                 ) { CircularProgressIndicator() }
                 is LoadState.Error -> Box(
@@ -97,7 +101,11 @@ fun MusicBrainzSearchPanel(
                     results[index]?.let { MusicBrainzResultCard(it, viewModel::openPreview) }
                 }
                 if (results.loadState.append is LoadState.Loading) {
-                    item { Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }
+                    item {
+                        Box(Modifier.fillMaxWidth().height(56.dp), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator()
+                        }
+                    }
                 }
                 if (results.loadState.append is LoadState.Error) {
                     item { TextButton(onClick = results::retry) { Text(stringResource(R.string.retry)) } }
@@ -106,7 +114,10 @@ fun MusicBrainzSearchPanel(
         }
         preview?.let { value ->
             when (value) {
-                Resource.Loading -> CircularProgressIndicator()
+                Resource.Loading -> Box(
+                    Modifier.fillMaxWidth().weight(1f).navigationBarsPadding(),
+                    contentAlignment = Alignment.Center,
+                ) { CircularProgressIndicator() }
                 is Resource.Error -> Text(networkErrorLabel(value.kind), color = MaterialTheme.colorScheme.error)
                 is Resource.Success -> MusicBrainzPreviewDialog(
                     value.value,
@@ -157,15 +168,26 @@ private fun ImportProgressDialog(progress: MusicBrainzImportProgress, onCancel: 
 
 @Composable
 private fun MusicBrainzResultCard(item: MusicBrainzSearchItem, onClick: (MusicBrainzSearchItem) -> Unit) {
+    val releaseMbid = item.id.takeIf { item.entityType == "release" }
+    val coverModels = CoverArtUrls.listCandidates(item.releaseGroupMbid, releaseMbid)
     androidx.compose.material3.Card(onClick = { onClick(item) }, modifier = Modifier.fillMaxWidth()) {
-        Row(Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            Modifier.padding(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            CoverArtImage(coverModels, Modifier.size(56.dp))
             Column(Modifier.weight(1f)) {
-                Text(item.title, style = MaterialTheme.typography.titleMedium)
-                Text(item.artist, style = MaterialTheme.typography.bodyMedium)
-                item.subtitle?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-                item.year?.let { Text(it, style = MaterialTheme.typography.labelSmall) }
+                Text(item.title, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                Text(item.artist, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                Text(
+                    listOfNotNull(item.subtitle, item.year, item.trackCount?.let { pluralStringResource(R.plurals.track_count, it, it) }).joinToString(" · "),
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                )
             }
-            AssistChip(onClick = { onClick(item) }, label = { Text("MB") })
+            AssistChip(onClick = { onClick(item) }, label = { Text(stringResource(R.string.source_musicbrainz), style = MaterialTheme.typography.labelSmall) })
         }
     }
 }

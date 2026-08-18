@@ -188,6 +188,8 @@ data class MusicBrainzSearchItem(
     val year: String?,
     val score: Int?,
     val subtitle: String?,
+    val releaseGroupMbid: String? = null,
+    val trackCount: Int? = null,
 )
 
 data class MusicBrainzPreview(
@@ -262,6 +264,8 @@ fun MbReleaseGroup.toSearchItem() = MusicBrainzSearchItem(
     year = firstReleaseDate?.take(4),
     score = score,
     subtitle = listOfNotNull(primaryType, disambiguation).joinToString(" · ").ifBlank { null },
+    releaseGroupMbid = id,
+    trackCount = releases.firstOrNull()?.trackCount,
 )
 
 fun MbRelease.toSearchItem() = MusicBrainzSearchItem(
@@ -272,6 +276,8 @@ fun MbRelease.toSearchItem() = MusicBrainzSearchItem(
     year = date?.take(4),
     score = score,
     subtitle = listOfNotNull(country, releaseGroup?.title).joinToString(" · ").ifBlank { null },
+    releaseGroupMbid = releaseGroup?.id,
+    trackCount = trackCount,
 )
 
 fun MbRecording.toSearchItem() = MusicBrainzSearchItem(
