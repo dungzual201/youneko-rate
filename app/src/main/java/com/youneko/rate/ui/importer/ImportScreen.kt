@@ -12,11 +12,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -77,11 +79,7 @@ fun ImportScreen(
             state.workId?.let {
                 if (state.workState == androidx.work.WorkInfo.State.RUNNING || state.workState == androidx.work.WorkInfo.State.ENQUEUED) {
                     val progress = if (state.progressTotal > 0) state.progressCurrent.toFloat() / state.progressTotal else null
-                    if (progress != null) LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
-                    Row {
-                        Text(stringResource(R.string.import_processing, state.progressCurrent, state.progressTotal), Modifier.weight(1f))
-                        OutlinedButton(onClick = viewModel::cancelImport) { Text(stringResource(R.string.cancel)) }
-                    }
+                    // Progress is rendered in a modal dialog below, not at the bottom of this list.
                 } else if (state.workState == androidx.work.WorkInfo.State.SUCCEEDED) {
                     Text(stringResource(R.string.import_done, state.importedCount), color = MaterialTheme.colorScheme.primary)
                     Button(onClick = onDone) { Text(stringResource(R.string.import_open_library)) }
@@ -96,6 +94,27 @@ fun ImportScreen(
             Text(stringResource(R.string.import_failures), style = MaterialTheme.typography.titleMedium)
             state.failures.take(8).forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
         }
+    }
+    val workRunning = state.workState == androidx.work.WorkInfo.State.RUNNING || state.workState == androidx.work.WorkInfo.State.ENQUEUED
+    if (workRunning) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text(stringResource(R.string.import_save)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    CircularProgressIndicator()
+                    Text(stringResource(R.string.import_stage_saving, state.progressCurrent, state.progressTotal))
+                    if (state.progressTotal > 0) {
+                        LinearProgressIndicator(
+                            progress = { (state.progressCurrent.toFloat() / state.progressTotal).coerceIn(0f, 1f) },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Text(stringResource(R.string.import_processing, state.progressCurrent, state.progressTotal))
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = viewModel::cancelImport) { Text(stringResource(R.string.cancel)) } },
+        )
     }
 
 }

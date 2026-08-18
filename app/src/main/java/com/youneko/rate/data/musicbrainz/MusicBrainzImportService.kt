@@ -6,7 +6,10 @@ import com.youneko.rate.data.AlbumRepository
 import com.youneko.rate.data.TrackDraft
 import com.youneko.rate.data.local.entity.AlbumEntity
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import okhttp3.ResponseBody
 import retrofit2.Response
@@ -78,9 +81,21 @@ class MusicBrainzImportService @Inject constructor(
         }
     }
 
-    suspend fun import(preview: MusicBrainzPreview, choice: ImportConflictChoice): Resource<String> = try {
+    suspend fun import(
+        preview: MusicBrainzPreview,
+        choice: ImportConflictChoice,
+        onProgress: (MusicBrainzImportProgress) -> Unit = {},
+    ): Resource<String> = try {
         withContext(Dispatchers.IO) {
+        currentCoroutineContext().ensureActive()
+        onProgress(MusicBrainzImportProgress(MusicBrainzImportStage.RELEASE, 1, 1))
+        currentCoroutineContext().ensureActive()
+        onProgress(MusicBrainzImportProgress(MusicBrainzImportStage.COVER, 0, 1))
         val coverUri = downloadCover(preview.releaseId)
+        currentCoroutineContext().ensureActive()
+        onProgress(MusicBrainzImportProgress(MusicBrainzImportStage.COVER, 1, 1))
+        val totalTracks = preview.tracks.size
+        onProgress(MusicBrainzImportProgress(MusicBrainzImportStage.SAVING, 0, totalTracks))
         val draft = AlbumDraft(
             title = preview.title,
             artistName = preview.artist,
@@ -106,15 +121,21 @@ class MusicBrainzImportService @Inject constructor(
         )
         val match = repository.findMusicBrainzMatch(draft)
         when {
-            match == null || choice == ImportConflictChoice.CREATE_NEW -> Resource.Success(repository.saveAlbumBatched(draft))
+            match == null || choice == ImportConflictChoice.CREATE_NEW -> {
+                val id = repository.saveAlbumBatched(draft)
+                onProgress(MusicBrainzImportProgress(MusicBrainzImportStage.SAVING, totalTracks, totalTracks))
+                Resource.Success(id)
+            }
             choice == ImportConflictChoice.MERGE -> {
                 repository.mergeMusicBrainzMetadata(match, draft)
+                onProgress(MusicBrainzImportProgress(MusicBrainzImportStage.SAVING, totalTracks, totalTracks))
                 Resource.Success(match)
             }
             else -> Resource.Error(NetworkError.NO_RESULTS, "Import đã hủy")
         }
         }
     } catch (error: Throwable) {
+        if (error is CancellationException) throw error
         error.toNetworkError()
     }
 
@@ -140,3 +161,11 @@ class MusicBrainzImportService @Inject constructor(
 }
 
 enum class ImportConflictChoice { MERGE, CREATE_NEW, CANCEL }
+
+enum class MusicBrainzImportStage { RELEASE, COVER, SAVING }
+
+data class MusicBrainzImportProgress(
+    val stage: MusicBrainzImportStage,
+    val current: Int,
+    val total: Int,
+)

@@ -57,6 +57,10 @@
     <string name="import_choose_cover">Choose another cover</string>
     <string name="import_save">Start import</string>
     <string name="import_processing">Processing file %1$d/%2$d</string>
+    <string name="import_stage_release">Loading release information...</string>
+    <string name="import_stage_cover">Loading album cover...</string>
+    <string name="import_stage_saving">Saving to library... (%1$d/%2$d tracks)</string>
+    <string name="import_progress_items">Importing %1$d/%2$d</string>
     <string name="import_done">Imported %1$d tracks</string>
     <string name="import_open_library">Open library</string>
     <string name="import_no_files">No audio files selected yet.</string>
@@ -130,6 +134,9 @@
     <string name="credits_reload">Reload credits</string>
     <string name="credits_progress">Loading %1$d/%2$d items</string>
     <string name="credits_empty">MusicBrainz has no crew information for this album.</string>
+    <string name="credits_no_mbid">This album or track is not linked to MusicBrainz yet.</string>
+    <string name="credits_link_musicbrainz">Link with MusicBrainz</string>
+    <string name="credits_try_other_release">Try another release</string>
     <string name="credits_contribute">Contribute to MusicBrainz</string>
     <string name="credits_group_writing">Writing</string>
     <string name="credits_group_production">Production</string>

@@ -17,6 +17,7 @@ import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -35,6 +36,8 @@ import androidx.paging.LoadState
 import androidx.paging.compose.collectAsLazyPagingItems
 import com.youneko.rate.R
 import com.youneko.rate.data.musicbrainz.ImportConflictChoice
+import com.youneko.rate.data.musicbrainz.MusicBrainzImportProgress
+import com.youneko.rate.data.musicbrainz.MusicBrainzImportStage
 import com.youneko.rate.data.musicbrainz.MusicBrainzPreview
 import com.youneko.rate.data.musicbrainz.MusicBrainzSearchItem
 import com.youneko.rate.data.musicbrainz.NetworkError
@@ -44,17 +47,19 @@ import com.youneko.rate.data.musicbrainz.Resource
 fun MusicBrainzSearchPanel(
     viewModel: MusicBrainzSearchViewModel = hiltViewModel(),
     onImported: (String) -> Unit = {},
+    modifier: Modifier = Modifier,
 ) {
     val results = viewModel.pagedResults.collectAsLazyPagingItems()
     val preview by viewModel.preview.collectAsStateWithLifecycle()
     val query by viewModel.queryText.collectAsStateWithLifecycle()
     val pendingImport by viewModel.pendingImport.collectAsStateWithLifecycle()
     val importResult by viewModel.importResult.collectAsStateWithLifecycle()
+    val importProgress by viewModel.importProgress.collectAsStateWithLifecycle()
     LaunchedEffect(importResult) {
         val result = importResult
         if (result is Resource.Success) onImported(result.value)
     }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = modifier.fillMaxWidth()) {
         Text(stringResource(R.string.online_results), style = MaterialTheme.typography.titleMedium)
         if (query.isBlank()) {
             Box(
@@ -87,7 +92,7 @@ fun MusicBrainzSearchPanel(
                     Text(pluralStringResource(R.plurals.online_result_count, results.itemCount, results.itemCount))
                 }
             }
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(results.itemCount) { index ->
                     results[index]?.let { MusicBrainzResultCard(it, viewModel::openPreview) }
                 }
@@ -118,6 +123,36 @@ fun MusicBrainzSearchPanel(
     pendingImport?.let { previewValue ->
         ImportConflictDialog(previewValue, viewModel::resolveImport)
     }
+    importProgress?.let { progress ->
+        ImportProgressDialog(progress, viewModel::cancelImport)
+    }
+}
+
+@Composable
+private fun ImportProgressDialog(progress: MusicBrainzImportProgress, onCancel: () -> Unit) {
+    val label = when (progress.stage) {
+        MusicBrainzImportStage.RELEASE -> stringResource(R.string.import_stage_release)
+        MusicBrainzImportStage.COVER -> stringResource(R.string.import_stage_cover)
+        MusicBrainzImportStage.SAVING -> stringResource(R.string.import_stage_saving, progress.current, progress.total)
+    }
+    AlertDialog(
+        onDismissRequest = {},
+        title = { Text(stringResource(R.string.import_save)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                CircularProgressIndicator()
+                Text(label)
+                if (progress.total > 0) {
+                    LinearProgressIndicator(
+                        progress = { (progress.current.toFloat() / progress.total).coerceIn(0f, 1f) },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Text(stringResource(R.string.import_progress_items, progress.current, progress.total))
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onCancel) { Text(stringResource(R.string.cancel)) } },
+    )
 }
 
 @Composable
