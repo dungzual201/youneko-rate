@@ -1,6 +1,7 @@
 package com.youneko.rate.data.importer
 
 import com.youneko.rate.data.local.entity.TrackEntity
+import com.youneko.rate.data.musicbrainz.CreditCandidate
 import java.text.Normalizer
 import java.util.Locale
 
@@ -18,6 +19,7 @@ data class AudioTag(
     val genre: String?,
     val durationMs: Long?,
     val embeddedCoverPath: String? = null,
+    val embeddedCredits: List<CreditCandidate> = emptyList(),
 )
 
 data class ImportedTrack(
@@ -30,6 +32,7 @@ data class ImportedTrack(
     val durationMs: Long?,
     val genre: String?,
     val listenedDate: String? = null,
+    val embeddedCredits: List<CreditCandidate> = emptyList(),
 )
 
 data class ImportGroup(
@@ -71,6 +74,7 @@ object ImportGrouping {
                         discNumber = tag.discNumber,
                         durationMs = tag.durationMs,
                         genre = tag.genre,
+                        embeddedCredits = tag.embeddedCredits,
                     )
                 }.sortedWith(compareBy<ImportedTrack> { it.discNumber ?: Int.MAX_VALUE }
                     .thenBy { it.trackNumber ?: Int.MAX_VALUE }

@@ -127,9 +127,12 @@ class MusicBrainzCreditsService @Inject constructor(
         val releaseMbid = album.mbid ?: return@withContext Resource.Error(NetworkError.NO_RESULTS, "Album chưa có MusicBrainz MBID")
         val cacheKey = "credits:v2:album:$releaseMbid"
         if (!forceRefresh) readCache(cacheKey)?.let { cached ->
+            val manual = creditDao.findAlbumCredits(album.id).filter { it.isManualSource() }
+            val merged = preserveManual(cached, manual)
             creditDao.deleteAlbumCredits(album.id)
-            creditDao.upsertAll(cached)
-            return@withContext Resource.Success(CreditLoadReport(cached, true, 0, 0))
+            creditDao.deleteTrackCreditsForAlbum(album.id)
+            creditDao.upsertAll(merged)
+            return@withContext Resource.Success(CreditLoadReport(merged, true, 0, 0))
         }
 
         val tracks = trackDao.findForAlbum(album.id)
@@ -184,19 +187,22 @@ class MusicBrainzCreditsService @Inject constructor(
         if (credits.isEmpty() && recordingTracks.isNotEmpty() && successfulItems == 0) {
             return@withContext Resource.Error(NetworkError.NO_CONNECTION, "Không tải được credits từ MusicBrainz")
         }
+        val manual = creditDao.findAlbumCredits(album.id).filter { it.isManualSource() } +
+            recordingTracks.flatMap { creditDao.findTrackCredits(it.id) }.filter { it.isManualSource() }
+        val persistedCredits = preserveManual(credits, manual)
         creditDao.deleteAlbumCredits(album.id)
         creditDao.deleteTrackCreditsForAlbum(album.id)
-        creditDao.upsertAll(credits)
+        creditDao.upsertAll(persistedCredits)
         cacheDao.upsert(
             com.youneko.rate.data.local.entity.RemoteMetadataCacheEntity(
                 key = cacheKey,
                 provider = MUSICBRAINZ_CREDITS,
-                jsonBody = json.encodeToString(CachedCredits(credits.map(::toCached))),
+                jsonBody = json.encodeToString(CachedCredits(persistedCredits.map(::toCached))),
                 fetchedAt = System.currentTimeMillis(),
                 expiresAt = System.currentTimeMillis() + CREDITS_TTL_MS,
             ),
         )
-        Resource.Success(CreditLoadReport(credits, false, successfulItems, total))
+        Resource.Success(CreditLoadReport(persistedCredits, false, successfulItems, total))
     }
 
     suspend fun loadTrackCredits(
@@ -209,9 +215,11 @@ class MusicBrainzCreditsService @Inject constructor(
         val recordingMbid = track.recordingMbid ?: return@withContext Resource.Error(NetworkError.NO_RESULTS, "Bài hát chưa có recording MBID")
         val cacheKey = "credits:v2:track:$recordingMbid"
         if (!forceRefresh) readCache(cacheKey)?.let { cached ->
+            val manual = creditDao.findTrackCredits(trackId).filter { it.isManualSource() }
+            val merged = preserveManual(cached, manual)
             creditDao.deleteTrackCredits(trackId)
-            creditDao.upsertAll(cached)
-            return@withContext Resource.Success(CreditLoadReport(cached, true, 0, 0))
+            creditDao.upsertAll(merged)
+            return@withContext Resource.Success(CreditLoadReport(merged, true, 0, 0))
         }
         onProgress(0, 1)
         val recording = runCatching { api.lookupRecording(recordingMbid) }.getOrElse { return@withContext it.toNetworkError() }
@@ -227,19 +235,21 @@ class MusicBrainzCreditsService @Inject constructor(
             }
         }
         val credits = CreditMerger.merge(null, trackId, candidates)
+        val manual = creditDao.findTrackCredits(trackId).filter { it.isManualSource() }
+        val persistedCredits = preserveManual(credits, manual)
         creditDao.deleteTrackCredits(trackId)
-        creditDao.upsertAll(credits)
+        creditDao.upsertAll(persistedCredits)
         cacheDao.upsert(
             com.youneko.rate.data.local.entity.RemoteMetadataCacheEntity(
                 key = cacheKey,
                 provider = MUSICBRAINZ_CREDITS,
-                jsonBody = json.encodeToString(CachedCredits(credits.map(::toCached))),
+                jsonBody = json.encodeToString(CachedCredits(persistedCredits.map(::toCached))),
                 fetchedAt = System.currentTimeMillis(),
                 expiresAt = System.currentTimeMillis() + CREDITS_TTL_MS,
             ),
         )
         onProgress(1, 1)
-        Resource.Success(CreditLoadReport(credits, false, 1, 1))
+        Resource.Success(CreditLoadReport(persistedCredits, false, 1, 1))
     }
 
     suspend fun readCache(key: String): List<CreditEntity>? {
@@ -247,6 +257,29 @@ class MusicBrainzCreditsService @Inject constructor(
         if (cached.expiresAt <= System.currentTimeMillis()) return null
         return runCatching { json.decodeFromString<CachedCredits>(cached.jsonBody).values.map(::fromCached) }.getOrNull()
     }
+
+    private fun CreditEntity.isManualSource(): Boolean = sourceProvider.split(',').any { it.trim().equals("manual", ignoreCase = true) }
+
+    private fun preserveManual(remote: List<CreditEntity>, manual: List<CreditEntity>): List<CreditEntity> =
+        (remote + manual).groupBy { it.albumId to it.trackId }.flatMap { (scope, rows) ->
+            CreditMerger.merge(
+                albumId = scope.first,
+                trackId = scope.second,
+                candidates = rows.filterNot { it.isManualSource() }.map(::toCandidate) +
+                    rows.filter { it.isManualSource() }.map(::toCandidate),
+            )
+        }
+
+    private fun toCandidate(value: CreditEntity) = CreditCandidate(
+        personName = value.personName,
+        personMbid = value.personMbid,
+        role = value.role,
+        instrumentOrAttribute = value.instrumentOrAttribute,
+        sourceProvider = value.sourceProvider,
+        sourceUrl = value.sourceUrl,
+        beginDate = value.beginDate,
+        endDate = value.endDate,
+    )
 
     private fun relationCandidates(relations: List<MbRelation>, sourceUrl: String): List<CreditCandidate> =
         relations.mapNotNull { relation ->

@@ -108,6 +108,12 @@ interface CreditDao {
     @Query("SELECT * FROM credits WHERE albumId = :albumId AND trackId IS NULL ORDER BY sortOrder, personName COLLATE NOCASE")
     fun observeForAlbum(albumId: String): Flow<List<CreditEntity>>
 
+    @Query("SELECT * FROM credits WHERE albumId = :albumId AND trackId IS NULL")
+    suspend fun findAlbumCredits(albumId: String): List<CreditEntity>
+
+    @Query("SELECT * FROM credits WHERE trackId = :trackId")
+    suspend fun findTrackCredits(trackId: String): List<CreditEntity>
+
     @Query("DELETE FROM credits WHERE albumId = :albumId AND trackId IS NULL")
     suspend fun deleteAlbumCredits(albumId: String)
 

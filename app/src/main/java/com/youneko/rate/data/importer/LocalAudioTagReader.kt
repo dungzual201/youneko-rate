@@ -7,6 +7,7 @@ import android.provider.OpenableColumns
 import androidx.documentfile.provider.DocumentFile
 import org.jaudiotagger.audio.AudioFileIO
 import org.jaudiotagger.tag.FieldKey
+import com.youneko.rate.data.musicbrainz.CreditCandidate
 import java.io.File
 import java.util.Locale
 import java.util.UUID
@@ -89,7 +90,48 @@ class LocalAudioTagReader(private val context: Context) {
             genre = first(tag, FieldKey.GENRE),
             durationMs = audioFile.audioHeader?.trackLength?.times(1000L),
             embeddedCoverPath = persistCover(tag?.firstArtwork?.binaryData),
+            embeddedCredits = readEmbeddedCredits(tag),
         )
+    }
+
+    private fun readEmbeddedCredits(tag: org.jaudiotagger.tag.Tag?): List<CreditCandidate> = buildList {
+        val standardFields = listOf(
+            "COMPOSER" to "Composer",
+            "LYRICIST" to "Lyricist",
+            "PRODUCER" to "Producer",
+            "ARRANGER" to "Arranger",
+            "PERFORMER" to "Performer",
+            "MIXER" to "Mixer",
+            "ENGINEER" to "Engineer",
+        )
+        standardFields.forEach { (field, role) ->
+            val raw = runCatching { tag?.getFirst(field) }.getOrNull().orEmpty()
+            splitTagValues(raw).forEach { name -> addCredit(name, role) }
+        }
+        val involvedPeople = runCatching { tag?.getFirst("TIPL") }.getOrNull().orEmpty()
+        parseId3People(involvedPeople).forEach { (role, name) -> addCredit(name, role) }
+        val musicianCredits = runCatching { tag?.getFirst("TMCL") }.getOrNull().orEmpty()
+        parseId3People(musicianCredits).forEach { (role, name) -> addCredit(name, role) }
+    }.distinctBy { it.personName.trim().lowercase() to it.role.lowercase() }
+
+    private fun MutableList<CreditCandidate>.addCredit(name: String, role: String) {
+        val cleaned = name.trim().takeIf { it.isNotEmpty() } ?: return
+        add(CreditCandidate(cleaned, null, role, null, "file_tags", null))
+    }
+
+    private fun splitTagValues(raw: String): List<String> = raw
+        .split('\u0000', ';', '\n')
+        .map(String::trim)
+        .filter(String::isNotEmpty)
+
+    private fun parseId3People(raw: String): List<Pair<String, String>> {
+        if (raw.isBlank()) return emptyList()
+        val parts = raw.split('\u0000').map(String::trim).filter(String::isNotEmpty)
+        if (parts.size >= 2 && parts.size % 2 == 0) return parts.chunked(2).map { it[0] to it[1] }
+        return raw.split(';', '\n').mapNotNull { item ->
+            val separator = item.indexOf(':').takeIf { it >= 0 } ?: item.indexOf('=').takeIf { it >= 0 } ?: return@mapNotNull null
+            item.substring(0, separator).trim() to item.substring(separator + 1).trim()
+        }.filter { it.first.isNotEmpty() && it.second.isNotEmpty() }
     }
 
     private fun persistCover(bytes: ByteArray?): String? {

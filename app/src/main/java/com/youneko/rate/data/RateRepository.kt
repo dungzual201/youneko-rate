@@ -6,6 +6,8 @@ import com.youneko.rate.data.local.dao.AlbumDao
 import com.youneko.rate.data.local.dao.ArtistDao
 import com.youneko.rate.data.local.dao.LibrarySearchFtsDao
 import com.youneko.rate.data.local.dao.TrackDao
+import com.youneko.rate.data.local.dao.CreditDao
+import com.youneko.rate.data.musicbrainz.CreditMerger
 import com.youneko.rate.data.local.entity.AlbumEntity
 import com.youneko.rate.data.local.entity.ArtistEntity
 import com.youneko.rate.data.local.entity.LibrarySearchFtsEntity
@@ -39,6 +41,8 @@ class AlbumDraft(
     val catalogNumber: String? = null,
     val country: String? = null,
     val sourceProvider: String? = null,
+    val coverSource: String? = null,
+    val coverWidth: Int? = null,
     val metadataFetchedAt: Long? = null,
 )
 
@@ -49,6 +53,7 @@ data class TrackDraft(
     val recordingMbid: String? = null,
     val sourceUri: String? = null,
     val fileName: String? = null,
+    val embeddedCredits: List<com.youneko.rate.data.musicbrainz.CreditCandidate> = emptyList(),
     val id: String = UUID.randomUUID().toString(),
 )
 
@@ -65,7 +70,7 @@ interface AlbumRepository {
     suspend fun searchEntityIds(query: String): Set<String>
     suspend fun saveAlbum(draft: AlbumDraft): String
     suspend fun saveAlbumBatched(draft: AlbumDraft, batchSize: Int = 50): String
-    suspend fun saveStandalone(title: String, artistName: String, listenedDate: String?, sourceUri: String? = null, fileName: String? = null): String
+    suspend fun saveStandalone(title: String, artistName: String, listenedDate: String?, sourceUri: String? = null, fileName: String? = null, embeddedCredits: List<com.youneko.rate.data.musicbrainz.CreditCandidate> = emptyList()): String
     suspend fun updateTrack(track: TrackEntity)
     suspend fun updateAlbum(album: AlbumEntity)
     suspend fun deleteAlbum(id: String)
@@ -81,6 +86,7 @@ class RateRepository @Inject constructor(
     private val albumDao: AlbumDao,
     private val artistDao: ArtistDao,
     private val trackDao: TrackDao,
+    private val creditDao: CreditDao,
     private val ftsDao: LibrarySearchFtsDao,
     private val scoreUseCase: CalculateAlbumScoreUseCase,
 ) : AlbumRepository {
@@ -152,6 +158,8 @@ class RateRepository @Inject constructor(
             mbid = draft.mbid,
             releaseGroupMbid = draft.releaseGroupMbid,
             sourceProvider = draft.sourceProvider,
+            coverSource = draft.coverSource,
+            coverWidth = draft.coverWidth,
             metadataFetchedAt = draft.metadataFetchedAt,
             createdAt = now,
             updatedAt = now,
@@ -174,6 +182,7 @@ class RateRepository @Inject constructor(
         database.withTransaction {
             albumDao.insert(album)
             trackDao.insertAll(tracks)
+            persistEmbeddedCredits(draft.tracks)
             rebuildSearchIndex(albumId, album, artist, tracks)
         }
         return albumId
@@ -208,6 +217,8 @@ class RateRepository @Inject constructor(
             mbid = draft.mbid,
             releaseGroupMbid = draft.releaseGroupMbid,
             sourceProvider = draft.sourceProvider,
+            coverSource = draft.coverSource,
+            coverWidth = draft.coverWidth,
             metadataFetchedAt = draft.metadataFetchedAt,
             createdAt = now,
             updatedAt = now,
@@ -235,6 +246,7 @@ class RateRepository @Inject constructor(
             database.withTransaction { trackDao.insertAllIgnore(batch) }
         }
         database.withTransaction {
+            persistEmbeddedCredits(draft.tracks)
             rebuildSearchIndex(albumId, album, artistDao.findById(artist.id) ?: artist, trackDao.findForAlbum(albumId))
         }
         return albumId
@@ -265,6 +277,8 @@ class RateRepository @Inject constructor(
                 existing.copy(
                     coverUri = existing.coverUri ?: draft.coverUri,
                     coverThumbUri = existing.coverThumbUri ?: draft.coverUri,
+                    coverSource = existing.coverSource ?: draft.coverSource,
+                    coverWidth = existing.coverWidth ?: draft.coverWidth,
                     label = existing.label ?: draft.label,
                     catalogNumber = existing.catalogNumber ?: draft.catalogNumber,
                     country = existing.country ?: draft.country,
@@ -285,7 +299,7 @@ class RateRepository @Inject constructor(
         }
     }
 
-    override suspend fun saveStandalone(title: String, artistName: String, listenedDate: String?, sourceUri: String?, fileName: String?): String {
+    override suspend fun saveStandalone(title: String, artistName: String, listenedDate: String?, sourceUri: String?, fileName: String?, embeddedCredits: List<com.youneko.rate.data.musicbrainz.CreditCandidate>): String {
         require(title.isNotBlank()) { "Tên bài không được để trống" }
         val now = System.currentTimeMillis()
         val artist = artistDao.findByName(artistName.trim()) ?: ArtistEntity(
@@ -297,6 +311,7 @@ class RateRepository @Inject constructor(
             listenedDate = listenedDate, sourceUri = sourceUri, fileName = fileName, createdAt = now, updatedAt = now,
         )
         trackDao.insert(track)
+        creditDao.upsertAll(CreditMerger.merge(null, track.id, embeddedCredits))
         ftsDao.upsert(LibrarySearchFtsEntity(track.id, "track", "$title $artistName"))
         return track.id
     }
@@ -365,11 +380,29 @@ class RateRepository @Inject constructor(
         database.withTransaction {
             updates.forEach { trackDao.update(it) }
             if (entities.isNotEmpty()) trackDao.insertAll(entities)
+            newTracks.zip(entities).forEach { (incoming, entity) ->
+                creditDao.upsertAll(CreditMerger.merge(null, entity.id, incoming.embeddedCredits))
+            }
+            updates.forEach { existing ->
+                val incoming = tracks.firstOrNull { ImportDedupe.normalize(it.title) == ImportDedupe.normalize(existing.title) }
+                if (incoming != null && incoming.embeddedCredits.isNotEmpty()) {
+                    val existingCredits = creditDao.findTrackCredits(existing.id)
+                    val candidates = existingCredits.map { credit -> com.youneko.rate.data.musicbrainz.CreditCandidate(credit.personName, credit.personMbid, credit.role, credit.instrumentOrAttribute, credit.sourceProvider, credit.sourceUrl, credit.beginDate, credit.endDate) } + incoming.embeddedCredits
+                    creditDao.deleteTrackCredits(existing.id)
+                    creditDao.upsertAll(CreditMerger.merge(null, existing.id, candidates))
+                }
+            }
             val album = albumDao.findById(albumId) ?: return@withTransaction
             val artist = artistDao.findById(album.artistId)
             if (artist != null) rebuildSearchIndex(albumId, album, artist, trackDao.findForAlbum(albumId))
         }
         return entities.size
+    }
+
+    private suspend fun persistEmbeddedCredits(drafts: List<TrackDraft>) {
+        drafts.filter { it.embeddedCredits.isNotEmpty() }.forEach { draft ->
+            creditDao.upsertAll(CreditMerger.merge(null, draft.id, draft.embeddedCredits))
+        }
     }
 
     suspend fun rebuildSearchIndex(albumId: String, album: AlbumEntity, artist: ArtistEntity, tracks: List<TrackEntity>) {

@@ -257,6 +257,8 @@ class Phase6CreditsTest {
         override suspend fun upsertAll(credits: List<CreditEntity>) { saved += credits }
         override fun observeForItem(albumId: String, trackId: String?): Flow<List<CreditEntity>> = flowOf(emptyList())
         override fun observeForAlbum(albumId: String): Flow<List<CreditEntity>> = flowOf(emptyList())
+        override suspend fun findAlbumCredits(albumId: String): List<CreditEntity> = emptyList()
+        override suspend fun findTrackCredits(trackId: String): List<CreditEntity> = emptyList()
         override suspend fun deleteAlbumCredits(albumId: String) = Unit
         override suspend fun deleteTrackCredits(trackId: String) = Unit
         override suspend fun deleteTrackCreditsForAlbum(albumId: String) = Unit
