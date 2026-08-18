@@ -35,6 +35,7 @@ data class DiscogsSearchResult(
     val id: Long = 0,
     val title: String = "",
     val year: Int? = null,
+    val format: List<String> = emptyList(),
     @SerialName("cover_image") val coverImage: String? = null,
     @SerialName("resource_url") val resourceUrl: String? = null,
 )
@@ -43,9 +44,11 @@ data class DiscogsSearchResult(
 data class DiscogsRelease(
     val id: Long = 0,
     val title: String = "",
+    val year: Int? = null,
     val artists: List<DiscogsNamedCredit> = emptyList(),
     val labels: List<DiscogsNamedCredit> = emptyList(),
     @SerialName("extraartists") val extraArtists: List<DiscogsExtraArtist> = emptyList(),
+    val tracklist: List<DiscogsTrack> = emptyList(),
     val images: List<DiscogsImage> = emptyList(),
 )
 
@@ -59,7 +62,16 @@ data class DiscogsNamedCredit(
 data class DiscogsExtraArtist(
     val name: String = "",
     val role: String = "",
+    val tracks: String? = null,
     @SerialName("resource_url") val resourceUrl: String? = null,
+)
+
+@Serializable
+data class DiscogsTrack(
+    val position: String = "",
+    val title: String = "",
+    @SerialName("duration") val duration: String? = null,
+    @SerialName("extraartists") val extraArtists: List<DiscogsExtraArtist> = emptyList(),
 )
 
 @Serializable

@@ -9,6 +9,7 @@ import com.youneko.rate.data.musicbrainz.CoverArtApi
 import com.youneko.rate.data.musicbrainz.DeezerCoverApi
 import com.youneko.rate.data.musicbrainz.ItunesCoverApi
 import com.youneko.rate.data.musicbrainz.MusicBrainzRetryInterceptor
+import com.youneko.rate.data.genius.GeniusApi
 import com.youneko.rate.data.musicbrainz.TokenBucket
 import com.youneko.rate.data.musicbrainz.TokenBucketInterceptor
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -96,6 +97,7 @@ object NetworkModule {
         .readTimeout(20, TimeUnit.SECONDS)
         .writeTimeout(15, TimeUnit.SECONDS)
         .addInterceptor(TokenBucketInterceptor(bucket))
+        .addInterceptor { chain -> chain.proceed(chain.request().newBuilder().header("User-Agent", "$USER_AGENT +https://github.com/dungzual201/youneko-rate").build()) }
         .build()
 
     @Provides
@@ -106,6 +108,30 @@ object NetworkModule {
         .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
         .build()
         .create(DiscogsApi::class.java)
+
+    @Provides
+    @Singleton
+    @Named("geniusBucket")
+    fun provideGeniusTokenBucket(): TokenBucket = TokenBucket(capacity = 1, refillMillis = 1_000L)
+
+    @Provides
+    @Singleton
+    @Named("genius")
+    fun provideGeniusClient(@Named("geniusBucket") bucket: TokenBucket): OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(20, TimeUnit.SECONDS)
+        .writeTimeout(15, TimeUnit.SECONDS)
+        .addInterceptor(TokenBucketInterceptor(bucket))
+        .build()
+
+    @Provides
+    @Singleton
+    fun provideGeniusApi(@Named("genius") client: OkHttpClient, json: Json): GeniusApi = Retrofit.Builder()
+        .baseUrl("https://api.genius.com/")
+        .client(client)
+        .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+        .build()
+        .create(GeniusApi::class.java)
 
     @Provides
     @Singleton

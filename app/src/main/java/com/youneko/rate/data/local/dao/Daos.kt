@@ -111,6 +111,12 @@ interface CreditDao {
     @Query("SELECT * FROM credits WHERE albumId = :albumId AND trackId IS NULL")
     suspend fun findAlbumCredits(albumId: String): List<CreditEntity>
 
+    @Query("SELECT c.* FROM credits c LEFT JOIN tracks t ON c.trackId = t.id WHERE c.albumId = :albumId OR t.albumId = :albumId ORDER BY c.trackId, c.sortOrder, c.personName COLLATE NOCASE")
+    fun observeForAlbumWithTracks(albumId: String): Flow<List<CreditEntity>>
+
+    @Query("SELECT c.* FROM credits c LEFT JOIN tracks t ON c.trackId = t.id WHERE c.albumId = :albumId OR t.albumId = :albumId ORDER BY c.trackId, c.sortOrder, c.personName COLLATE NOCASE")
+    suspend fun findForAlbumWithTracks(albumId: String): List<CreditEntity>
+
     @Query("SELECT * FROM credits WHERE trackId = :trackId")
     suspend fun findTrackCredits(trackId: String): List<CreditEntity>
 

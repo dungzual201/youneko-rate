@@ -46,6 +46,8 @@ import androidx.lifecycle.viewModelScope
 import com.youneko.rate.R
 import com.youneko.rate.data.AlbumRepository
 import com.youneko.rate.data.discogs.DiscogsCreditsService
+import com.youneko.rate.data.genius.GeniusCreditsService
+import com.youneko.rate.data.SettingsStore
 import com.youneko.rate.data.local.dao.CreditDao
 import com.youneko.rate.data.local.entity.CreditEntity
 import com.youneko.rate.data.musicbrainz.CreditGroup
@@ -58,6 +60,8 @@ import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import javax.inject.Inject
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
@@ -79,6 +83,8 @@ data class CreditsUiState(
     val trackTitles: Map<String, String> = emptyMap(),
     val content: CreditsContentState = CreditsContentState.Idle,
     val searchUrl: String? = null,
+    val sourceSummary: List<String> = emptyList(),
+    val showSources: Boolean = false,
 )
 
 @HiltViewModel
@@ -87,6 +93,8 @@ class CreditsViewModel @Inject constructor(
     private val repository: AlbumRepository,
     private val creditsService: MusicBrainzCreditsService,
     private val discogsService: DiscogsCreditsService,
+    private val geniusService: GeniusCreditsService,
+    private val settings: SettingsStore,
     private val creditDao: CreditDao,
 ) : ViewModel() {
     private val albumId: String = checkNotNull(savedStateHandle["albumId"])
@@ -97,9 +105,14 @@ class CreditsViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            creditsService.observeCredits(albumId, trackId)
+            (if (trackId == null) creditDao.observeForAlbumWithTracks(albumId) else creditsService.observeCredits(albumId, trackId))
                 .catch { _state.update { value -> value.copy(content = CreditsContentState.Error(NetworkError.UNKNOWN)) } }
-                .collect { credits -> _state.update { value -> value.copy(credits = credits) } }
+                .collect { credits ->
+                    _state.update { value -> value.copy(credits = credits, sourceSummary = credits.flatMap { it.sourceProvider.split(",") }.map(String::trim).filter(String::isNotBlank).distinct()) }
+                }
+        }
+        viewModelScope.launch {
+            settings.showCreditSources.collect { show -> _state.update { value -> value.copy(showSources = show) } }
         }
     }
 
@@ -115,63 +128,79 @@ class CreditsViewModel @Inject constructor(
             val searchUrl = musicBrainzSearchUrl(library.album.title, library.artist?.name.orEmpty())
             val trackTitles = library.tracks.associate { it.id to it.title }
             _state.update { it.copy(searchUrl = searchUrl, trackTitles = trackTitles) }
-            if (album.mbid.isNullOrBlank()) {
-                _state.update { it.copy(content = CreditsContentState.NoMbid(searchUrl)) }
-                return@launch
-            }
             if (trackId != null && library.tracks.none { it.id == trackId }) {
                 _state.update { it.copy(content = CreditsContentState.Error(NetworkError.NO_RESULTS)) }
                 return@launch
             }
-            if (trackId != null && library.tracks.firstOrNull { it.id == trackId }?.recordingMbid.isNullOrBlank()) {
-                _state.update { it.copy(content = CreditsContentState.NoMbid(searchUrl)) }
-                return@launch
-            }
-            _state.update { it.copy(content = CreditsContentState.Loading(0, 0)) }
-            val result = if (trackId == null) {
-                creditsService.loadAlbumCredits(album, forceRefresh) { done, total ->
-                    _state.update { it.copy(content = CreditsContentState.Loading(done, total)) }
+            val selectedTracks = if (trackId == null) library.tracks else library.tracks.filter { it.id == trackId }
+            val totalSources = 4
+            _state.update { it.copy(content = CreditsContentState.Loading(0, totalSources)) }
+            supervisorScope {
+                val musicBrainz = async {
+                    if (album.mbid.isNullOrBlank()) Resource.Success(null)
+                    else if (trackId == null) creditsService.loadAlbumCredits(album, forceRefresh)
+                    else creditsService.loadTrackCredits(album, trackId, forceRefresh)
                 }
-            } else {
-                creditsService.loadTrackCredits(album, trackId, forceRefresh) { done, total ->
-                    _state.update { it.copy(content = CreditsContentState.Loading(done, total)) }
+                val discogs = async {
+                    discogsService.load(album.id, album.title, library.artist?.name.orEmpty(), selectedTracks.associate { it.id to it.title })
                 }
-            }
-            when (result) {
-                is Resource.Success -> {
-                    _state.update { it.copy(content = if (it.credits.isEmpty()) CreditsContentState.Empty else CreditsContentState.Data) }
-                    if (trackId == null) loadDiscogsCredits(album, library.artist?.name.orEmpty())
+                val genius = async {
+                    selectedTracks.map { track ->
+                        async { geniusService.load(track.id, track.title, library.artist?.name.orEmpty()) }
+                    }.map { deferred -> deferred.await() }
                 }
-                is Resource.Error -> _state.update { it.copy(content = CreditsContentState.Error(result.kind)) }
-                Resource.Loading -> Unit
+                val mbResult = runCatching { musicBrainz.await() }.getOrNull()
+                _state.update { it.copy(content = CreditsContentState.Loading(1, totalSources)) }
+                val discogsResult = runCatching { discogs.await() }.getOrNull()
+                _state.update { it.copy(content = CreditsContentState.Loading(2, totalSources)) }
+                val geniusResults = runCatching { genius.await() }.getOrDefault(emptyList())
+                _state.update { it.copy(content = CreditsContentState.Loading(3, totalSources)) }
+                val albumCandidates = buildList {
+                    discogsResult?.let { result -> if (result is Resource.Success) addAll(result.value.credits) }
+                }
+                val trackCandidates = linkedMapOf<String, MutableList<com.youneko.rate.data.musicbrainz.CreditCandidate>>()
+                discogsResult?.let { result ->
+                    if (result is Resource.Success) result.value.trackCredits.forEach { (id, candidates) -> trackCandidates.getOrPut(id) { mutableListOf() }.addAll(candidates) }
+                }
+                geniusResults.forEachIndexed { index, result ->
+                    if (result is Resource.Success) trackCandidates.getOrPut(selectedTracks.getOrNull(index)?.id.orEmpty()) { mutableListOf() }.addAll(result.value.credits)
+                }
+                persistAdditionalCredits(album.id, albumCandidates, trackCandidates)
+                _state.update { it.copy(content = CreditsContentState.Loading(4, totalSources)) }
+                val current = if (trackId == null) creditDao.findForAlbumWithTracks(album.id) else creditDao.findTrackCredits(trackId)
+                _state.update { it.copy(content = if (current.isEmpty()) CreditsContentState.Empty else CreditsContentState.Data) }
             }
         }
     }
 
-    private fun loadDiscogsCredits(album: com.youneko.rate.data.local.entity.AlbumEntity, artist: String) {
-        viewModelScope.launch {
-            when (val result = discogsService.load(album.id, album.title, artist)) {
-                is Resource.Success -> if (result.value.credits.isNotEmpty()) {
-                    val existing = creditsService.observeCredits(album.id, null).first().filter { it.trackId == null }
-                    val existingCandidates = existing.map { credit ->
-                        com.youneko.rate.data.musicbrainz.CreditCandidate(
-                            personName = credit.personName,
-                            personMbid = credit.personMbid,
-                            role = credit.role,
-                            instrumentOrAttribute = credit.instrumentOrAttribute,
-                            sourceProvider = credit.sourceProvider,
-                            sourceUrl = credit.sourceUrl,
-                            beginDate = credit.beginDate,
-                            endDate = credit.endDate,
-                        )
-                    }
-                    creditDao.deleteAlbumCredits(album.id)
-                    creditDao.upsertAll(CreditMerger.merge(album.id, null, existingCandidates + result.value.credits))
-                }
-                else -> Unit
-            }
+    private suspend fun persistAdditionalCredits(
+        albumId: String,
+        albumCandidates: List<com.youneko.rate.data.musicbrainz.CreditCandidate>,
+        trackCandidates: Map<String, List<com.youneko.rate.data.musicbrainz.CreditCandidate>>,
+    ) {
+        if (albumCandidates.isNotEmpty()) {
+            val existing = creditDao.findAlbumCredits(albumId)
+            creditDao.deleteAlbumCredits(albumId)
+            creditDao.upsertAll(CreditMerger.merge(albumId, null, existing.map(::toCandidate) + albumCandidates))
+        }
+        trackCandidates.forEach { (id, candidates) ->
+            if (id.isBlank() || candidates.isEmpty()) return@forEach
+            val existing = creditDao.findTrackCredits(id)
+            creditDao.deleteTrackCredits(id)
+            creditDao.upsertAll(CreditMerger.merge(null, id, existing.map(::toCandidate) + candidates))
         }
     }
+
+    private fun toCandidate(credit: CreditEntity) = com.youneko.rate.data.musicbrainz.CreditCandidate(
+        personName = credit.personName,
+        personMbid = credit.personMbid,
+        role = credit.role,
+        instrumentOrAttribute = credit.instrumentOrAttribute,
+        sourceProvider = credit.sourceProvider,
+        sourceUrl = credit.sourceUrl,
+        beginDate = credit.beginDate,
+        endDate = credit.endDate,
+    )
 
     fun cancel() {
         loadJob?.cancel()
@@ -189,6 +218,7 @@ class CreditsViewModel @Inject constructor(
 @Composable
 fun CreditsScreen(
     onBack: () -> Unit,
+    onOpenSettings: () -> Unit = {},
     releaseUrl: String?,
     viewModel: CreditsViewModel = androidx.hilt.navigation.compose.hiltViewModel(),
 ) {
@@ -240,11 +270,12 @@ fun CreditsScreen(
                 }
                 CreditsContentState.Empty -> {
                     Text(stringResource(R.string.credits_empty), modifier = Modifier.padding(top = 24.dp))
-                    releaseUrl?.let { url ->
-                        Button(onClick = { openUrl(url) }) { Text(stringResource(R.string.credits_contribute)) }
-                    }
                     state.searchUrl?.let { url ->
-                        TextButton(onClick = { openUrl(url) }) { Text(stringResource(R.string.credits_try_other_release)) }
+                        Button(onClick = { openUrl(url) }) { Text(stringResource(R.string.credits_try_other_release)) }
+                    }
+                    TextButton(onClick = onOpenSettings) { Text(stringResource(R.string.credits_enable_sources)) }
+                    releaseUrl?.let { url ->
+                        TextButton(onClick = { openUrl(url) }) { Text(stringResource(R.string.credits_open_musicbrainz)) }
                     }
                 }
                 CreditsContentState.Data -> Unit
@@ -288,13 +319,13 @@ fun CreditsScreen(
                             HorizontalDivider()
                         }
                         if (expanded) {
-                            items(mergedValues, key = { it.id }) { credit -> CreditRow(credit) }
+                            items(mergedValues, key = { it.id }) { credit -> CreditRow(credit, state.showSources) }
                         }
                     }
                 }
             }
             Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(stringResource(R.string.credits_source_footer), style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
+                Text(stringResource(R.string.credits_source_summary, state.sourceSummary.joinToString(", ").ifBlank { "—" }), style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
                 TextButton(onClick = { sourceUrl?.let(openUrl) }, enabled = sourceUrl != null) {
                     Text(stringResource(R.string.credits_open_source))
                 }
@@ -312,7 +343,7 @@ data class MergedCredit(
 )
 
 private fun mergeCredits(group: CreditGroup, credits: List<CreditEntity>): List<MergedCredit> = credits
-    .groupBy { it.personMbid ?: it.personName.trim().lowercase() }
+    .groupBy { it.personMbid ?: normalizeCreditPerson(it.personName) }
     .map { (personKey, personCredits) ->
         val first = personCredits.minByOrNull { it.sortOrder } ?: personCredits.first()
         val labels = personCredits
@@ -326,7 +357,7 @@ private fun mergeCredits(group: CreditGroup, credits: List<CreditEntity>): List<
     .sortedWith(compareBy({ it.sortOrder }, { it.personName.lowercase() }))
 
 @Composable
-private fun CreditRow(credit: MergedCredit) {
+private fun CreditRow(credit: MergedCredit, showAllSources: Boolean) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.fillMaxWidth().padding(12.dp)) {
             Text(credit.personName, style = MaterialTheme.typography.titleSmall)
@@ -334,13 +365,19 @@ private fun CreditRow(credit: MergedCredit) {
                 Text(credit.roleLabels.map { creditRoleLabel(it) }.joinToString(", "), style = MaterialTheme.typography.bodySmall)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                credit.sources.filterNot { it.equals("musicbrainz", ignoreCase = true) }.forEach { source ->
+                credit.sources.filter { showAllSources || !it.equals("musicbrainz", ignoreCase = true) }.forEach { source ->
                     AssistChip(onClick = {}, label = { Text(source.replaceFirstChar { it.uppercase() }) })
                 }
             }
         }
     }
 }
+
+private fun normalizeCreditPerson(value: String): String = java.text.Normalizer.normalize(value, java.text.Normalizer.Form.NFD)
+    .replace("\\p{M}+".toRegex(), "")
+    .lowercase()
+    .replace(Regex("\\s+"), " ")
+    .trim()
 
 @Composable
 private fun creditRoleLabel(role: String): String = when (role.lowercase()) {

@@ -57,11 +57,11 @@ enum class CreditGroup {
 }
 
 fun creditGroupForRole(role: String): CreditGroup = when (role.trim().lowercase()) {
-    "composer", "lyricist", "writer", "arranger", "orchestrator", "librettist" -> CreditGroup.WRITING
-    "producer", "executive producer", "co-producer" -> CreditGroup.PRODUCTION
-    "recording", "engineer", "recording engineer", "mix", "assistant mix", "mixing engineer", "mastering", "mastering engineer", "programming", "editor" -> CreditGroup.ENGINEERING
-    "vocal", "lead vocals", "background vocals", "instrument", "performer", "conductor", "orchestra" -> CreditGroup.PERFORMANCE
-    "label", "publisher", "copyright", "phonographic copyright" -> CreditGroup.RELEASE
+    "writer", "composer", "lyricist", "songwriter", "written-by", "music by", "words by" -> CreditGroup.WRITING
+    "producer", "co-producer", "executive producer", "programming", "arranger", "vocal producer" -> CreditGroup.PRODUCTION
+    "mix", "mixed by", "assistant mix", "assistant mixing", "mixing engineer", "master", "mastered by", "mastering engineer", "recording", "recorded by", "engineer", "editing", "tracking", "editor" -> CreditGroup.ENGINEERING
+    "vocal", "lead vocals", "background vocals", "chorus", "guitar", "bass", "drums", "keyboard", "piano", "strings", "instrument", "performer", "conductor", "orchestra" -> CreditGroup.PERFORMANCE
+    "label", "publisher", "copyright", "phonographic copyright", "art direction", "photography", "design" -> CreditGroup.RELEASE
     else -> CreditGroup.OTHER
 }
 
@@ -79,17 +79,21 @@ data class CreditCandidate(
 object CreditMerger {
     fun merge(albumId: String?, trackId: String?, candidates: List<CreditCandidate>): List<CreditEntity> =
         candidates
-            .groupBy { normalize(it.personName) to normalize(it.role) }
+            .filter { it.personName.isNotBlank() && it.role.isNotBlank() }
+            .groupBy { normalize(it.personName) to creditGroupForRole(it.role) }
             .values
             .mapIndexed { index, samePerson ->
-                val first = samePerson.first()
+                val first = samePerson.sortedWith(
+                    compareByDescending<CreditCandidate> { sourcePriority(it.sourceProvider) }
+                        .thenByDescending { accentCount(it.personName) },
+                ).first()
                 CreditEntity(
-                    id = UUID.nameUUIDFromBytes("${albumId ?: "track"}:${trackId.orEmpty()}:${normalize(first.personName)}:${normalize(first.role)}".toByteArray()).toString(),
+                    id = UUID.nameUUIDFromBytes("${albumId ?: "track"}:${trackId.orEmpty()}:${normalize(first.personName)}:${creditGroupForRole(first.role)}".toByteArray()).toString(),
                     albumId = albumId,
                     trackId = trackId,
                     personName = first.personName,
                     personMbid = samePerson.firstNotNullOfOrNull { it.personMbid },
-                    role = first.role,
+                    role = samePerson.map { it.role.trim() }.distinct().joinToString(", "),
                     instrumentOrAttribute = samePerson.mapNotNull { it.instrumentOrAttribute }.distinct().joinToString(", ").ifBlank { null },
                     sourceProvider = samePerson.map { it.sourceProvider }.distinct().joinToString(","),
                     sourceUrl = samePerson.firstNotNullOfOrNull { it.sourceUrl },
@@ -98,6 +102,19 @@ object CreditMerger {
                     endDate = samePerson.firstNotNullOfOrNull { it.endDate },
                 )
             }
+
+    private fun sourcePriority(source: String): Int = source.split(',').maxOfOrNull {
+        when (it.trim().lowercase()) {
+            "manual" -> 5
+            "file_tags", "file tag" -> 4
+            "musicbrainz" -> 3
+            "discogs" -> 2
+            "genius" -> 1
+            else -> 0
+        }
+    } ?: 0
+
+    private fun accentCount(value: String): Int = Normalizer.normalize(value, Normalizer.Form.NFD).count { Character.getType(it) == Character.NON_SPACING_MARK.toInt() }
 
     private fun normalize(value: String): String = Normalizer.normalize(value, Normalizer.Form.NFD)
         .replace("\\p{M}+".toRegex(), "")
