@@ -29,7 +29,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class Phase6CreditsTest {
-    private val json = Json { ignoreUnknownKeys = true }
+    private val json = Json {
+        ignoreUnknownKeys = true
+        coerceInputValues = true
+        explicitNulls = false
+        isLenient = true
+    }
 
     @Test
     fun parsesCreditsFixtureWithReleaseAndRecordingRelations() {
@@ -43,6 +48,64 @@ class Phase6CreditsTest {
         assertEquals("Producer", release.relations.first().artist?.name)
         assertEquals("recording-1", release.media.single().tracks.single().recording?.id)
         assertEquals("composer", release.media.single().tracks.single().recording?.relations?.single()?.type)
+    }
+
+    @Test
+    fun realReleaseFixtureParsesSkinnyRelationsAndRequiredCredits() = runBlocking {
+        val fixture = javaClass.classLoader?.getResourceAsStream("fixtures/release_credits.json")
+            ?.bufferedReader()?.use { it.readText() }
+            ?: throw FileNotFoundException("release_credits.json")
+        val release = json.decodeFromString<MbRelease>(fixture)
+        val skinny = release.media.flatMap { it.tracks }.first { it.title == "SKINNY" }
+        val recording = requireNotNull(skinny.recording)
+        val relations = recording.relations
+        assertTrue("SKINNY should have at least 15 recording relations", relations.size >= 15)
+        assertTrue(relations.all { relation ->
+            relation.targetType !in setOf("artist", "label") ||
+                ((relation.artist?.name ?: relation.label?.name).orEmpty().isNotBlank() && relation.type.isNotBlank())
+        })
+        val brad = relations.first { it.artist?.name == "Brad Lauchert" }
+        assertEquals("engineer", brad.type)
+        assertEquals("mix", brad.attributeValues["task"])
+        assertTrue(brad.attributes.contains("task"))
+        val finneasAttributes = relations.filter { it.artist?.name == "FINNEAS" }.flatMap { it.attributes }.toSet()
+        assertTrue(setOf("bass", "drums (drum set)", "guitar", "glockenspiel", "keyboard", "percussion", "synthesizer").all { it in finneasAttributes })
+        assertTrue(relations.any { it.artist?.name == "Andrew Yee" && "cello" in it.attributes })
+        assertTrue(relations.any { it.artist?.name == "Amy Schroeder" && "violin" in it.attributes })
+        assertTrue(relations.none { it.targetType in setOf("artist", "label") && (it.artist?.name ?: it.label?.name).isNullOrBlank() })
+
+        val api = FakeApi().apply { releaseResponse = release }
+        val creditDao = FakeCreditDao()
+        val trackDao = FakeTrackDao(TrackEntity("skinny-track", "album-1", "SKINNY", recordingMbid = recording.id, createdAt = 0L, updatedAt = 0L))
+        val service = MusicBrainzCreditsService(api, creditDao, FakeCacheDao(), trackDao, json)
+        val result = service.loadAlbumCredits(album(), forceRefresh = true)
+        assertTrue(result is com.youneko.rate.data.musicbrainz.Resource.Success)
+        val credits = creditDao.saved.last()
+        assertTrue(credits.size >= 15)
+        assertTrue(credits.any { it.personName == "Brad Lauchert" && it.role == "Mixing engineer" })
+        assertTrue(credits.any { it.personName == "FINNEAS" && it.instrumentOrAttribute?.contains("bass") == true })
+        assertTrue(credits.any { it.personName == "Andrew Yee" && it.instrumentOrAttribute == "cello" })
+        assertTrue(credits.any { it.personName == "Amy Schroeder" && it.instrumentOrAttribute == "violin" })
+        assertTrue(credits.none { it.personName.isBlank() || it.role.isBlank() })
+    }
+
+    @Test
+    fun creditsUseLookupEndpointsAndNeverSearch() = runBlocking {
+        val api = FakeApi()
+        val service = MusicBrainzCreditsService(api, FakeCreditDao(), FakeCacheDao(), FakeTrackDao(), json)
+        service.loadTrackCredits(album(), "track-1")
+        assertEquals(0, api.searchCalls)
+        assertEquals(1, api.recordingCalls)
+    }
+
+    @Test
+    fun albumWithoutMbidReturnsBeforeAnyNetworkRequest() = runBlocking {
+        val api = FakeApi()
+        val service = MusicBrainzCreditsService(api, FakeCreditDao(), FakeCacheDao(), FakeTrackDao(), json)
+        val result = service.loadAlbumCredits(album().copy(mbid = null))
+        assertTrue(result is com.youneko.rate.data.musicbrainz.Resource.Error)
+        assertEquals(0, api.releaseCalls)
+        assertEquals(0, api.searchCalls)
     }
 
     @Test
@@ -106,9 +169,18 @@ class Phase6CreditsTest {
     private fun album() = AlbumEntity("album-1", "Album", "artist-1", mbid = "release-1", createdAt = 0L, updatedAt = 0L)
 
     private class FakeApi : MusicBrainzApi {
+        var searchCalls = 0
+        var releaseCalls = 0
         var recordingCalls = 0
-        override suspend fun search(entity: String, query: String, format: String, limit: Int, offset: Int) = MbSearchResponse()
-        override suspend fun lookupRelease(mbid: String, includes: String, format: String) = MbRelease(mbid)
+        var releaseResponse: MbRelease? = null
+        override suspend fun search(entity: String, query: String, format: String, limit: Int, offset: Int): MbSearchResponse {
+            searchCalls++
+            return MbSearchResponse()
+        }
+        override suspend fun lookupRelease(mbid: String, includes: String, format: String): MbRelease {
+            releaseCalls++
+            return releaseResponse ?: MbRelease(mbid)
+        }
         override suspend fun lookupRecording(mbid: String, includes: String, format: String): MbRecording {
             recordingCalls++
             return MbRecording(mbid)
@@ -131,8 +203,9 @@ class Phase6CreditsTest {
         override suspend fun deleteTrackCredits(trackId: String) = Unit
     }
 
-    private class FakeTrackDao : TrackDao {
-        private val track = TrackEntity("track-1", "album-1", "Song", recordingMbid = "recording-1", createdAt = 0L, updatedAt = 0L)
+    private class FakeTrackDao(
+        private val track: TrackEntity = TrackEntity("track-1", "album-1", "Song", recordingMbid = "recording-1", createdAt = 0L, updatedAt = 0L),
+    ) : TrackDao {
         override fun observeAll(): Flow<List<TrackEntity>> = flowOf(listOf(track))
         override fun observeForAlbum(albumId: String): Flow<List<TrackEntity>> = flowOf(listOf(track))
         override fun observeStandalone(): Flow<List<TrackEntity>> = flowOf(emptyList())

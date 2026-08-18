@@ -50,6 +50,24 @@ class MusicBrainzNetworkTest {
     }
 
     @Test
+    fun creditsLookupUsesReleaseMbidEndpointAndRelationIncludes() {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setResponseCode(200).setHeader("Content-Type", "application/json").setBody("{\"id\":\"release-1\",\"title\":\"Album\"}"))
+            val api = retrofit(server).create(MusicBrainzApi::class.java)
+            kotlinx.coroutines.runBlocking { api.lookupRelease("release-1") }
+            val request = server.takeRequest()
+            assertEquals("release", request.requestUrl?.pathSegments?.let { it[it.lastIndex - 1] })
+            assertEquals("release-1", request.requestUrl?.pathSegments?.last())
+            val includes = request.requestUrl?.queryParameter("inc").orEmpty()
+            assertTrue(includes.contains("recording-level-rels"))
+            assertTrue(includes.contains("work-rels"))
+            assertTrue(includes.contains("work-level-rels"))
+            assertTrue(includes.contains("artist-credits"))
+            assertTrue(includes.contains("labels"))
+        }
+    }
+
+    @Test
     fun mockWebServerParsesLookupFixtureWithMissingOptionalFields() {
         MockWebServer().use { server ->
             server.enqueue(MockResponse().setResponseCode(200).setHeader("Content-Type", "application/json").setBody(fixture("musicbrainz/lookup_release.json")))
