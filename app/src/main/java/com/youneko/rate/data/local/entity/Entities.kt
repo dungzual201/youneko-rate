@@ -174,6 +174,20 @@ data class AudioAnalysisEntity(
     val analyzedAt: Long,
 )
 
+@Entity(
+    tableName = "external_links",
+    indices = [Index(value = ["trackId", "sourceId"], unique = true), Index(value = ["albumId", "sourceId"], unique = true)],
+)
+data class ExternalLinkEntity(
+    @PrimaryKey val id: String,
+    val albumId: String? = null,
+    val trackId: String? = null,
+    val sourceId: String,
+    val externalId: String,
+    val sourceUrl: String,
+    val createdAt: Long,
+)
+
 @Entity(tableName = "remote_metadata_cache")
 data class RemoteMetadataCacheEntity(
     @PrimaryKey val key: String,

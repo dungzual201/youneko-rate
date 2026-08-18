@@ -23,6 +23,7 @@ private val Context.settingsDataStore by preferencesDataStore(name = "youneko_se
 interface SettingsStore {
     val offlineOnly: Flow<Boolean>
     val ratingStep: Flow<Double>
+    val ratingScale: Flow<String>
     val scoreMode: Flow<String>
     val gridView: Flow<Boolean>
     val dynamicColor: Flow<Boolean>
@@ -35,9 +36,13 @@ interface SettingsStore {
     val geniusEnabled: Flow<Boolean>
     val geniusToken: Flow<String>
     val showCreditSources: Flow<Boolean>
+    val creditSourceOrder: Flow<String>
+    val activeCreditSources: Flow<String>
+    val creditsMergeMode: Flow<Boolean>
 
     suspend fun setOfflineOnly(value: Boolean)
     suspend fun setRatingStep(value: Double)
+    suspend fun setRatingScale(value: String)
     suspend fun setScoreMode(value: String)
     suspend fun setGridView(value: Boolean)
     suspend fun setDynamicColor(value: Boolean)
@@ -50,12 +55,16 @@ interface SettingsStore {
     suspend fun setGeniusEnabled(value: Boolean)
     suspend fun setGeniusToken(value: String)
     suspend fun setShowCreditSources(value: Boolean)
+    suspend fun setCreditSourceOrder(value: String)
+    suspend fun setActiveCreditSources(value: String)
+    suspend fun setCreditsMergeMode(value: Boolean)
 }
 
 class SettingsDataStore(private val context: Context) : SettingsStore {
     private object Keys {
         val offlineOnly = booleanPreferencesKey("offline_only")
         val ratingStep = doublePreferencesKey("rating_step")
+        val ratingScale = stringPreferencesKey("rating_scale")
         val scoreMode = stringPreferencesKey("score_mode")
         val gridView = booleanPreferencesKey("library_grid_view")
         val dynamicColor = booleanPreferencesKey("dynamic_color")
@@ -68,10 +77,14 @@ class SettingsDataStore(private val context: Context) : SettingsStore {
         val geniusEnabled = booleanPreferencesKey("provider_genius_enabled")
         val geniusToken = stringPreferencesKey("provider_genius_token")
         val showCreditSources = booleanPreferencesKey("credits_show_sources")
+        val creditSourceOrder = stringPreferencesKey("credits_source_order")
+        val activeCreditSources = stringPreferencesKey("credits_active_sources")
+        val creditsMergeMode = booleanPreferencesKey("credits_merge_mode")
     }
 
     override val offlineOnly: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.offlineOnly] ?: false }
     override val ratingStep: Flow<Double> = context.settingsDataStore.data.map { it[Keys.ratingStep] ?: 0.5 }
+    override val ratingScale: Flow<String> = context.settingsDataStore.data.map { it[Keys.ratingScale] ?: "FIVE_STARS" }
     override val scoreMode: Flow<String> = context.settingsDataStore.data.map { it[Keys.scoreMode] ?: "SIMPLE" }
     override val gridView: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.gridView] ?: true }
     override val dynamicColor: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.dynamicColor] ?: false }
@@ -84,9 +97,13 @@ class SettingsDataStore(private val context: Context) : SettingsStore {
     override val geniusEnabled: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.geniusEnabled] ?: false }
     override val geniusToken: Flow<String> = context.settingsDataStore.data.map { TokenCipher.decrypt(it[Keys.geniusToken].orEmpty()) }
     override val showCreditSources: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.showCreditSources] ?: false }
+    override val creditSourceOrder: Flow<String> = context.settingsDataStore.data.map { it[Keys.creditSourceOrder] ?: "FILE_TAG,MUSICBRAINZ,DISCOGS,GENIUS,DEEZER,ITUNES" }
+    override val activeCreditSources: Flow<String> = context.settingsDataStore.data.map { it[Keys.activeCreditSources] ?: "FILE_TAG,MUSICBRAINZ" }
+    override val creditsMergeMode: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.creditsMergeMode] ?: false }
 
     override suspend fun setOfflineOnly(value: Boolean) { context.settingsDataStore.edit { it[Keys.offlineOnly] = value } }
     override suspend fun setRatingStep(value: Double) { context.settingsDataStore.edit { it[Keys.ratingStep] = value } }
+    override suspend fun setRatingScale(value: String) { context.settingsDataStore.edit { it[Keys.ratingScale] = value } }
     override suspend fun setScoreMode(value: String) { context.settingsDataStore.edit { it[Keys.scoreMode] = value } }
     override suspend fun setGridView(value: Boolean) { context.settingsDataStore.edit { it[Keys.gridView] = value } }
     override suspend fun setDynamicColor(value: Boolean) { context.settingsDataStore.edit { it[Keys.dynamicColor] = value } }
@@ -99,6 +116,9 @@ class SettingsDataStore(private val context: Context) : SettingsStore {
     override suspend fun setGeniusEnabled(value: Boolean) { context.settingsDataStore.edit { it[Keys.geniusEnabled] = value } }
     override suspend fun setGeniusToken(value: String) { context.settingsDataStore.edit { it[Keys.geniusToken] = TokenCipher.encrypt(value.trim()) } }
     override suspend fun setShowCreditSources(value: Boolean) { context.settingsDataStore.edit { it[Keys.showCreditSources] = value } }
+    override suspend fun setCreditSourceOrder(value: String) { context.settingsDataStore.edit { it[Keys.creditSourceOrder] = value } }
+    override suspend fun setActiveCreditSources(value: String) { context.settingsDataStore.edit { it[Keys.activeCreditSources] = value } }
+    override suspend fun setCreditsMergeMode(value: Boolean) { context.settingsDataStore.edit { it[Keys.creditsMergeMode] = value } }
 }
 
 private object TokenCipher {

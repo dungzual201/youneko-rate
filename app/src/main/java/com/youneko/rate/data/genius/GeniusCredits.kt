@@ -1,6 +1,7 @@
 package com.youneko.rate.data.genius
 
 import com.youneko.rate.data.SettingsStore
+import com.youneko.rate.data.credits.SourceResult
 import com.youneko.rate.data.local.dao.RemoteMetadataCacheDao
 import com.youneko.rate.data.local.entity.RemoteMetadataCacheEntity
 import com.youneko.rate.data.musicbrainz.CreditCandidate
@@ -47,22 +48,42 @@ class GeniusCreditsService @Inject constructor(
     private val limiter = Mutex()
     private var lastRequestAt = 0L
 
-    suspend fun load(trackId: String, title: String, artist: String): Resource<GeniusCreditResult> = withContext(Dispatchers.IO) {
+    suspend fun testToken(token: String): Int = runCatching {
+        request { api.search("music", "Bearer ${token.trim()}") }
+        200
+    }.getOrElse { error -> (error as? HttpException)?.code() ?: 0 }
+
+    suspend fun loadSource(trackId: String, title: String, artist: String, enabledSourcesHash: String = "default", forceRefresh: Boolean = false, manualSongId: Long? = null): SourceResult {
+        if (settings.offlineOnly.first()) return SourceResult.Offline
+        if (!settings.geniusEnabled.first()) return SourceResult.Empty
+        if (settings.geniusToken.first().trim().isBlank()) return SourceResult.NeedsToken
+        return when (val result = load(trackId, title, artist, enabledSourcesHash, forceRefresh, manualSongId)) {
+            is Resource.Success -> if (result.value.credits.isEmpty()) SourceResult.Empty else SourceResult.Success(result.value.credits)
+            is Resource.Error -> when (result.kind) {
+                NetworkError.RATE_LIMITED -> SourceResult.RateLimited(60)
+                NetworkError.NO_RESULTS -> SourceResult.NoMatch
+                else -> SourceResult.Error(result.message ?: result.kind.name)
+            }
+            is Resource.Loading -> SourceResult.Error("Genius đang tải")
+        }
+    }
+
+    suspend fun load(trackId: String, title: String, artist: String, enabledSourcesHash: String = "default", forceRefresh: Boolean = false, manualSongId: Long? = null): Resource<GeniusCreditResult> = withContext(Dispatchers.IO) {
         if (settings.offlineOnly.first()) return@withContext Resource.Success(GeniusCreditResult(emptyList()))
         if (!settings.geniusEnabled.first()) return@withContext Resource.Success(GeniusCreditResult(emptyList()))
         val token = settings.geniusToken.first().trim().takeIf { it.isNotBlank() }
             ?: return@withContext Resource.Success(GeniusCreditResult(emptyList()))
-        val key = "genius:v1:track:$trackId:${normalize(title)}:${normalize(artist)}"
+        val key = "credits:v3:track:$trackId:${normalize(title)}:${normalize(artist)}:genius:$enabledSourcesHash:provider-v3"
         val cached = cacheDao.find(key)
-        if (cached != null && cached.expiresAt > System.currentTimeMillis()) {
+        if (!forceRefresh && cached != null && cached.expiresAt > System.currentTimeMillis()) {
             decode(cached.jsonBody)?.let { return@withContext Resource.Success(it) }
         }
         runCatching {
             val authorization = "Bearer $token"
-            val search = request { api.search("$artist $title", authorization) }
-            val candidate = search.response.hits
-                .map { it.result }
-                .firstOrNull { match(title, artist, it.title, it.artistNames) }
+            val candidate = manualSongId?.let { GeniusSearchResult(id = it, title = title, artistNames = artist) }
+                ?: request { api.search("$artist $title", authorization) }.response.hits
+                    .map { it.result }
+                    .firstOrNull { match(title, artist, it.title, it.artistNames) }
                 ?: return@runCatching GeniusCreditResult(emptyList())
             val song = request { api.song(candidate.id, authorization = authorization).response.song }
             val sourceUrl = song.url ?: candidate.url ?: "https://genius.com/songs/${candidate.id}"

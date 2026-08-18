@@ -1,6 +1,7 @@
 package com.youneko.rate.data.discogs
 
 import com.youneko.rate.data.SettingsStore
+import com.youneko.rate.data.credits.SourceResult
 import com.youneko.rate.data.local.dao.RemoteMetadataCacheDao
 import com.youneko.rate.data.local.entity.RemoteMetadataCacheEntity
 import com.youneko.rate.data.musicbrainz.CreditCandidate
@@ -17,6 +18,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import retrofit2.HttpException
 
 private const val DISCOGS_PROVIDER = "discogs"
 private const val DISCOGS_TTL_MS = 30L * 24L * 60L * 60L * 1_000L
@@ -59,24 +61,52 @@ class DiscogsCreditsService @Inject constructor(
         else -> null
     }
 
+    suspend fun testToken(token: String): Int = runCatching {
+        api.searchReleases(artist = "Music", title = "Music", perPage = 1, authorization = "Discogs token=${token.trim()}")
+        200
+    }.getOrElse { error -> (error as? HttpException)?.code() ?: 0 }
+
+    suspend fun loadSource(
+        albumId: String,
+        title: String,
+        artist: String,
+        trackTitles: Map<String, String> = emptyMap(),
+        enabledSourcesHash: String = "default",
+        forceRefresh: Boolean = false,
+        manualReleaseId: Long? = null,
+    ): SourceResult {
+        if (settings.offlineOnly.first()) return SourceResult.Offline
+        if (!settings.discogsEnabled.first()) return SourceResult.Empty
+        if (settings.discogsToken.first().trim().isBlank()) return SourceResult.NeedsToken
+        return when (val result = load(albumId, title, artist, trackTitles, enabledSourcesHash, forceRefresh, manualReleaseId)) {
+            is Resource.Success -> if (result.value.credits.isEmpty() && result.value.trackCredits.isEmpty()) SourceResult.Empty else SourceResult.Success(result.value.credits, result.value.trackCredits)
+            is Resource.Error -> if (result.kind == NetworkError.RATE_LIMITED) SourceResult.RateLimited(60) else SourceResult.Error(result.message ?: result.kind.name)
+            is Resource.Loading -> SourceResult.Error("Discogs đang tải")
+        }
+    }
+
     suspend fun load(
         albumId: String,
         title: String,
         artist: String,
         trackTitles: Map<String, String> = emptyMap(),
+        enabledSourcesHash: String = "default",
+        forceRefresh: Boolean = false,
+        manualReleaseId: Long? = null,
     ): Resource<DiscogsCreditResult> = withContext(Dispatchers.IO) {
         if (settings.offlineOnly.first()) return@withContext Resource.Success(DiscogsCreditResult(emptyList(), null))
         if (!settings.discogsEnabled.first()) return@withContext Resource.Success(DiscogsCreditResult(emptyList(), null))
         val token = settings.discogsToken.first().trim().takeIf { it.isNotBlank() }
-            ?: return@withContext Resource.Success(DiscogsCreditResult(emptyList(), null))
-        val key = "discogs:v2:release:${albumId}:${normalize(title)}:${normalize(artist)}"
+            ?: return@withContext Resource.Error(NetworkError.NO_RESULTS, "NeedsToken")
+        val key = "credits:v3:release:${albumId}:${normalize(title)}:${normalize(artist)}:discogs:$enabledSourcesHash:provider-v3"
         val cached = cacheDao.find(key)
         val now = System.currentTimeMillis()
-        if (cached != null && cached.expiresAt > now) decode(cached.jsonBody)?.let { return@withContext Resource.Success(it) }
+        if (!forceRefresh && cached != null && cached.expiresAt > now) decode(cached.jsonBody)?.let { return@withContext Resource.Success(it) }
         runCatching {
             val authorization = "Discogs token=$token"
-            val search = api.searchReleases(artist = artist, title = title, authorization = authorization)
-            val result = search.results.firstOrNull() ?: return@runCatching DiscogsCreditResult(emptyList(), null)
+            val result = manualReleaseId?.let { DiscogsSearchResult(id = it) }
+                ?: api.searchReleases(artist = artist, title = title, authorization = authorization).results.firstOrNull()
+                ?: return@runCatching DiscogsCreditResult(emptyList(), null)
             val release = api.lookupRelease(result.id, authorization = authorization)
             val sourceUrl = "https://www.discogs.com/release/${release.id}"
             val albumCandidates = mutableListOf<CreditCandidate>()

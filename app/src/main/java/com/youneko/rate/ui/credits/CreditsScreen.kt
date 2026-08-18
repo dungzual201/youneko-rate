@@ -2,6 +2,7 @@ package com.youneko.rate.ui.credits
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,16 +13,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -31,9 +34,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -45,74 +48,92 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.youneko.rate.R
 import com.youneko.rate.data.AlbumRepository
-import com.youneko.rate.data.discogs.DiscogsCreditsService
-import com.youneko.rate.data.genius.GeniusCreditsService
 import com.youneko.rate.data.SettingsStore
-import com.youneko.rate.data.local.dao.CreditDao
+import com.youneko.rate.data.credits.CreditFetchRequest
+import com.youneko.rate.data.credits.ManualCreditLinkParser
+import com.youneko.rate.data.credits.CreditSource
+import com.youneko.rate.data.credits.CreditSourceId
+import com.youneko.rate.data.credits.SourceResult
+import com.youneko.rate.data.local.entity.AlbumEntity
 import com.youneko.rate.data.local.entity.CreditEntity
+import com.youneko.rate.data.musicbrainz.CreditCandidate
 import com.youneko.rate.data.musicbrainz.CreditGroup
 import com.youneko.rate.data.musicbrainz.CreditMerger
-import com.youneko.rate.data.musicbrainz.MusicBrainzCreditsService
-import com.youneko.rate.data.musicbrainz.NetworkError
-import com.youneko.rate.data.musicbrainz.Resource
+import com.youneko.rate.data.local.dao.CreditDao
+import com.youneko.rate.data.local.dao.ExternalLinkDao
+import com.youneko.rate.data.local.entity.ExternalLinkEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
+import java.util.UUID
 import javax.inject.Inject
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
-import kotlinx.coroutines.supervisorScope
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.supervisorScope
 
 sealed interface CreditsContentState {
     data object Idle : CreditsContentState
-    data class Loading(val completed: Int, val total: Int) : CreditsContentState
-    data class Error(val kind: NetworkError) : CreditsContentState
-    data class NoMbid(val searchUrl: String) : CreditsContentState
+    data object Loading : CreditsContentState
+    data object Error : CreditsContentState
     data object Empty : CreditsContentState
     data object Data : CreditsContentState
 }
 
 data class CreditsUiState(
-    val credits: List<CreditEntity> = emptyList(),
+    val perSource: Map<CreditSourceId, SourceResult> = emptyMap(),
+    val perSourceCredits: Map<CreditSourceId, List<CreditEntity>> = emptyMap(),
+    val activeSources: Set<CreditSourceId> = emptySet(),
+    val mergeMode: Boolean = false,
     val trackTitles: Map<String, String> = emptyMap(),
     val content: CreditsContentState = CreditsContentState.Idle,
     val searchUrl: String? = null,
-    val sourceSummary: List<String> = emptyList(),
-    val showSources: Boolean = false,
-)
+    val loadingSources: Set<CreditSourceId> = emptySet(),
+) {
+    val visibleCredits: List<CreditEntity>
+        get() = if (mergeMode) perSourceCredits.filterKeys(activeSources::contains).values.flatten().let { values ->
+            val byScope = values.groupBy { it.albumId to it.trackId }
+            byScope.values.flatMap { scope ->
+                val first = scope.firstOrNull() ?: return@flatMap emptyList()
+                CreditMerger.merge(first.albumId, first.trackId, scope.map { it.toCandidate() })
+            }
+        } else activeSources.flatMap { perSourceCredits[it].orEmpty() }
+}
 
 @HiltViewModel
 class CreditsViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val repository: AlbumRepository,
-    private val creditsService: MusicBrainzCreditsService,
-    private val discogsService: DiscogsCreditsService,
-    private val geniusService: GeniusCreditsService,
     private val settings: SettingsStore,
     private val creditDao: CreditDao,
+    private val externalLinkDao: ExternalLinkDao,
+    private val sources: Set<@JvmSuppressWildcards CreditSource>,
 ) : ViewModel() {
     private val albumId: String = checkNotNull(savedStateHandle["albumId"])
     private val trackId: String? = savedStateHandle["trackId"]
     private val _state = MutableStateFlow(CreditsUiState())
     val state = _state.asStateFlow()
+    private var request: CreditFetchRequest? = null
     private var loadJob: Job? = null
+    private val sourceById by lazy { sources.associateBy { it.id } }
 
     init {
         viewModelScope.launch {
-            (if (trackId == null) creditDao.observeForAlbumWithTracks(albumId) else creditsService.observeCredits(albumId, trackId))
-                .catch { _state.update { value -> value.copy(content = CreditsContentState.Error(NetworkError.UNKNOWN)) } }
-                .collect { credits ->
-                    _state.update { value -> value.copy(credits = credits, sourceSummary = credits.flatMap { it.sourceProvider.split(",") }.map(String::trim).filter(String::isNotBlank).distinct()) }
-                }
+            settings.activeCreditSources.collect { raw ->
+                val active = CreditSourceId.parse(raw).toSet().let { it + CreditSourceId.FILE_TAG }
+                _state.update { it.copy(activeSources = active) }
+            }
         }
         viewModelScope.launch {
-            settings.showCreditSources.collect { show -> _state.update { value -> value.copy(showSources = show) } }
+            settings.creditsMergeMode.collect { enabled -> _state.update { it.copy(mergeMode = enabled) } }
         }
     }
 
@@ -120,98 +141,83 @@ class CreditsViewModel @Inject constructor(
         if (loadJob?.isActive == true) return
         loadJob = viewModelScope.launch {
             val library = repository.observeAlbum(albumId).first()
-            val album = library?.album
-            if (album == null) {
-                _state.update { it.copy(content = CreditsContentState.Error(NetworkError.NO_RESULTS)) }
-                return@launch
-            }
-            val searchUrl = musicBrainzSearchUrl(library.album.title, library.artist?.name.orEmpty())
-            val trackTitles = library.tracks.associate { it.id to it.title }
-            _state.update { it.copy(searchUrl = searchUrl, trackTitles = trackTitles) }
-            if (trackId != null && library.tracks.none { it.id == trackId }) {
-                _state.update { it.copy(content = CreditsContentState.Error(NetworkError.NO_RESULTS)) }
-                return@launch
-            }
-            val selectedTracks = if (trackId == null) library.tracks else library.tracks.filter { it.id == trackId }
-            val totalSources = 4
-            _state.update { it.copy(content = CreditsContentState.Loading(0, totalSources)) }
+            val album = library?.album ?: run { _state.update { it.copy(content = CreditsContentState.Error) }; return@launch }
+            val titles = library.tracks.associate { it.id to it.title }
+            _state.update { it.copy(trackTitles = titles, searchUrl = musicBrainzSearchUrl(album.title, library.artist?.name.orEmpty()), content = CreditsContentState.Loading) }
+            val manualLinks = CreditSourceId.entries.mapNotNull { id -> externalLinkDao.find(album.id, trackId, id.name.lowercase())?.let { id to it.externalId } }.toMap()
+            request = CreditFetchRequest(
+                albumId = album.id,
+                albumTitle = album.title,
+                artistName = library.artist?.name.orEmpty(),
+                releaseMbid = album.mbid,
+                tracks = if (trackId == null) library.tracks else library.tracks.filter { it.id == trackId },
+                selectedTrackId = trackId,
+                force = forceRefresh,
+                enabledSourcesHash = activeHash(_state.value.activeSources),
+                manualLinks = manualLinks,
+            )
+            val active = _state.value.activeSources
+            if (active.isEmpty()) { _state.update { it.copy(content = CreditsContentState.Empty) }; return@launch }
             supervisorScope {
-                val musicBrainz = async {
-                    if (album.mbid.isNullOrBlank()) Resource.Success(null)
-                    else if (trackId == null) creditsService.loadAlbumCredits(album, forceRefresh)
-                    else creditsService.loadTrackCredits(album, trackId, forceRefresh)
-                }
-                val discogs = async {
-                    discogsService.load(album.id, album.title, library.artist?.name.orEmpty(), selectedTracks.associate { it.id to it.title })
-                }
-                val genius = async {
-                    selectedTracks.map { track ->
-                        async { geniusService.load(track.id, track.title, library.artist?.name.orEmpty()) }
-                    }.map { deferred -> deferred.await() }
-                }
-                val mbResult = runCatching { musicBrainz.await() }.getOrNull()
-                _state.update { it.copy(content = CreditsContentState.Loading(1, totalSources)) }
-                val discogsResult = runCatching { discogs.await() }.getOrNull()
-                _state.update { it.copy(content = CreditsContentState.Loading(2, totalSources)) }
-                val geniusResults = runCatching { genius.await() }.getOrDefault(emptyList())
-                _state.update { it.copy(content = CreditsContentState.Loading(3, totalSources)) }
-                val albumCandidates = buildList {
-                    discogsResult?.let { result -> if (result is Resource.Success) addAll(result.value.credits) }
-                }
-                val trackCandidates = linkedMapOf<String, MutableList<com.youneko.rate.data.musicbrainz.CreditCandidate>>()
-                discogsResult?.let { result ->
-                    if (result is Resource.Success) result.value.trackCredits.forEach { (id, candidates) -> trackCandidates.getOrPut(id) { mutableListOf() }.addAll(candidates) }
-                }
-                geniusResults.forEachIndexed { index, result ->
-                    if (result is Resource.Success) trackCandidates.getOrPut(selectedTracks.getOrNull(index)?.id.orEmpty()) { mutableListOf() }.addAll(result.value.credits)
-                }
-                persistAdditionalCredits(album.id, albumCandidates, trackCandidates)
-                _state.update { it.copy(content = CreditsContentState.Loading(4, totalSources)) }
-                val current = if (trackId == null) creditDao.findForAlbumWithTracks(album.id) else creditDao.findTrackCredits(trackId)
-                _state.update { it.copy(content = if (current.isEmpty()) CreditsContentState.Empty else CreditsContentState.Data) }
+                active.map { sourceId -> async { fetchSourceInternal(sourceId, forceRefresh) } }.awaitAll()
             }
+            val hasData = _state.value.perSourceCredits.values.any { it.isNotEmpty() }
+            _state.update { it.copy(content = if (hasData) CreditsContentState.Data else CreditsContentState.Empty) }
         }
     }
 
-    private suspend fun persistAdditionalCredits(
-        albumId: String,
-        albumCandidates: List<com.youneko.rate.data.musicbrainz.CreditCandidate>,
-        trackCandidates: Map<String, List<com.youneko.rate.data.musicbrainz.CreditCandidate>>,
-    ) {
-        if (albumCandidates.isNotEmpty()) {
-            val existing = creditDao.findAlbumCredits(albumId)
-            creditDao.deleteAlbumCredits(albumId)
-            creditDao.upsertAll(CreditMerger.merge(albumId, null, existing.map(::toCandidate) + albumCandidates))
-        }
-        trackCandidates.forEach { (id, candidates) ->
-            if (id.isBlank() || candidates.isEmpty()) return@forEach
-            val existing = creditDao.findTrackCredits(id)
-            creditDao.deleteTrackCredits(id)
-            creditDao.upsertAll(CreditMerger.merge(null, id, existing.map(::toCandidate) + candidates))
+    fun toggleSource(id: CreditSourceId, onNeedsToken: () -> Unit = {}) {
+        if (id == CreditSourceId.FILE_TAG) return
+        viewModelScope.launch(Dispatchers.IO) {
+            val active = _state.value.activeSources.toMutableSet()
+            if (id in active) active.remove(id) else active.add(id)
+            settings.setActiveCreditSources(CreditSourceId.encode(active))
+            if (id !in active) return@launch
+            if (id.needsToken && (if (id == CreditSourceId.DISCOGS) settings.discogsToken.first() else settings.geniusToken.first()).isBlank()) {
+                onNeedsToken()
+            } else fetchSourceInternal(id, force = false)
         }
     }
 
-    private fun toCandidate(credit: CreditEntity) = com.youneko.rate.data.musicbrainz.CreditCandidate(
-        personName = credit.personName,
-        personMbid = credit.personMbid,
-        role = credit.role,
-        instrumentOrAttribute = credit.instrumentOrAttribute,
-        sourceProvider = credit.sourceProvider,
-        sourceUrl = credit.sourceUrl,
-        beginDate = credit.beginDate,
-        endDate = credit.endDate,
-    )
+    fun reloadSource(id: CreditSourceId) = viewModelScope.launch { fetchSourceInternal(id, force = true) }
+    fun saveManualLink(sourceId: CreditSourceId, raw: String): Boolean {
+        val link = ManualCreditLinkParser.parse(sourceId, raw) ?: return false
+        viewModelScope.launch(Dispatchers.IO) {
+            externalLinkDao.upsert(ExternalLinkEntity(java.util.UUID.randomUUID().toString(), albumId.takeIf { trackId == null }, trackId, sourceId.name.lowercase(), link.externalId, link.url, System.currentTimeMillis()))
+            load(forceRefresh = true)
+        }
+        return true
+    }
+    fun reloadAll() = load(forceRefresh = true)
+    fun setMergeMode(value: Boolean) = viewModelScope.launch(Dispatchers.IO) { settings.setCreditsMergeMode(value) }
+    fun cancel() { loadJob?.cancel(); loadJob = null; _state.update { it.copy(content = if (it.visibleCredits.isEmpty()) CreditsContentState.Idle else CreditsContentState.Data) } }
 
-    fun cancel() {
-        loadJob?.cancel()
-        loadJob = null
-        _state.update { it.copy(content = if (it.credits.isEmpty()) CreditsContentState.Idle else CreditsContentState.Data) }
+    private suspend fun fetchSourceInternal(id: CreditSourceId, force: Boolean) {
+        val base = request ?: return
+        val current = base.copy(force = force, enabledSourcesHash = activeHash(_state.value.activeSources))
+        _state.update { it.copy(loadingSources = it.loadingSources + id) }
+        val result = runCatching { sourceById[id]?.fetch(current) ?: SourceResult.Error("Provider chưa đăng ký") }
+            .getOrElse { SourceResult.Error(it.message ?: "Nguồn lỗi") }
+        val credits = result.toEntities(id, current)
+        if (result is SourceResult.Success) persist(result, current)
+        _state.update { it.copy(perSource = it.perSource + (id to result), perSourceCredits = it.perSourceCredits + (id to credits), loadingSources = it.loadingSources - id, content = if (credits.isNotEmpty()) CreditsContentState.Data else it.content) }
     }
 
-    private fun musicBrainzSearchUrl(title: String, artist: String): String {
-        val query = URLEncoder.encode("$title $artist".trim(), StandardCharsets.UTF_8.name())
-        return "https://musicbrainz.org/search?type=release&method=indexed&query=$query"
+    private suspend fun persist(result: SourceResult.Success, request: CreditFetchRequest) {
+        val albumCandidates = if (request.selectedTrackId == null) result.credits else emptyList()
+        if (albumCandidates.isNotEmpty()) mergePersist(request.albumId, null, albumCandidates)
+        result.trackCredits.forEach { (id, candidates) -> if (candidates.isNotEmpty()) mergePersist(null, id, candidates) }
+        if (request.selectedTrackId != null && result.credits.isNotEmpty()) mergePersist(null, request.selectedTrackId, result.credits)
     }
+
+    private suspend fun mergePersist(albumId: String?, trackId: String?, candidates: List<CreditCandidate>) {
+        val existing = if (trackId == null) creditDao.findAlbumCredits(albumId!!) else creditDao.findTrackCredits(trackId)
+        creditDao.upsertAll(CreditMerger.merge(albumId, trackId, existing.map { it.toCandidate() } + candidates))
+    }
+
+    private fun activeHash(active: Set<CreditSourceId>): String = active.sortedBy { it.name }.joinToString("+") { it.name } + ":v4"
+
+    private fun musicBrainzSearchUrl(title: String, artist: String): String = "https://musicbrainz.org/search?type=release&method=indexed&query=" + URLEncoder.encode("$title $artist".trim(), StandardCharsets.UTF_8.name())
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -224,202 +230,163 @@ fun CreditsScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    var tokenPrompt by rememberSaveable { mutableStateOf<CreditSourceId?>(null) }
+    var manualSource by rememberSaveable { mutableStateOf(CreditSourceId.DISCOGS) }
+    var manualLink by rememberSaveable { mutableStateOf("") }
+    var manualLinkError by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) { viewModel.load() }
-    val trackGroups = state.credits
-        .groupBy { it.trackId }
-        .toList()
-        .sortedWith(compareBy<Pair<String?, List<CreditEntity>>> { it.first != null }.thenBy { it.first.orEmpty() })
-    val groupKeys = trackGroups.flatMap { (trackId, credits) ->
-        credits.groupBy { creditGroupForUi(it.role) }.keys.map { group -> "${trackId ?: "album"}:${group.name}" }
-    }
-    var expandedGroups by rememberSaveable(groupKeys.joinToString(",")) {
-        mutableStateOf(groupKeys.take(3).toSet())
-    }
     val openUrl: (String) -> Unit = { url -> context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
-    val sourceUrl = releaseUrl ?: state.searchUrl
-
     Scaffold(
         topBar = {
             Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.cancel)) }
                 Text(stringResource(R.string.credits_title), style = MaterialTheme.typography.titleLarge)
                 Spacer(Modifier.weight(1f))
-                IconButton(onClick = { viewModel.load(forceRefresh = true) }) { Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.credits_reload)) }
+                IconButton(onClick = viewModel::reloadAll) { Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.credits_reload)) }
             }
         },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)) {
-            when (val content = state.content) {
-                CreditsContentState.Idle -> Unit
-                is CreditsContentState.Loading -> {
-                    Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        CircularProgressIndicator()
-                        Spacer(Modifier.width(12.dp))
-                        Text(stringResource(R.string.credits_progress, content.completed, content.total.coerceAtLeast(1)))
-                        Spacer(Modifier.weight(1f))
-                        TextButton(onClick = viewModel::cancel) { Text(stringResource(R.string.cancel)) }
-                    }
-                }
-                is CreditsContentState.Error -> {
-                    Text(creditsErrorLabel(content.kind), color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(vertical = 8.dp))
-                    TextButton(onClick = { viewModel.load(forceRefresh = true) }) { Text(stringResource(R.string.retry)) }
-                }
-                is CreditsContentState.NoMbid -> {
-                    Text(stringResource(R.string.credits_no_mbid), modifier = Modifier.padding(top = 24.dp))
-                    Button(onClick = { openUrl(content.searchUrl) }) { Text(stringResource(R.string.credits_link_musicbrainz)) }
-                }
-                CreditsContentState.Empty -> {
-                    Text(stringResource(R.string.credits_empty), modifier = Modifier.padding(top = 24.dp))
-                    state.searchUrl?.let { url ->
-                        Button(onClick = { openUrl(url) }) { Text(stringResource(R.string.credits_try_other_release)) }
-                    }
-                    TextButton(onClick = onOpenSettings) { Text(stringResource(R.string.credits_enable_sources)) }
-                    releaseUrl?.let { url ->
-                        TextButton(onClick = { openUrl(url) }) { Text(stringResource(R.string.credits_open_musicbrainz)) }
-                    }
-                }
-                CreditsContentState.Data -> Unit
+            SourcePicker(
+                state = state,
+                onToggle = { id -> viewModel.toggleSource(id) { tokenPrompt = id } },
+                onSettings = onOpenSettings,
+                onMergeMode = viewModel::setMergeMode,
+            )
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf(CreditSourceId.DISCOGS, CreditSourceId.GENIUS, CreditSourceId.MUSICBRAINZ).forEach { id -> FilterChip(selected = manualSource == id, onClick = { manualSource = id }, label = { Text(id.displayName) }) }
             }
-            LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                trackGroups.forEach { (trackId, trackCredits) ->
-                    if (trackId != null) {
-                        item(key = "track-header-$trackId") {
-                            Text(
-                                "${state.trackTitles[trackId] ?: trackId}",
-                                style = MaterialTheme.typography.titleLarge,
-                                modifier = Modifier.padding(top = 12.dp),
-                            )
-                            HorizontalDivider()
-                        }
-                    }
-                    trackCredits.groupBy { creditGroupForUi(it.role) }.forEach { (group, values) ->
-                        val groupKey = "${trackId ?: "album"}:${group.name}"
-                        val mergedValues = mergeCredits(group, values)
-                        val expanded = groupKey in expandedGroups
-                        item(key = "header-$groupKey") {
-                            TextButton(
-                                onClick = {
-                                    expandedGroups = if (expanded) {
-                                        expandedGroups - groupKey
-                                    } else {
-                                        (expandedGroups + groupKey).let { names ->
-                                            if (names.size > 3) names.drop(1).toSet() else names
-                                        }
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                            ) {
-                                Text(
-                                    "${creditGroupLabel(group)} (${mergedValues.size})",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    modifier = Modifier.weight(1f),
-                                )
-                                Text(if (expanded) "▾" else "▸", style = MaterialTheme.typography.titleMedium)
-                            }
-                            HorizontalDivider()
-                        }
-                        if (expanded) {
-                            items(mergedValues, key = { it.id }) { credit -> CreditRow(credit, state.showSources) }
-                        }
+            OutlinedTextField(value = manualLink, onValueChange = { manualLink = it; manualLinkError = false }, modifier = Modifier.fillMaxWidth(), label = { Text("URL/MBID ${manualSource.displayName}") }, maxLines = 2)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Button(onClick = { manualLinkError = !viewModel.saveManualLink(manualSource, manualLink); if (!manualLinkError) manualLink = "" }, enabled = manualLink.isNotBlank()) { Text("Lưu liên kết") }
+                if (manualLinkError) Text("Liên kết không hợp lệ", color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(start = 8.dp))
+            }
+            when (state.content) {
+                CreditsContentState.Loading -> Row(Modifier.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) { CircularProgressIndicator(); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.credits_progress_loading)) }
+                CreditsContentState.Empty -> Column(Modifier.padding(vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(stringResource(R.string.credits_empty_truthful))
+                    TextButton(onClick = onOpenSettings) { Text(stringResource(R.string.credits_enable_sources)) }
+                    releaseUrl?.let { Button(onClick = { openUrl(it) }) { Text(stringResource(R.string.credits_open_musicbrainz)) } }
+                }
+                CreditsContentState.Error -> Text(stringResource(R.string.network_error), color = MaterialTheme.colorScheme.error)
+                else -> Unit
+            }
+            if (state.mergeMode) {
+                CreditSections(title = stringResource(R.string.credits_merged_title), credits = state.visibleCredits, trackTitles = state.trackTitles, showSources = true)
+            } else {
+                LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    state.activeSources.forEach { sourceId ->
+                        val result = state.perSource[sourceId]
+                        item(key = "source-$sourceId") { SourceStatusHeader(sourceId, result, state.loadingSources.contains(sourceId)) }
+                        item(key = "source-content-$sourceId") { CreditSections(title = sourceId.displayName, credits = state.perSourceCredits[sourceId].orEmpty(), trackTitles = state.trackTitles, showSources = true) }
                     }
                 }
             }
             Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(stringResource(R.string.credits_source_summary, state.sourceSummary.joinToString(", ").ifBlank { "—" }), style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
-                TextButton(onClick = { sourceUrl?.let(openUrl) }, enabled = sourceUrl != null) {
-                    Text(stringResource(R.string.credits_open_source))
+                val count = state.visibleCredits.size
+                Text(stringResource(R.string.credits_source_summary, state.activeSources.joinToString(" · ") { it.displayName }), modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelSmall)
+                Text("$count credit", style = MaterialTheme.typography.labelSmall)
+            }
+        }
+    }
+    tokenPrompt?.let { id ->
+        TextButton(onClick = { tokenPrompt = null; onOpenSettings() }) { Text("${id.displayName}: ${stringResource(R.string.credits_enable_sources)}") }
+    }
+}
+
+@Composable
+private fun SourcePicker(state: CreditsUiState, onToggle: (CreditSourceId) -> Unit, onSettings: () -> Unit, onMergeMode: (Boolean) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            CreditSourceId.entries.forEach { id ->
+                val active = id in state.activeSources
+                val result = state.perSource[id]
+                val count = (state.perSourceCredits[id].orEmpty()).size
+                val needsToken = result is SourceResult.NeedsToken
+                FilterChip(selected = active, onClick = { onToggle(id) }, label = { Text(buildString { append(if (active) "✓ " else ""); append(id.displayName); if (count > 0) append(" $count"); if (needsToken) append(" ⚠") }) })
+            }
+            AssistChip(onClick = onSettings, label = { Text(stringResource(R.string.credits_more_sources)) })
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            FilterChip(selected = !state.mergeMode, onClick = { onMergeMode(false) }, label = { Text(stringResource(R.string.credits_view_separate)) })
+            FilterChip(selected = state.mergeMode, onClick = { onMergeMode(true) }, label = { Text(stringResource(R.string.credits_view_merged)) })
+        }
+    }
+}
+
+@Composable
+private fun SourceStatusHeader(id: CreditSourceId, result: SourceResult?, loading: Boolean) {
+    Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(id.displayName, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+        when {
+            loading -> CircularProgressIndicator(strokeWidth = 2.dp)
+            result is SourceResult.Success -> Text("${result.credits.size + result.trackCredits.values.sumOf { it.size }} credit", style = MaterialTheme.typography.labelSmall)
+            result is SourceResult.NeedsToken -> Text(stringResource(R.string.credits_needs_token), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
+            result is SourceResult.Empty -> Text(stringResource(R.string.credits_source_empty), style = MaterialTheme.typography.labelSmall)
+            result is SourceResult.Offline -> Text(stringResource(R.string.network_offline), style = MaterialTheme.typography.labelSmall)
+            result is SourceResult.NoMatch -> Text(stringResource(R.string.credits_no_match), style = MaterialTheme.typography.labelSmall)
+            result is SourceResult.Error -> Text(stringResource(R.string.network_error), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
+        }
+    }
+}
+
+@Composable
+private fun CreditSections(title: String, credits: List<CreditEntity>, trackTitles: Map<String, String>, showSources: Boolean) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (credits.isEmpty()) Text("$title · ${stringResource(R.string.credits_source_empty)}", style = MaterialTheme.typography.bodySmall)
+        credits.groupBy { it.trackId }.toList().sortedBy { it.first.orEmpty() }.forEach { (trackId, values) ->
+            trackId?.let { Text(trackTitles[it] ?: it, style = MaterialTheme.typography.titleSmall) }
+            values.groupBy { creditGroupForUi(it.role) }.forEach { (group, groupValues) ->
+                Text("${creditGroupLabel(group)} (${groupValues.size})", style = MaterialTheme.typography.labelLarge)
+                groupValues.groupBy { it.personMbid ?: normalizeCreditPerson(it.personName) }.values.forEach { personCredits ->
+                    val first = personCredits.first()
+                    Card(Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(10.dp)) {
+                            Text(first.personName, style = MaterialTheme.typography.titleSmall)
+                            Text(personCredits.flatMap { listOf(it.role, it.instrumentOrAttribute).filterNotNull() }.distinct().joinToString(", "), style = MaterialTheme.typography.bodySmall)
+                            if (showSources) Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) { personCredits.flatMap { it.sourceProvider.split(",") }.distinct().forEach { source -> AssistChip(onClick = {}, label = { Text(source.trim()) }) } }
+                        }
+                    }
                 }
             }
         }
     }
 }
 
-data class MergedCredit(
-    val id: String,
-    val personName: String,
-    val roleLabels: List<String>,
-    val sources: List<String>,
-    val sortOrder: Int,
+private fun SourceResult.toEntities(source: CreditSourceId, request: CreditFetchRequest): List<CreditEntity> = when (this) {
+    is SourceResult.Success -> buildList {
+        if (request.selectedTrackId != null) addAll(credits.map { it.toEntity(source, null, request.selectedTrackId) })
+        else {
+            addAll(credits.map { it.toEntity(source, request.albumId, null) })
+            trackCredits.forEach { (trackId, candidates) -> addAll(candidates.map { it.toEntity(source, null, trackId) }) }
+        }
+    }
+    else -> emptyList()
+}
+
+private fun CreditCandidate.toEntity(source: CreditSourceId, albumId: String?, trackId: String?) = CreditEntity(
+    id = UUID.nameUUIDFromBytes("${source.name}:${albumId.orEmpty()}:${trackId.orEmpty()}:${personName}:${role}".toByteArray()).toString(),
+    albumId = albumId,
+    trackId = trackId,
+    personName = personName,
+    personMbid = personMbid,
+    role = role,
+    instrumentOrAttribute = instrumentOrAttribute,
+    sourceProvider = source.name.lowercase(),
+    sourceUrl = sourceUrl,
+    sortOrder = 0,
+    beginDate = beginDate,
+    endDate = endDate,
 )
 
-private fun mergeCredits(group: CreditGroup, credits: List<CreditEntity>): List<MergedCredit> = credits
-    .groupBy { it.personMbid ?: normalizeCreditPerson(it.personName) }
-    .map { (personKey, personCredits) ->
-        val first = personCredits.minByOrNull { it.sortOrder } ?: personCredits.first()
-        val labels = personCredits
-            .flatMap { credit ->
-                val date = listOfNotNull(credit.beginDate, credit.endDate).distinct().joinToString("–").ifBlank { null }
-                listOfNotNull(credit.role.takeIf(String::isNotBlank), credit.instrumentOrAttribute?.takeIf(String::isNotBlank), date)
-            }
-            .distinctBy { it.trim().lowercase() }
-        MergedCredit("${group.name}-$personKey", first.personName, labels, personCredits.flatMap { it.sourceProvider.split(",") }.map(String::trim).filter { it.isNotBlank() }.distinct(), first.sortOrder)
-    }
-    .sortedWith(compareBy({ it.sortOrder }, { it.personName.lowercase() }))
-
-@Composable
-private fun CreditRow(credit: MergedCredit, showAllSources: Boolean) {
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.fillMaxWidth().padding(12.dp)) {
-            Text(credit.personName, style = MaterialTheme.typography.titleSmall)
-            if (credit.roleLabels.isNotEmpty()) {
-                Text(credit.roleLabels.map { creditRoleLabel(it) }.joinToString(", "), style = MaterialTheme.typography.bodySmall)
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                credit.sources.filter { showAllSources || !it.equals("musicbrainz", ignoreCase = true) }.forEach { source ->
-                    AssistChip(onClick = {}, label = { Text(source.replaceFirstChar { it.uppercase() }) })
-                }
-            }
-        }
-    }
-}
-
-private fun normalizeCreditPerson(value: String): String = java.text.Normalizer.normalize(value, java.text.Normalizer.Form.NFD)
-    .replace("\\p{M}+".toRegex(), "")
-    .lowercase()
-    .replace(Regex("\\s+"), " ")
-    .trim()
-
-@Composable
-private fun creditRoleLabel(role: String): String = when (role.lowercase()) {
-    "mix" -> stringResource(R.string.credit_role_mix)
-    "assistant mix" -> stringResource(R.string.credit_role_assistant_mix)
-    "lead vocals" -> stringResource(R.string.credit_role_lead_vocals)
-    "background vocals" -> stringResource(R.string.credit_role_background_vocals)
-    "producer" -> stringResource(R.string.credit_role_producer)
-    "programming" -> stringResource(R.string.credit_role_programming)
-    "recording" -> stringResource(R.string.credit_role_recording)
-    "writer" -> stringResource(R.string.credit_role_writer)
-    else -> role
-}
-
-private fun creditGroupForUi(role: String): CreditGroup = when (role.lowercase()) {
-    "composer", "lyricist", "writer", "arranger", "orchestrator", "librettist" -> CreditGroup.WRITING
-    "producer", "executive producer", "co-producer" -> CreditGroup.PRODUCTION
-    "recording", "engineer", "recording engineer", "mix", "assistant mix", "mixing engineer", "mastering", "mastering engineer", "programming", "editor" -> CreditGroup.ENGINEERING
-    "vocal", "lead vocals", "background vocals", "instrument", "performer", "conductor", "orchestra" -> CreditGroup.PERFORMANCE
-    "label", "publisher", "copyright", "phonographic copyright" -> CreditGroup.RELEASE
-    else -> CreditGroup.OTHER
-}
-
-@Composable
+private fun CreditEntity.toCandidate() = CreditCandidate(personName, personMbid, role, instrumentOrAttribute, sourceProvider, sourceUrl, beginDate, endDate)
+private fun normalizeCreditPerson(value: String): String = java.text.Normalizer.normalize(value, java.text.Normalizer.Form.NFD).replace("\\p{M}+".toRegex(), "").lowercase().replace(Regex("\\s+"), " ").trim()
+private fun creditGroupForUi(role: String): CreditGroup = com.youneko.rate.data.musicbrainz.creditGroupForRole(role)
 private fun creditGroupLabel(group: CreditGroup): String = when (group) {
-    CreditGroup.WRITING -> stringResource(R.string.credits_group_writing)
-    CreditGroup.PRODUCTION -> stringResource(R.string.credits_group_production)
-    CreditGroup.ENGINEERING -> stringResource(R.string.credits_group_engineering)
-    CreditGroup.PERFORMANCE -> stringResource(R.string.credits_group_performance)
-    CreditGroup.RELEASE -> stringResource(R.string.credits_group_release)
-    CreditGroup.OTHER -> stringResource(R.string.credits_group_other)
-}
-
-@Composable
-private fun creditsErrorLabel(error: NetworkError): String = when (error) {
-    NetworkError.OFFLINE -> stringResource(R.string.network_offline)
-    NetworkError.NO_CONNECTION -> stringResource(R.string.network_no_connection)
-    NetworkError.TIMEOUT -> stringResource(R.string.network_timeout)
-    NetworkError.RATE_LIMITED -> stringResource(R.string.network_rate_limited)
-    NetworkError.SERVER_ERROR -> stringResource(R.string.network_server_error)
-    NetworkError.BAD_REQUEST -> stringResource(R.string.network_bad_request)
-    NetworkError.PARSE_ERROR -> stringResource(R.string.network_parse_error)
-    NetworkError.NO_RESULTS -> stringResource(R.string.credits_empty)
-    NetworkError.UNKNOWN -> stringResource(R.string.network_error)
+    CreditGroup.WRITING -> "Sáng tác"
+    CreditGroup.PRODUCTION -> "Sản xuất"
+    CreditGroup.ENGINEERING -> "Kỹ thuật"
+    CreditGroup.PERFORMANCE -> "Trình diễn"
+    CreditGroup.RELEASE -> "Phát hành"
+    CreditGroup.OTHER -> "Khác"
 }

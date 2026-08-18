@@ -140,9 +140,10 @@ class MusicBrainzCreditsService @Inject constructor(
         album: AlbumEntity,
         forceRefresh: Boolean = false,
         onProgress: suspend (completed: Int, total: Int) -> Unit = { _, _ -> },
+        enabledSourcesHash: String = "default",
     ): Resource<CreditLoadReport> = withContext(Dispatchers.IO) {
         val releaseMbid = album.mbid ?: return@withContext Resource.Error(NetworkError.NO_RESULTS, "Album chưa có MusicBrainz MBID")
-        val cacheKey = "credits:v2:album:$releaseMbid"
+        val cacheKey = "credits:v3:album:$releaseMbid:musicbrainz:$enabledSourcesHash:provider-v3"
         if (!forceRefresh) readCache(cacheKey)?.let { cached ->
             val manual = creditDao.findAlbumCredits(album.id).filter { it.isManualSource() }
             val merged = preserveManual(cached, manual)
@@ -227,10 +228,11 @@ class MusicBrainzCreditsService @Inject constructor(
         trackId: String,
         forceRefresh: Boolean = false,
         onProgress: suspend (completed: Int, total: Int) -> Unit = { _, _ -> },
+        enabledSourcesHash: String = "default",
     ): Resource<CreditLoadReport> = withContext(Dispatchers.IO) {
         val track = trackDao.findById(trackId) ?: return@withContext Resource.Error(NetworkError.NO_RESULTS, "Bài hát không tồn tại")
         val recordingMbid = track.recordingMbid ?: return@withContext Resource.Error(NetworkError.NO_RESULTS, "Bài hát chưa có recording MBID")
-        val cacheKey = "credits:v2:track:$recordingMbid"
+        val cacheKey = "credits:v3:track:$recordingMbid:musicbrainz:$enabledSourcesHash:provider-v3"
         if (!forceRefresh) readCache(cacheKey)?.let { cached ->
             val manual = creditDao.findTrackCredits(trackId).filter { it.isManualSource() }
             val merged = preserveManual(cached, manual)

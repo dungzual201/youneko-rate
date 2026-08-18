@@ -18,6 +18,7 @@ import com.youneko.rate.data.local.entity.AlbumEntity
 import com.youneko.rate.data.local.entity.ArtistEntity
 import com.youneko.rate.data.local.entity.AudioAnalysisEntity
 import com.youneko.rate.data.local.entity.CreditEntity
+import com.youneko.rate.data.local.entity.ExternalLinkEntity
 import com.youneko.rate.data.local.entity.LibrarySearchFtsEntity
 import com.youneko.rate.data.local.entity.ImportSessionEntity
 import com.youneko.rate.data.local.entity.RemoteMetadataCacheEntity
@@ -30,13 +31,14 @@ import com.youneko.rate.data.local.entity.TrackEntity
         AlbumEntity::class,
         TrackEntity::class,
         CreditEntity::class,
+        ExternalLinkEntity::class,
         AudioAnalysisEntity::class,
         RemoteMetadataCacheEntity::class,
         SearchHistoryEntity::class,
         LibrarySearchFtsEntity::class,
         ImportSessionEntity::class,
     ],
-    version = 10,
+    version = 11,
     exportSchema = true,
 )
 @TypeConverters(YounekoTypeConverters::class)
@@ -45,6 +47,7 @@ abstract class YounekoDatabase : RoomDatabase() {
     abstract fun artistDao(): ArtistDao
     abstract fun trackDao(): TrackDao
     abstract fun creditDao(): CreditDao
+    abstract fun externalLinkDao(): com.youneko.rate.data.local.dao.ExternalLinkDao
     abstract fun audioAnalysisDao(): AudioAnalysisDao
     abstract fun remoteMetadataCacheDao(): RemoteMetadataCacheDao
     abstract fun searchHistoryDao(): SearchHistoryDao
@@ -198,6 +201,14 @@ abstract class YounekoDatabase : RoomDatabase() {
         val MIGRATION_9_10: Migration = object : Migration(9, 10) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE albums ADD COLUMN coverUpdatedAt INTEGER")
+            }
+        }
+
+        val MIGRATION_10_11: Migration = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS external_links (id TEXT NOT NULL PRIMARY KEY, albumId TEXT, trackId TEXT, sourceId TEXT NOT NULL, externalId TEXT NOT NULL, sourceUrl TEXT NOT NULL, createdAt INTEGER NOT NULL)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_external_links_trackId_sourceId ON external_links(trackId, sourceId)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_external_links_albumId_sourceId ON external_links(albumId, sourceId)")
             }
         }
     }

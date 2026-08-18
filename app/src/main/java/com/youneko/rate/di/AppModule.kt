@@ -8,6 +8,7 @@ import com.youneko.rate.data.local.dao.AlbumDao
 import com.youneko.rate.data.local.dao.ArtistDao
 import com.youneko.rate.data.local.dao.AudioAnalysisDao
 import com.youneko.rate.data.local.dao.CreditDao
+import com.youneko.rate.data.local.dao.ExternalLinkDao
 import com.youneko.rate.data.local.dao.LibrarySearchFtsDao
 import com.youneko.rate.data.local.dao.ImportSessionDao
 import com.youneko.rate.data.local.dao.RemoteMetadataCacheDao
@@ -19,6 +20,13 @@ import com.youneko.rate.data.musicbrainz.AlbumMetadataRefreshService
 import com.youneko.rate.data.musicbrainz.MusicBrainzImportService
 import com.youneko.rate.data.discogs.CoverDiscogsProvider
 import com.youneko.rate.data.discogs.DiscogsCreditsService
+import com.youneko.rate.data.credits.CreditSource
+import com.youneko.rate.data.credits.DeezerCreditSource
+import com.youneko.rate.data.credits.DiscogsCreditSource
+import com.youneko.rate.data.credits.GeniusCreditSource
+import com.youneko.rate.data.credits.ItunesCreditSource
+import com.youneko.rate.data.credits.MusicBrainzCreditSource
+import com.youneko.rate.data.credits.TagCreditSource
 import com.youneko.rate.data.SettingsStore
 import com.youneko.rate.domain.usecase.CalculateAlbumScoreUseCase
 import dagger.Module
@@ -26,6 +34,7 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import dagger.multibindings.IntoSet
 import javax.inject.Singleton
 
 @Module
@@ -35,12 +44,36 @@ object AppModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): YounekoDatabase =
         Room.databaseBuilder(context, YounekoDatabase::class.java, "youneko_rate.db")
-            .addMigrations(YounekoDatabase.MIGRATION_1_2, YounekoDatabase.MIGRATION_2_3, YounekoDatabase.MIGRATION_3_4, YounekoDatabase.MIGRATION_4_5, YounekoDatabase.MIGRATION_5_6, YounekoDatabase.MIGRATION_6_7, YounekoDatabase.MIGRATION_7_8, YounekoDatabase.MIGRATION_8_9, YounekoDatabase.MIGRATION_9_10)
+            .addMigrations(YounekoDatabase.MIGRATION_1_2, YounekoDatabase.MIGRATION_2_3, YounekoDatabase.MIGRATION_3_4, YounekoDatabase.MIGRATION_4_5, YounekoDatabase.MIGRATION_5_6, YounekoDatabase.MIGRATION_6_7, YounekoDatabase.MIGRATION_7_8, YounekoDatabase.MIGRATION_8_9, YounekoDatabase.MIGRATION_9_10, YounekoDatabase.MIGRATION_10_11)
             .build()
 
     @Provides
     @Singleton
     fun provideCoverDiscogsProvider(service: DiscogsCreditsService): CoverDiscogsProvider = service
+
+    @Provides
+    @IntoSet
+    fun provideTagCreditSource(source: TagCreditSource): CreditSource = source
+
+    @Provides
+    @IntoSet
+    fun provideMusicBrainzCreditSource(source: MusicBrainzCreditSource): CreditSource = source
+
+    @Provides
+    @IntoSet
+    fun provideDiscogsCreditSource(source: DiscogsCreditSource): CreditSource = source
+
+    @Provides
+    @IntoSet
+    fun provideGeniusCreditSource(source: GeniusCreditSource): CreditSource = source
+
+    @Provides
+    @IntoSet
+    fun provideDeezerCreditSource(source: DeezerCreditSource): CreditSource = source
+
+    @Provides
+    @IntoSet
+    fun provideItunesCreditSource(source: ItunesCreditSource): CreditSource = source
 
     @Provides
     fun provideAlbumDao(database: YounekoDatabase): AlbumDao = database.albumDao()
@@ -53,6 +86,9 @@ object AppModule {
 
     @Provides
     fun provideCreditDao(database: YounekoDatabase): CreditDao = database.creditDao()
+
+    @Provides
+    fun provideExternalLinkDao(database: YounekoDatabase): ExternalLinkDao = database.externalLinkDao()
 
     @Provides
     fun provideAudioAnalysisDao(database: YounekoDatabase): AudioAnalysisDao = database.audioAnalysisDao()

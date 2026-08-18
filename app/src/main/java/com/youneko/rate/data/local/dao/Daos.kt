@@ -9,6 +9,7 @@ import com.youneko.rate.data.local.entity.AlbumEntity
 import com.youneko.rate.data.local.entity.ArtistEntity
 import com.youneko.rate.data.local.entity.AudioAnalysisEntity
 import com.youneko.rate.data.local.entity.CreditEntity
+import com.youneko.rate.data.local.entity.ExternalLinkEntity
 import com.youneko.rate.data.local.entity.LibrarySearchFtsEntity
 import com.youneko.rate.data.local.entity.ImportSessionEntity
 import com.youneko.rate.data.local.entity.RemoteMetadataCacheEntity
@@ -95,6 +96,18 @@ interface TrackDao {
 
     @Query("SELECT * FROM tracks WHERE albumId = :albumId ORDER BY discNumber, trackNumber")
     suspend fun findForAlbum(albumId: String): List<TrackEntity>
+}
+
+@Dao
+interface ExternalLinkDao {
+    @Query("SELECT * FROM external_links WHERE ((:trackId IS NOT NULL AND trackId = :trackId) OR (:trackId IS NULL AND albumId = :albumId)) AND sourceId = :sourceId LIMIT 1")
+    suspend fun find(albumId: String?, trackId: String?, sourceId: String): ExternalLinkEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(value: ExternalLinkEntity)
+
+    @Query("DELETE FROM external_links WHERE ((:trackId IS NOT NULL AND trackId = :trackId) OR (:trackId IS NULL AND albumId = :albumId)) AND sourceId = :sourceId")
+    suspend fun delete(albumId: String?, trackId: String?, sourceId: String)
 }
 
 @Dao
