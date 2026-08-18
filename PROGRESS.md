@@ -66,3 +66,12 @@ Phase 9 core đã có RatingScale 5 sao/10 điểm/100 điểm với canonical s
 Focused tests PASS sau lần sửa cuối: `Phase9SourcePickerTest`, `CalculateAlbumScoreUseCaseTest`, `Phase6CreditsTest`, `CoverArtTest` — tổng 29 tests trong focused invocation. Compile/KSP/unit-test compilation PASS; full `assembleDebug`, toàn bộ `testDebugUnitTest` và `lintDebug` cần chạy sau khi hoàn tất commit-local changes. Schema artifact mới là Room version 11 với `external_links` và `MIGRATION_10_11`.
 
 Sandbox không có emulator/adb, nên chưa thể xác minh thủ công Settings token/source picker, per-source/merge UI, numeric rating editor hoặc Rate tab sau vote và không tạo screenshot giả. Cần build APK, push CI xanh, rồi chờ ảnh thiết bị thật theo checklist Phase 9.
+
+
+## Phase 9 verification — 2026-08-18
+
+Full local verification sau source picker và Phase 9 PASS: `assembleDebug`, toàn bộ `testDebugUnitTest` và `lintDebug` đều `BUILD SUCCESSFUL`. Focused invocation cuối chạy 29 tests gồm `Phase9SourcePickerTest`, `CalculateAlbumScoreUseCaseTest`, `Phase6CreditsTest` và `CoverArtTest`.
+
+GitHub Actions [Android Build #32162195361](https://github.com/dungzual201/youneko-rate/actions/runs/32162195361) trên SHA `9fc64a8eee7895895802931dee0f63fe982e8a88` PASS toàn bộ assemble debug APK, unit tests, MainActivity launch regression và artifact upload.
+
+APK local: `app/build/outputs/apk/debug/youneko-rate-phase9.apk`; SHA-256 `7d61deee4fb4726c9061c932399166b30aee16e8f051d2ee68cedd9aaed47973`. Sandbox không có emulator/adb nên chưa thể cài APK, xác minh thủ công source picker/token/merge, numeric rating hoặc Rate tab sau vote và không tạo screenshot giả. Cần gửi APK lên thiết bị thật và phản hồi ảnh xác nhận theo checklist Phase 9.
