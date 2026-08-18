@@ -11,6 +11,7 @@ import com.youneko.rate.data.musicbrainz.MusicBrainzRepository
 import com.youneko.rate.data.musicbrainz.NetworkError
 import com.youneko.rate.data.musicbrainz.Resource
 import com.youneko.rate.data.musicbrainz.TokenBucket
+import androidx.paging.PagingSource
 import com.youneko.rate.data.musicbrainz.toPreview
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -23,6 +24,9 @@ import okhttp3.logging.HttpLoggingInterceptor
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
+import kotlinx.serialization.SerializationException
 import retrofit2.HttpException
 import retrofit2.Response
 import retrofit2.Retrofit
@@ -86,6 +90,57 @@ class MusicBrainzNetworkTest {
         assertEquals(NetworkError.RATE_LIMITED, (result as Resource.Error).kind)
     }
 
+    @Test
+    fun repositoryMapsNoConnectionWithoutThrowing() = runTest {
+        assertEquals(NetworkError.NO_CONNECTION, mappedError(UnknownHostException("dns")))
+    }
+
+    @Test
+    fun repositoryMapsTimeoutWithoutThrowing() = runTest {
+        assertEquals(NetworkError.TIMEOUT, mappedError(SocketTimeoutException("timeout")))
+    }
+
+    @Test
+    fun repositoryMaps503ToRateLimitedWithoutThrowing() = runTest {
+        assertEquals(NetworkError.RATE_LIMITED, mappedError(httpError(503)))
+    }
+
+    @Test
+    fun repositoryMapsOtherServerErrorsWithoutThrowing() = runTest {
+        assertEquals(NetworkError.SERVER_ERROR, mappedError(httpError(500)))
+    }
+
+    @Test
+    fun repositoryMapsClientErrorsWithoutThrowing() = runTest {
+        assertEquals(NetworkError.BAD_REQUEST, mappedError(httpError(400)))
+    }
+
+    @Test
+    fun repositoryMapsSerializationErrorsWithoutThrowing() = runTest {
+        assertEquals(NetworkError.PARSE_ERROR, mappedError(SerializationException("bad json")))
+    }
+
+    @Test
+    fun repositoryMapsUnknownErrorsWithoutThrowing() = runTest {
+        assertEquals(NetworkError.UNKNOWN, mappedError(IllegalStateException("unexpected")))
+    }
+
+    @Test
+    fun pagingSourceReturnsLoadErrorWhenNetworkFails() = runTest {
+        val api = FakeApi().apply { error = UnknownHostException("dns") }
+        val source = repository(api, FakeCacheDao()).createSearchPagingSource("release-group", "album")
+        val result = source.load(PagingSource.LoadParams.Refresh(null, 25, false))
+        assertTrue(result is PagingSource.LoadResult.Error)
+    }
+
+    private fun mappedError(error: Throwable): NetworkError = kotlinx.coroutines.runBlocking {
+        val api = FakeApi().apply { this.error = error }
+        (repository(api, FakeCacheDao()).search("release-group", "album") as Resource.Error).kind
+    }
+
+    private fun httpError(code: Int): HttpException =
+        HttpException(Response.error<MbSearchResponse>(code, "".toResponseBody("application/json".toMediaType())))
+
     private fun retrofit(server: MockWebServer): Retrofit = Retrofit.Builder()
         .baseUrl(server.url("ws/2/"))
         .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
@@ -111,6 +166,10 @@ class MusicBrainzNetworkTest {
         }
         override suspend fun lookupRelease(mbid: String, includes: String, format: String) =
             com.youneko.rate.data.musicbrainz.MbRelease(mbid, "Release")
+        override suspend fun lookupRecording(mbid: String, includes: String, format: String) =
+            com.youneko.rate.data.musicbrainz.MbRecording(mbid, "Recording")
+        override suspend fun lookupWork(mbid: String, includes: String, format: String) =
+            com.youneko.rate.data.musicbrainz.MbWork(mbid, "Work")
     }
 
     private class FakeCacheDao : RemoteMetadataCacheDao {

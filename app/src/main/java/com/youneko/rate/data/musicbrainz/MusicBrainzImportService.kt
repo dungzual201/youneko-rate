@@ -38,13 +38,13 @@ class MusicBrainzImportService @Inject constructor(
         )
         Resource.Success(preview)
     } catch (error: Throwable) {
-        Resource.Error(NetworkError.UNKNOWN, error.message)
+        error.toNetworkError()
     }
 
     suspend fun loadRelease(releaseId: String, releaseGroupId: String? = null): Resource<MusicBrainzPreview> = try {
         Resource.Success(musicBrainzApi.lookupRelease(releaseId).toPreview(releaseGroupId))
     } catch (error: Throwable) {
-        Resource.Error(NetworkError.UNKNOWN, error.message)
+        error.toNetworkError()
     }
 
     override suspend fun refreshMetadata(album: AlbumEntity): Resource<Unit> = withContext(Dispatchers.IO) {
@@ -78,7 +78,8 @@ class MusicBrainzImportService @Inject constructor(
         }
     }
 
-    suspend fun import(preview: MusicBrainzPreview, choice: ImportConflictChoice): Resource<String> = withContext(Dispatchers.IO) {
+    suspend fun import(preview: MusicBrainzPreview, choice: ImportConflictChoice): Resource<String> = try {
+        withContext(Dispatchers.IO) {
         val coverUri = downloadCover(preview.releaseId)
         val draft = AlbumDraft(
             title = preview.title,
@@ -112,6 +113,9 @@ class MusicBrainzImportService @Inject constructor(
             }
             else -> Resource.Error(NetworkError.NO_RESULTS, "Import đã hủy")
         }
+        }
+    } catch (error: Throwable) {
+        error.toNetworkError()
     }
 
     private suspend fun downloadCover(releaseId: String): String? {

@@ -49,6 +49,7 @@ data class MbRelease(
     @SerialName("artist-credit") val artistCredit: List<MbArtistCredit> = emptyList(),
     val media: List<MbMedium> = emptyList(),
     val labels: List<MbLabelInfo> = emptyList(),
+    val relations: List<MbRelation> = emptyList(),
     @SerialName("release-group") val releaseGroup: MbReleaseGroup? = null,
 )
 
@@ -59,7 +60,29 @@ data class MbLabelInfo(
 )
 
 @Serializable
-data class MbLabel(val name: String? = null)
+data class MbLabel(val id: String? = null, val name: String? = null)
+
+@Serializable
+data class MbUrl(val resource: String? = null)
+
+@Serializable
+data class MbWork(
+    val id: String,
+    val title: String = "",
+    val relations: List<MbRelation> = emptyList(),
+)
+
+@Serializable
+data class MbRelation(
+    val type: String = "",
+    @SerialName("target-type") val targetType: String? = null,
+    val attributes: List<String> = emptyList(),
+    val artist: MbArtist? = null,
+    val recording: MbRecording? = null,
+    val work: MbWork? = null,
+    val label: MbLabel? = null,
+    val url: MbUrl? = null,
+)
 
 @Serializable
 data class MbMedium(
@@ -85,6 +108,7 @@ data class MbRecording(
     val title: String = "",
     val length: Long? = null,
     @SerialName("artist-credit") val artistCredit: List<MbArtistCredit> = emptyList(),
+    val relations: List<MbRelation> = emptyList(),
 )
 
 data class MusicBrainzSearchItem(
@@ -144,12 +168,13 @@ sealed interface Resource<out T> {
 
 enum class NetworkError {
     OFFLINE,
-    NO_NETWORK,
+    NO_CONNECTION,
     TIMEOUT,
     RATE_LIMITED,
+    SERVER_ERROR,
+    BAD_REQUEST,
+    PARSE_ERROR,
     NO_RESULTS,
-    HTTP,
-    PARSE,
     UNKNOWN,
 }
 

@@ -186,9 +186,12 @@ private fun ImportConflictDialog(preview: MusicBrainzPreview, onChoice: (ImportC
 @Composable
 private fun networkErrorLabel(kind: NetworkError): String = when (kind) {
     NetworkError.OFFLINE -> stringResource(R.string.network_offline)
-    NetworkError.NO_NETWORK -> stringResource(R.string.network_no_connection)
+    NetworkError.NO_CONNECTION -> stringResource(R.string.network_no_connection)
     NetworkError.TIMEOUT -> stringResource(R.string.network_timeout)
     NetworkError.RATE_LIMITED -> stringResource(R.string.network_rate_limited)
+    NetworkError.SERVER_ERROR -> stringResource(R.string.network_server_error)
+    NetworkError.BAD_REQUEST -> stringResource(R.string.network_bad_request)
+    NetworkError.PARSE_ERROR -> stringResource(R.string.network_parse_error)
     NetworkError.NO_RESULTS -> stringResource(R.string.no_results)
-    else -> stringResource(R.string.network_error)
+    NetworkError.UNKNOWN -> stringResource(R.string.network_error)
 }
