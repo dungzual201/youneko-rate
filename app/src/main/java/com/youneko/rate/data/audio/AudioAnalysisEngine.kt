@@ -49,41 +49,42 @@ data class AudioQualityMetrics(
 )
 
 object SpectralAnalyzer {
+    private const val HALF_BINS = FFT_SIZE / 2 + 1
+    private const val STABLE_BINS = 10
+
     fun hann(size: Int): DoubleArray = DoubleArray(size) { index ->
         0.5 * (1.0 - kotlin.math.cos(2.0 * Math.PI * index / (size - 1)))
     }
 
+    /** Converts a real FFT bin to Hz. The real spectrum has bins 0..fftSize/2. */
+    fun binToFrequencyHz(binIndex: Int, sampleRate: Int, fftSize: Int = FFT_SIZE): Double {
+        require(binIndex in 0..fftSize / 2) { "binIndex must be in the real FFT half-spectrum" }
+        require(sampleRate > 0 && fftSize > 0)
+        return binIndex * sampleRate.toDouble() / fftSize
+    }
+
     fun peakBin(samples: DoubleArray): Int {
         require(samples.size == FFT_SIZE)
-        val fft = DoubleFFT_1D(FFT_SIZE.toLong())
-        val data = samples.copyOf()
-        fft.realForward(data)
-        var bestBin = 0
-        var bestPower = Double.NEGATIVE_INFINITY
-        for (bin in 1 until FFT_SIZE / 2) {
-            val real = data[2 * bin]
-            val imag = data[2 * bin + 1]
-            val power = real * real + imag * imag
-            if (power > bestPower) {
-                bestPower = power
-                bestBin = bin
-            }
-        }
-        return bestBin
+        val magnitude = magnitudeSpectrum(samples)
+        return (1..FFT_SIZE / 2).maxByOrNull { magnitude[it] } ?: 0
     }
+
+    fun peakFrequencyHz(samples: DoubleArray, sampleRate: Int): Double =
+        binToFrequencyHz(peakBin(samples), sampleRate)
 
     fun analyze(samples: FloatArray, sampleRate: Int): AudioQualityMetrics {
         if (samples.isEmpty() || sampleRate <= 0) {
             return AudioQualityMetrics(null, null, null, null, null, "KHÔNG XÁC ĐỊNH", 0, listOf("Không đủ mẫu PCM để phân tích."), emptyList())
         }
         val window = hann(FFT_SIZE)
-        val frameCount = ((samples.size - FFT_SIZE).coerceAtLeast(0) / HOP_SIZE) + 1
-        val averageMagnitude = DoubleArray(FFT_SIZE / 2)
+        val frameCount = ((samples.size - 1).coerceAtLeast(0) / HOP_SIZE) + 1
+        val averageMagnitude = DoubleArray(HALF_BINS)
+        val frameCutoffs = mutableListOf<Int>()
         var sumSquares = 0.0
         var peak = 0.0
         var clipped = 0
-        repeat(samples.size) { index ->
-            val absolute = abs(samples[index].toDouble())
+        samples.forEach { value ->
+            val absolute = abs(value.toDouble())
             sumSquares += absolute * absolute
             peak = max(peak, absolute)
             if (absolute >= 0.999) clipped++
@@ -91,46 +92,131 @@ object SpectralAnalyzer {
         repeat(frameCount) { frame ->
             val offset = frame * HOP_SIZE
             val fftData = DoubleArray(FFT_SIZE)
-            for (i in 0 until FFT_SIZE) fftData[i] = samples[offset + i].toDouble() * window[i]
-            DoubleFFT_1D(FFT_SIZE.toLong()).realForward(fftData)
-            for (bin in 1 until FFT_SIZE / 2) {
-                val real = fftData[2 * bin]
-                val imag = fftData[2 * bin + 1]
-                averageMagnitude[bin] += sqrt(real * real + imag * imag) / frameCount
+            for (i in 0 until FFT_SIZE) {
+                val sample = samples.getOrNull(offset + i)?.toDouble() ?: 0.0
+                fftData[i] = sample * window[i]
             }
+            val magnitude = magnitudeSpectrum(fftData)
+            for (bin in 0 until HALF_BINS) averageMagnitude[bin] += magnitude[bin]
+            findCutoffBin(magnitude)?.let(frameCutoffs::add)
         }
+        averageMagnitude.indices.forEach { averageMagnitude[it] /= frameCount.toDouble() }
         val maxMagnitude = averageMagnitude.maxOrNull()?.coerceAtLeast(1e-12) ?: 1e-12
-        val cutoffThreshold = maxMagnitude * 0.01
-        val cutoffBin = (1 until averageMagnitude.size).lastOrNull { averageMagnitude[it] >= cutoffThreshold } ?: 0
-        val cutoffHz = cutoffBin * sampleRate.toDouble() / FFT_SIZE
-        val tailStart = (cutoffBin * 0.7).toInt().coerceAtLeast(1)
-        val tailEnd = cutoffBin.coerceAtLeast(tailStart + 1).coerceAtMost(averageMagnitude.lastIndex)
-        val slope = if (tailEnd > tailStart) {
-            val y1 = 20.0 * log10(averageMagnitude[tailStart].coerceAtLeast(1e-12))
-            val y2 = 20.0 * log10(averageMagnitude[tailEnd].coerceAtLeast(1e-12))
-            (y2 - y1) / (tailEnd - tailStart).toDouble()
-        } else null
+        val cutoffBin = percentile95(frameCutoffs) ?: findCutoffBin(averageMagnitude)
+        val cutoffHz = cutoffBin?.let { binToFrequencyHz(it, sampleRate) }
+        val slope = cutoffBin?.let { localSlopeDbPerKHz(averageMagnitude, it, sampleRate) }
         val rms = sqrt(sumSquares / samples.size).coerceAtLeast(1e-12)
-        val dynamicRange = 20.0 * log10((peak / rms).coerceAtLeast(1e-12))
         val truePeakDbtp = 20.0 * log10(peak.coerceAtLeast(1e-12))
+        val dynamicRange = 20.0 * log10((peak / rms).coerceAtLeast(1e-12))
         val clippingPercent = clipped * 100.0 / samples.size
-        val spectrum = averageMagnitude.take(FFT_SIZE / 2).map { (20.0 * log10((it / maxMagnitude).coerceAtLeast(1e-12))).toFloat() }
+        val spectrum = averageMagnitude.map { (20.0 * log10((it / maxMagnitude).coerceAtLeast(1e-12))).toFloat() }
         return AudioQualityMetrics(cutoffHz, slope, dynamicRange, truePeakDbtp, clippingPercent, "KHÔNG XÁC ĐỊNH", 0, emptyList(), spectrum)
     }
 
     fun verdict(format: AudioDecodedFormat, metrics: AudioQualityMetrics): AudioQualityMetrics {
-        val cutoff = metrics.cutoffHz ?: return metrics.copy(verdict = "KHÔNG XÁC ĐỊNH", confidence = 0, reasons = listOf("Không xác định được tần số cắt."))
+        val cutoff = metrics.cutoffHz
+        if (cutoff == null) {
+            return metrics.copy(verdict = "KHÔNG XÁC ĐỊNH", confidence = 0, reasons = listOf("Không tìm được vách cắt ổn định trên phổ trung bình."))
+        }
         val codec = format.codec.orEmpty().lowercase()
         val lossless = codec.contains("flac") || codec.contains("alac") || codec.contains("pcm") || codec.contains("wav")
-        val lossy = codec.contains("mp3") || codec.contains("aac") || codec.contains("vorbis") || codec.contains("opus")
-        return when {
-            lossless && cutoff >= 19_000.0 -> metrics.copy(verdict = "LOSSLESS THẬT", confidence = 88, reasons = listOf("Codec lossless và phổ tần giữ được vùng cao."))
-            lossy && cutoff >= 17_000.0 -> metrics.copy(verdict = "LOSSY CHẤT LƯỢNG CAO", confidence = 78, reasons = listOf("Codec lossy nhưng tần số cắt nằm ở vùng cao."))
-            lossless && cutoff < 16_000.0 -> metrics.copy(verdict = "NGHI NGỜ NÂNG CẤP GIẢ", confidence = 82, reasons = listOf("Container/codec lossless nhưng phổ tần bị cắt sớm."))
-            metrics.clippingPercent != null && metrics.clippingPercent > 5.0 -> metrics.copy(verdict = "KHÔNG XÁC ĐỊNH", confidence = 45, reasons = listOf("Có clipping đáng kể, cần thận trọng khi diễn giải phổ."))
-            else -> metrics.copy(verdict = "KHÔNG XÁC ĐỊNH", confidence = 35, reasons = listOf("Các chỉ số không đủ phân biệt chắc chắn nguồn âm thanh."))
+        val slope = metrics.rolloffSlope
+        val steep = slope != null && slope <= -150.0
+        val codecEvidence = when {
+            lossless || codec.contains("mp3") || codec.contains("aac") || codec.contains("vorbis") || codec.contains("opus") -> 100.0
+            else -> 50.0
+        }
+        val slopeEvidence = ((abs(slope ?: 0.0) / 200.0) * 100.0).coerceIn(0.0, 100.0)
+        val cutoffEvidence = when {
+            cutoff >= 20_500.0 -> 100.0
+            cutoff >= 19_500.0 -> 85.0
+            cutoff >= 18_500.0 -> 75.0
+            cutoff >= 17_000.0 -> 65.0
+            cutoff >= 15_500.0 -> 55.0
+            else -> 85.0
+        }
+        val confidence = (slopeEvidence * 0.5 + cutoffEvidence * 0.35 + codecEvidence * 0.15).toInt().coerceIn(0, 100)
+        val descriptor = "Phổ cắt tại %.1f kHz với độ dốc %.1f dB/kHz; codec %s.".format(java.util.Locale.US, cutoff / 1000.0, slope ?: 0.0, format.codec ?: "không rõ")
+        val reasons = listOf(
+            when {
+                lossless && cutoff < 20_000.0 && steep -> "$descriptor File khai là lossless nhưng có vách cắt dốc, có khả năng đã chuyển đổi từ nguồn nén."
+                cutoff >= 20_500.0 -> "$descriptor Phổ giữ được vùng cao đến Nyquist, phù hợp nguồn lossless thật."
+                cutoff >= 19_500.0 && steep -> "$descriptor Vách cắt dựng đứng, phù hợp lossy chất lượng cao."
+                cutoff >= 18_500.0 && steep -> "$descriptor Vách cắt dựng đứng, phù hợp lossy khoảng 192–256 kbps."
+                cutoff >= 15_500.0 && steep -> "$descriptor Vách cắt dựng đứng, phù hợp lossy chất lượng thấp."
+                !steep -> "$descriptor Không có vách cắt đủ dốc; bản thu có thể suy giảm tần cao tự nhiên."
+                else -> "$descriptor Các chỉ số chưa khớp một ngưỡng phân loại chắc chắn."
+            },
+        )
+        val verdict = when {
+            lossless && cutoff < 20_000.0 && steep -> "NGHI NGỜ NÂNG CẤP GIẢ"
+            cutoff >= 20_500.0 -> "LOSSLESS THẬT"
+            cutoff >= 19_500.0 && steep -> "LOSSY CHẤT LƯỢNG CAO"
+            cutoff >= 18_500.0 && steep -> "LOSSY"
+            cutoff >= 15_500.0 && steep -> "LOSSY CHẤT LƯỢNG THẤP"
+            else -> "KHÔNG XÁC ĐỊNH"
+        }
+        return metrics.copy(verdict = verdict, confidence = confidence, reasons = reasons)
+    }
+
+    private fun magnitudeSpectrum(samples: DoubleArray): DoubleArray {
+        require(samples.size == FFT_SIZE)
+        val data = samples.copyOf()
+        DoubleFFT_1D(FFT_SIZE.toLong()).realForward(data)
+        return DoubleArray(HALF_BINS) { bin ->
+            when (bin) {
+                0 -> abs(data[0])
+                FFT_SIZE / 2 -> abs(data[1])
+                else -> hypot(data[2 * bin], data[2 * bin + 1])
+            }
         }
     }
+
+    private fun findCutoffBin(magnitude: DoubleArray): Int? {
+        val peak = magnitude.maxOrNull()?.coerceAtLeast(1e-12) ?: return null
+        val db = magnitude.map { 20.0 * log10((it / peak).coerceAtLeast(1e-12)) }
+        val tailStart = (db.lastIndex * 0.95).toInt().coerceAtLeast(1)
+        val noiseFloor = median(db.subList(tailStart, db.size))
+        val threshold = max(noiseFloor + 6.0, -75.0)
+        var stable = 0
+        for (bin in db.lastIndex downTo 1) {
+            if (db[bin] >= threshold) {
+                stable++
+                if (stable >= STABLE_BINS) return bin + STABLE_BINS - 1
+            } else {
+                stable = 0
+            }
+        }
+        return null
+    }
+
+    private fun localSlopeDbPerKHz(magnitude: DoubleArray, cutoffBin: Int, sampleRate: Int): Double? {
+        val peak = magnitude.maxOrNull()?.coerceAtLeast(1e-12) ?: return null
+        val start = (cutoffBin - 40).coerceAtLeast(1)
+        val end = (cutoffBin + 40).coerceAtMost(magnitude.lastIndex)
+        if (end <= start) return null
+        val xs = (start..end).map { binToFrequencyHz(it, sampleRate) / 1000.0 }
+        val ys = (start..end).map { 20.0 * log10((magnitude[it] / peak).coerceAtLeast(1e-12)) }
+        val meanX = xs.average()
+        val meanY = ys.average()
+        val denominator = xs.sumOf { (it - meanX) * (it - meanX) }
+        if (denominator <= 0.0) return null
+        return xs.indices.sumOf { (xs[it] - meanX) * (ys[it] - meanY) } / denominator
+    }
+
+    private fun percentile95(values: List<Int>): Int? {
+        if (values.isEmpty()) return null
+        val sorted = values.sorted()
+        return sorted[((sorted.lastIndex) * 0.95).toInt()]
+    }
+
+    private fun median(values: List<Double>): Double {
+        if (values.isEmpty()) return -100.0
+        val sorted = values.sorted()
+        return sorted[sorted.size / 2]
+    }
+
+    private fun hypot(real: Double, imaginary: Double): Double = sqrt(real * real + imaginary * imaginary)
 }
 
 class AudioAnalysisEngine(private val context: Context) {
