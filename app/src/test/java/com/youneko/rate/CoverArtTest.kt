@@ -1,0 +1,62 @@
+package com.youneko.rate
+
+import androidx.test.core.app.ApplicationProvider
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+import org.junit.runner.RunWith
+import com.youneko.rate.data.musicbrainz.CoverArtApi
+import com.youneko.rate.data.musicbrainz.CoverResult
+import com.youneko.rate.data.musicbrainz.CoverArtService
+import com.youneko.rate.data.musicbrainz.CoverArtUrls
+import java.io.File
+import kotlinx.coroutines.runBlocking
+import okhttp3.OkHttpClient
+import okhttp3.mockwebserver.MockResponse
+import okhttp3.mockwebserver.MockWebServer
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import retrofit2.Retrofit
+
+@RunWith(RobolectricTestRunner::class)
+@Config(application = YounekoRateApplication::class, sdk = [35])
+class CoverArtTest {
+    @Test
+    fun urlBuilderUsesReleaseGroupThenReleaseFront250() {
+        assertEquals(
+            listOf(
+                "https://coverartarchive.org/release-group/group/front-250",
+                "https://coverartarchive.org/release/release/front-250",
+            ),
+            CoverArtUrls.listCandidates("group", "release"),
+        )
+        assertEquals(
+            "https://coverartarchive.org/release-group/group/front-500",
+            CoverArtUrls.releaseGroupFront500("group"),
+        )
+        assertEquals(
+            "https://coverartarchive.org/release/release/front-500",
+            CoverArtUrls.releaseFront500("release"),
+        )
+    }
+
+    @Test
+    fun all404ReturnsNotFoundInsteadOfNetworkError() {
+        runBlocking {
+        MockWebServer().use { server ->
+            repeat(4) { server.enqueue(MockResponse().setResponseCode(404)) }
+            val api = Retrofit.Builder()
+                .baseUrl(server.url("/"))
+                .client(OkHttpClient.Builder().followRedirects(true).followSslRedirects(true).build())
+                .build()
+                .create(CoverArtApi::class.java)
+            val context = ApplicationProvider.getApplicationContext<YounekoRateApplication>()
+            val service = CoverArtService(api, context)
+            val result = service.downloadToFile("group", "release", "cover-art-test.jpg")
+            assertTrue(result is CoverResult.NotFound)
+            assertEquals(4, server.requestCount)
+            File(context.filesDir, "covers/cover-art-test.jpg").delete()
+        }
+    }
+}
+}

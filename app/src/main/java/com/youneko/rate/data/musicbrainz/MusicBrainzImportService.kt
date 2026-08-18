@@ -1,21 +1,17 @@
 package com.youneko.rate.data.musicbrainz
 
-import android.content.Context
 import com.youneko.rate.data.AlbumDraft
 import com.youneko.rate.data.AlbumRepository
 import com.youneko.rate.data.TrackDraft
 import com.youneko.rate.data.local.entity.AlbumEntity
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
-import okhttp3.ResponseBody
-import retrofit2.Response
-import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.flow.first
 
 interface AlbumMetadataRefreshService {
     suspend fun refreshMetadata(album: AlbumEntity): Resource<Unit>
@@ -25,9 +21,8 @@ interface AlbumMetadataRefreshService {
 class MusicBrainzImportService @Inject constructor(
     private val releaseGroupApi: MusicBrainzReleaseGroupApi,
     private val musicBrainzApi: MusicBrainzApi,
-    private val coverArtApi: CoverArtApi,
+    private val coverArtService: CoverArtService,
     private val repository: AlbumRepository,
-    @ApplicationContext private val context: Context,
 ) : AlbumMetadataRefreshService {
     suspend fun loadReleaseGroup(groupId: String): Resource<MusicBrainzPreview> = try {
         val group = releaseGroupApi.lookupReleaseGroup(groupId)
@@ -64,7 +59,10 @@ class MusicBrainzImportService @Inject constructor(
                         albumType = "ALBUM",
                         genreTags = emptyList(),
                         listenedDate = null,
-                        coverUri = downloadCover(preview.releaseId),
+                        coverUri = when (val cover = coverArtService.downloadForAlbum(album.id, preview.releaseGroupId, preview.releaseId)) {
+                            is CoverResult.Success -> cover.localUri
+                            else -> null
+                        },
                         tracks = emptyList(),
                         mbid = preview.releaseId,
                         releaseGroupMbid = preview.releaseGroupId,
@@ -91,7 +89,12 @@ class MusicBrainzImportService @Inject constructor(
         onProgress(MusicBrainzImportProgress(MusicBrainzImportStage.RELEASE, 1, 1))
         currentCoroutineContext().ensureActive()
         onProgress(MusicBrainzImportProgress(MusicBrainzImportStage.COVER, 0, 1))
-        val coverUri = downloadCover(preview.releaseId)
+        val coverResult = coverArtService.downloadToFile(
+            releaseGroupMbid = preview.releaseGroupId,
+            releaseMbid = preview.releaseId,
+            fileName = "pending-${preview.releaseId}.jpg",
+        )
+        val coverUri = (coverResult as? CoverResult.Success)?.localUri
         currentCoroutineContext().ensureActive()
         onProgress(MusicBrainzImportProgress(MusicBrainzImportStage.COVER, 1, 1))
         val totalTracks = preview.tracks.size
@@ -123,11 +126,19 @@ class MusicBrainzImportService @Inject constructor(
         when {
             match == null || choice == ImportConflictChoice.CREATE_NEW -> {
                 val id = repository.saveAlbumBatched(draft)
+                val finalCoverUri = coverUri?.let { coverArtService.promoteToAlbumFile(it, id) }
+                if (finalCoverUri != null) repository.observeAlbum(id).first()?.album?.let { album ->
+                    repository.updateAlbum(album.copy(coverUri = finalCoverUri, coverThumbUri = finalCoverUri))
+                }
                 onProgress(MusicBrainzImportProgress(MusicBrainzImportStage.SAVING, totalTracks, totalTracks))
                 Resource.Success(id)
             }
             choice == ImportConflictChoice.MERGE -> {
                 repository.mergeMusicBrainzMetadata(match, draft)
+                val finalCoverUri = coverUri?.let { coverArtService.promoteToAlbumFile(it, match) }
+                if (finalCoverUri != null) repository.observeAlbum(match).first()?.album?.let { album ->
+                    repository.updateAlbum(album.copy(coverUri = finalCoverUri, coverThumbUri = finalCoverUri))
+                }
                 onProgress(MusicBrainzImportProgress(MusicBrainzImportStage.SAVING, totalTracks, totalTracks))
                 Resource.Success(match)
             }
@@ -139,25 +150,6 @@ class MusicBrainzImportService @Inject constructor(
         error.toNetworkError()
     }
 
-    private suspend fun downloadCover(releaseId: String): String? {
-        val requests = listOf<suspend () -> Response<ResponseBody>>(
-            { coverArtApi.front500(releaseId) },
-            { coverArtApi.front250(releaseId) },
-        )
-        var response: Response<ResponseBody>? = null
-        for (request in requests) {
-            val candidate = runCatching { request() }.getOrNull()
-            if (candidate?.isSuccessful == true && candidate.body() != null) {
-                response = candidate
-                break
-            }
-        }
-        val successfulResponse = response ?: return "android.resource://${context.packageName}/drawable/ic_cat_cover"
-        val directory = File(context.filesDir, "covers").apply { mkdirs() }
-        val file = File(directory, "musicbrainz-$releaseId.jpg")
-        successfulResponse.body()!!.byteStream().use { input -> file.outputStream().use { output -> input.copyTo(output) } }
-        return file.toURI().toString()
-    }
 }
 
 enum class ImportConflictChoice { MERGE, CREATE_NEW, CANCEL }

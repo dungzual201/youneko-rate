@@ -8,16 +8,22 @@ import com.youneko.rate.data.musicbrainz.CoverArtApi
 import com.youneko.rate.data.musicbrainz.MusicBrainzRetryInterceptor
 import com.youneko.rate.data.musicbrainz.TokenBucket
 import com.youneko.rate.data.musicbrainz.TokenBucketInterceptor
+import dagger.hilt.android.qualifiers.ApplicationContext
+import android.content.Context
+import coil.ImageLoader
+import coil.request.CachePolicy
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import kotlinx.serialization.json.Json
+import okhttp3.Cache
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import java.util.concurrent.TimeUnit
+import javax.inject.Named
 import javax.inject.Singleton
 
 @Module
@@ -76,7 +82,31 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideCoverArtApi(client: OkHttpClient, json: Json): CoverArtApi = Retrofit.Builder()
+    @Named("coverArt")
+    fun provideCoverArtClient(@ApplicationContext context: Context): OkHttpClient = OkHttpClient.Builder()
+        .followRedirects(true)
+        .followSslRedirects(true)
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .writeTimeout(30, TimeUnit.SECONDS)
+        .cache(Cache(context.cacheDir.resolve("cover-art-http"), 20L * 1024L * 1024L))
+        .build()
+
+    @Provides
+    @Singleton
+    fun provideCoverArtImageLoader(
+        @ApplicationContext context: Context,
+        @Named("coverArt") client: OkHttpClient,
+    ): ImageLoader = ImageLoader.Builder(context)
+        .okHttpClient(client)
+        .crossfade(true)
+        .memoryCachePolicy(CachePolicy.ENABLED)
+        .diskCachePolicy(CachePolicy.ENABLED)
+        .build()
+
+    @Provides
+    @Singleton
+    fun provideCoverArtApi(@Named("coverArt") client: OkHttpClient, json: Json): CoverArtApi = Retrofit.Builder()
         .baseUrl("https://coverartarchive.org/")
         .client(client)
         .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))

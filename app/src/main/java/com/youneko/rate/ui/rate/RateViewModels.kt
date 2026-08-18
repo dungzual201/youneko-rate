@@ -7,6 +7,7 @@ import com.youneko.rate.data.AlbumDraft
 import com.youneko.rate.data.AlbumRepository
 import com.youneko.rate.data.SettingsStore
 import com.youneko.rate.data.musicbrainz.AlbumMetadataRefreshService
+import com.youneko.rate.data.musicbrainz.CoverArtService
 import com.youneko.rate.data.musicbrainz.Resource
 import com.youneko.rate.data.TrackDraft
 import com.youneko.rate.data.local.entity.AlbumEntity
@@ -113,6 +114,7 @@ class AlbumDetailViewModel @Inject constructor(
     private val repository: AlbumRepository,
     private val settings: SettingsStore,
     private val musicBrainzImportService: AlbumMetadataRefreshService,
+    private val coverArtService: CoverArtService? = null,
 ) : ViewModel() {
     private val albumId: String = checkNotNull(savedStateHandle["albumId"])
     private val eventsChannel = Channel<AlbumDetailEvent>(Channel.BUFFERED)
@@ -149,6 +151,16 @@ class AlbumDetailViewModel @Inject constructor(
     fun refreshMetadata() {
         val album = currentAlbum() ?: return
         viewModelScope.launch(Dispatchers.IO) { _refreshResult.value = musicBrainzImportService.refreshMetadata(album) }
+    }
+
+    fun reloadCover() {
+        val album = currentAlbum() ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            when (val result = coverArtService?.downloadForAlbum(album.id, album.releaseGroupMbid, album.mbid)) {
+                is com.youneko.rate.data.musicbrainz.CoverResult.Success -> repository.updateAlbum(album.copy(coverUri = result.localUri, coverThumbUri = result.localUri))
+                else -> Unit
+            }
+        }
     }
     fun deleteAlbum() = viewModelScope.launch(Dispatchers.IO) { repository.deleteAlbum(albumId) }
 }
