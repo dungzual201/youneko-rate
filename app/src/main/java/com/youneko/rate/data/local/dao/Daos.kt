@@ -102,8 +102,14 @@ interface CreditDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(credits: List<CreditEntity>)
 
-    @Query("SELECT * FROM credits WHERE albumId = :albumId OR trackId = :trackId ORDER BY sortOrder, personName COLLATE NOCASE")
-    fun observeForItem(albumId: String?, trackId: String?): Flow<List<CreditEntity>>
+    @Query("SELECT * FROM credits WHERE albumId = :albumId AND ((:trackId IS NULL AND trackId IS NULL) OR trackId = :trackId) ORDER BY sortOrder, personName COLLATE NOCASE")
+    fun observeForItem(albumId: String, trackId: String?): Flow<List<CreditEntity>>
+
+    @Query("DELETE FROM credits WHERE albumId = :albumId AND trackId IS NULL")
+    suspend fun deleteAlbumCredits(albumId: String)
+
+    @Query("DELETE FROM credits WHERE trackId = :trackId")
+    suspend fun deleteTrackCredits(trackId: String)
 }
 
 @Dao

@@ -148,3 +148,20 @@ Nguồn Phase 5: `NETWORK_SOURCES_PHASE5.md`; không commit API key hoặc crede
 **Ràng buộc lâu dài:** việc dùng `AppCompatActivity` để backport per-app language xuống minSdk 26 kéo theo yêu cầu mọi Activity hiện tại và mọi Activity thêm sau này phải dùng theme là hậu duệ của `Theme.AppCompat`, luôn là biến thể `NoActionBar` khi UI được vẽ bằng Compose. Không được thêm Activity mới với `@android:style/...` hoặc theme không tương thích.
 
 **Test hồi quy:** `MainActivityThemeLaunchTest` dùng Robolectric `ActivityScenario.launch(MainActivity::class.java)` cho cả cấu hình sáng và `night`; test được chạy trong `testDebugUnitTest` và có bước CI riêng.
+
+
+## Quyết định Phase 6 — Credits và network crash hotfix
+
+| Mã | Quyết định | Lý do và tác động | Trạng thái |
+|---|---|---|---|
+| D-0047 | Credits MusicBrainz chỉ lazy-load sau khi người dùng bấm `Xem credits`; album-level dùng release relations, track-level dùng recording rồi work relations; màn hình hiển thị progress X/Y và nút Hủy. | Không tự động tạo tải mạng khi mở album; coroutine có thể hủy giữa các recording; dữ liệu được ghi vào bảng Credit để hiển thị offline lần sau. | Đã quyết định; Phase 6 |
+| D-0048 | Credits cache trong `RemoteMetadataCache` dùng key theo release/recording MBID và TTL 30 ngày; đọc cache trước khi gọi API, `forceRefresh` chỉ chạy từ nút tải lại. | Giảm request lặp, hỗ trợ offline-first và bảo đảm lần mở sau hiển thị ngay dữ liệu đã lưu. | Đã quyết định; test TTL PASS |
+| D-0049 | `CreditMerger` chống trùng bằng normalize Unicode NFD bỏ dấu, lowercase, gom whitespace, bỏ hậu tố `(2)` và normalize role; mapping role gồm WRITING, PRODUCTION, ENGINEERING, PERFORMANCE, RELEASE, OTHER. | Một người có thể xuất hiện qua nhiều relation hoặc nhiều endpoint; kết quả không lặp theo biến thể tên/role, nhưng vẫn giữ MBID, instrument và source URL. | Đã quyết định; unit tests PASS |
+| D-0050 | Không dùng `REPLACE` để cập nhật Album/Artist/Track; credits chỉ dùng upsert trên bảng con sau khi xóa đúng scope album/track. | SQLite `REPLACE` thực hiện DELETE + INSERT và có thể kích hoạt cascade xóa dữ liệu parent-child; rating/review/audio analysis của người dùng phải được bảo toàn. | Đã quyết định; kế thừa BUG-0003 |
+
+## Bug log — Network permission và exception boundary
+
+| Mã | Bug và nguyên nhân gốc | Cách sửa | Test bảo vệ |
+|---|---|---|---|
+| BUG-0005 | Crash thực tế là `SecurityException: Permission denied (missing INTERNET permission?)`; app gọi MusicBrainz nhưng manifest chưa khai báo quyền `android.permission.INTERNET` (và chưa khai báo network state). | Thêm `INTERNET` và `ACCESS_NETWORK_STATE` trực tiếp dưới `<manifest>`, ngoài `<application>`; không dùng `tools:node="remove"`. | `NetworkManifestTest` dùng Robolectric PackageManager kiểm tra cả hai permission; merged manifest report đã xác nhận quyền tồn tại. |
+| BUG-0006 | Exception mạng từ Retrofit/OkHttp/Paging có thể thoát coroutine boundary và làm app crash, thay vì trở thành trạng thái lỗi có thể retry. | Thêm `Throwable.toNetworkError()`, bọc search/lookup/import, `PagingSource.load` luôn trả `LoadResult.Error`, Flow có `catch`, và `CoroutineExceptionHandler` chỉ làm lưới an toàn cuối. UI có resource riêng cho NO_CONNECTION, TIMEOUT, RATE_LIMITED, SERVER_ERROR, BAD_REQUEST, PARSE_ERROR, UNKNOWN và nút thử lại. | `MusicBrainzNetworkTest` kiểm tra 7 mapping, PagingSource trả `LoadResult.Error`; full unit test và lint PASS. |

@@ -1,0 +1,25 @@
+{
+  "id": "release-1",
+  "title": "Album Credits Fixture",
+  "artist-credit": [{"name": "Artist", "artist": {"id": "artist-1", "name": "Artist"}}],
+  "relations": [
+    {"type": "producer", "target-type": "Artist", "artist": {"id": "producer-1", "name": "Producer"}, "attributes": []},
+    {"type": "label", "target-type": "Label", "label": {"id": "label-1", "name": "Label"}, "attributes": []}
+  ],
+  "media": [{
+    "position": 1,
+    "tracks": [{
+      "id": "track-1",
+      "number": "1",
+      "position": 1,
+      "title": "Song",
+      "recording": {
+        "id": "recording-1",
+        "title": "Song",
+        "relations": [
+          {"type": "composer", "target-type": "Artist", "artist": {"id": "composer-1", "name": "Composer"}, "attributes": []}
+        ]
+      }
+    }]
+  }]
+}

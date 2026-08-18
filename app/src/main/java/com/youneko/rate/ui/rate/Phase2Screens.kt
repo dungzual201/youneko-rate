@@ -453,7 +453,11 @@ private fun AlbumTypeMenu(value: String, onValue: (String) -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AlbumDetailScreen(onBack: () -> Unit, viewModel: AlbumDetailViewModel = hiltViewModel()) {
+fun AlbumDetailScreen(
+    onBack: () -> Unit,
+    onViewCredits: (albumId: String, trackId: String?, releaseMbid: String?) -> Unit = { _, _, _ -> },
+    viewModel: AlbumDetailViewModel = hiltViewModel(),
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
@@ -485,6 +489,10 @@ fun AlbumDetailScreen(onBack: () -> Unit, viewModel: AlbumDetailViewModel = hilt
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.refresh_metadata), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                 onClick = { menuExpanded = false; viewModel.refreshMetadata() },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.view_credits), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                onClick = { menuExpanded = false; onViewCredits(value.album.id, null, value.album.mbid) },
                             )
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.delete_album), maxLines = 1, overflow = TextOverflow.Ellipsis) },
@@ -520,7 +528,9 @@ fun AlbumDetailScreen(onBack: () -> Unit, viewModel: AlbumDetailViewModel = hilt
                 HorizontalDivider(Modifier.padding(vertical = 12.dp))
                 Text(stringResource(R.string.tracklist), style = MaterialTheme.typography.titleLarge)
                 if (value.tracks.isEmpty()) Text(stringResource(R.string.empty_tracks), modifier = Modifier.padding(vertical = 24.dp))
-                else value.tracks.forEach { track -> TrackRow(track, viewModel::updateTrack) }
+                else value.tracks.forEach { track ->
+                    TrackRow(track, viewModel::updateTrack) { onViewCredits(value.album.id, track.id, value.album.mbid) }
+                }
                 Spacer(Modifier.height(32.dp))
             }
             }
@@ -551,7 +561,7 @@ fun AlbumDetailScreen(onBack: () -> Unit, viewModel: AlbumDetailViewModel = hilt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun TrackRow(track: TrackEntity, onChanged: (TrackEntity) -> Unit) {
+private fun TrackRow(track: TrackEntity, onChanged: (TrackEntity) -> Unit, onViewCredits: () -> Unit = {}) {
     var review by rememberSaveable(track.id) { mutableStateOf(track.reviewText.orEmpty()) }
     var expanded by rememberSaveable(track.id) { mutableStateOf(false) }
     LaunchedEffect(review) {
@@ -586,6 +596,7 @@ private fun TrackRow(track: TrackEntity, onChanged: (TrackEntity) -> Unit) {
                     }
                 }
                 TextButton(onClick = { expanded = !expanded }) { Text(stringResource(R.string.track_review)) }
+                TextButton(onClick = onViewCredits) { Text(stringResource(R.string.view_credits)) }
             }
             if (expanded) {
                 OutlinedTextField(review, { review = it.take(2000) }, Modifier.fillMaxWidth(), minLines = 2, maxLines = 6, label = { Text(stringResource(R.string.track_review)) })

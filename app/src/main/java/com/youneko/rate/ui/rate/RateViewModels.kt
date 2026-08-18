@@ -121,6 +121,10 @@ class AlbumDetailViewModel @Inject constructor(
     private var exitEventSent = false
     private val scoreMode = settings.scoreMode.map { if (it == "WEIGHTED_BY_DURATION") ScoreMode.WEIGHTED_BY_DURATION else ScoreMode.SIMPLE }
     private val albumData = scoreMode.flatMapLatest { repository.observeAlbum(albumId, it) }
+    val releaseUrl: StateFlow<String?> = albumData
+        .map { value -> value?.album?.mbid?.let { "https://musicbrainz.org/release/$it" } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
     val state: StateFlow<AlbumDetailUiState> = albumData.map { value ->
         if (value != null) {
             hasObservedContent = true
