@@ -58,6 +58,13 @@ fun ImportScreen(
     val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri != null) viewModel.readSelection(uri, true)
     }
+    var manualCoverGroup by remember { mutableStateOf<ImportGroup?>(null) }
+    var manualUrlGroup by remember { mutableStateOf<ImportGroup?>(null) }
+    var manualUrl by rememberSaveable { mutableStateOf("") }
+    val manualCoverPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) manualCoverGroup?.let { viewModel.setCover(it, uri.toString(), "Manual") }
+        manualCoverGroup = null
+    }
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(stringResource(R.string.import_title), style = MaterialTheme.typography.headlineSmall)
         Text(stringResource(R.string.import_body), style = MaterialTheme.typography.bodyMedium)
@@ -114,13 +121,20 @@ fun ImportScreen(
                                     contentDescription = candidate.sourceProvider,
                                     modifier = Modifier.fillMaxWidth(),
                                 )
-                                Text(candidate.sourceProvider, style = MaterialTheme.typography.labelSmall)
+                                Text(candidate.sourceProvider, style = MaterialTheme.typography.labelSmall, maxLines = 2)
+                                Text("${candidate.widthHint ?: "—"} px · ${candidate.matchScore?.let { "%.2f".format(it) } ?: "—"}", style = MaterialTheme.typography.labelSmall)
                             }
                         }
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = { viewModel.closeCoverPicker(pickerGroup) }) { Text(stringResource(R.string.cancel)) } },
+            confirmButton = {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(onClick = { manualCoverGroup = pickerGroup; manualCoverPicker.launch("image/*") }) { Text("Chọn ảnh từ thiết bị") }
+                    TextButton(onClick = { manualUrlGroup = pickerGroup; manualUrl = "" }) { Text("Nhập URL") }
+                    TextButton(onClick = { viewModel.closeCoverPicker(pickerGroup) }) { Text(stringResource(R.string.cancel)) }
+                }
+            },
         )
     }
     if (state.isReading) {
@@ -156,8 +170,16 @@ fun ImportScreen(
             },
             confirmButton = { TextButton(onClick = viewModel::cancelImport) { Text(stringResource(R.string.cancel)) } },
         )
+        }
+    manualUrlGroup?.let { group ->
+        AlertDialog(
+            onDismissRequest = { manualUrlGroup = null },
+            title = { Text("Nhập URL ảnh bìa") },
+            text = { OutlinedTextField(manualUrl, { manualUrl = it }, label = { Text("URL") }, modifier = Modifier.fillMaxWidth(), maxLines = 2) },
+            confirmButton = { TextButton(onClick = { if (manualUrl.isNotBlank()) viewModel.setCover(group, manualUrl.trim(), "Manual"); manualUrlGroup = null }) { Text(stringResource(R.string.save)) } },
+            dismissButton = { TextButton(onClick = { manualUrlGroup = null }) { Text(stringResource(R.string.cancel)) } },
+        )
     }
-
 }
 
 @Composable

@@ -28,6 +28,7 @@ data class ImportSelection(
     val selectedUris: List<String>,
     val mergeIfExisting: Boolean,
     val coverUri: String? = null,
+    val coverSource: String? = null,
 )
 
 @EntryPoint
@@ -118,6 +119,8 @@ class ImportWorker(
                                         .distinct(),
                                     listenedDate = null,
                                     coverUri = coverUri,
+                                    coverSource = selection.coverSource ?: if (selection.coverUri != null) "Manual" else group.embeddedCoverPath?.let { "file_tags" },
+                                    coverUpdatedAt = coverUri?.let { System.currentTimeMillis() },
                                     tracks = group.tracks.map { track ->
                                         TrackDraft(
                                             title = track.title,

@@ -53,6 +53,7 @@ data class AlbumEntity(
     val sourceProvider: String? = null,
     val coverSource: String? = null,
     val coverWidth: Int? = null,
+    val coverUpdatedAt: Long? = null,
     val metadataFetchedAt: Long? = null,
     val createdAt: Long,
     val updatedAt: Long,

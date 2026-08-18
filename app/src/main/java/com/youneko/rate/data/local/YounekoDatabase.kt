@@ -36,7 +36,7 @@ import com.youneko.rate.data.local.entity.TrackEntity
         LibrarySearchFtsEntity::class,
         ImportSessionEntity::class,
     ],
-    version = 9,
+    version = 10,
     exportSchema = true,
 )
 @TypeConverters(YounekoTypeConverters::class)
@@ -192,6 +192,12 @@ abstract class YounekoDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE albums ADD COLUMN coverSource TEXT")
                 db.execSQL("ALTER TABLE albums ADD COLUMN coverWidth INTEGER")
+            }
+        }
+
+        val MIGRATION_9_10: Migration = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE albums ADD COLUMN coverUpdatedAt INTEGER")
             }
         }
     }

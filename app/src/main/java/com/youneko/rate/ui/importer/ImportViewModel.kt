@@ -119,10 +119,10 @@ class ImportViewModel @Inject constructor(
         _state.value = _state.value.copy(selections = _state.value.selections + (key to old.copy(mergeIfExisting = merge)))
     }
 
-    fun setCover(group: ImportGroup, uri: String) {
+    fun setCover(group: ImportGroup, uri: String, source: String = "Manual") {
         val key = group.stableKey()
         val old = _state.value.selections[key] ?: return
-        _state.value = _state.value.copy(selections = _state.value.selections + (key to old.copy(coverUri = uri)))
+        _state.value = _state.value.copy(selections = _state.value.selections + (key to old.copy(coverUri = uri, coverSource = source)))
     }
 
     fun loadCoverCandidates(group: ImportGroup) {
@@ -145,7 +145,7 @@ class ImportViewModel @Inject constructor(
             val result = withContext(Dispatchers.IO) {
                 coverArtService.cacheCandidate(candidate, "picker-${UUID.randomUUID()}.jpg")
             }
-            if (result is CoverResult.Success) setCover(group, result.localUri)
+            if (result is CoverResult.Success) setCover(group, result.localUri, candidate.sourceProvider)
             _state.value = _state.value.copy(coverCandidates = _state.value.coverCandidates - key)
         }
     }

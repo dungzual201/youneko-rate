@@ -43,6 +43,7 @@ class AlbumDraft(
     val sourceProvider: String? = null,
     val coverSource: String? = null,
     val coverWidth: Int? = null,
+    val coverUpdatedAt: Long? = null,
     val metadataFetchedAt: Long? = null,
 )
 
@@ -160,6 +161,7 @@ class RateRepository @Inject constructor(
             sourceProvider = draft.sourceProvider,
             coverSource = draft.coverSource,
             coverWidth = draft.coverWidth,
+            coverUpdatedAt = draft.coverUpdatedAt ?: draft.coverUri?.let { now },
             metadataFetchedAt = draft.metadataFetchedAt,
             createdAt = now,
             updatedAt = now,
@@ -219,6 +221,7 @@ class RateRepository @Inject constructor(
             sourceProvider = draft.sourceProvider,
             coverSource = draft.coverSource,
             coverWidth = draft.coverWidth,
+            coverUpdatedAt = draft.coverUpdatedAt ?: draft.coverUri?.let { now },
             metadataFetchedAt = draft.metadataFetchedAt,
             createdAt = now,
             updatedAt = now,
@@ -279,6 +282,7 @@ class RateRepository @Inject constructor(
                     coverThumbUri = existing.coverThumbUri ?: draft.coverUri,
                     coverSource = existing.coverSource ?: draft.coverSource,
                     coverWidth = existing.coverWidth ?: draft.coverWidth,
+                    coverUpdatedAt = existing.coverUpdatedAt ?: draft.coverUpdatedAt,
                     label = existing.label ?: draft.label,
                     catalogNumber = existing.catalogNumber ?: draft.catalogNumber,
                     country = existing.country ?: draft.country,
