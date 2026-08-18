@@ -3,6 +3,7 @@ package com.youneko.rate.di
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import com.youneko.rate.BuildConfig
 import com.youneko.rate.data.musicbrainz.MusicBrainzApi
+import com.youneko.rate.data.discogs.DiscogsApi
 import com.youneko.rate.data.musicbrainz.MusicBrainzReleaseGroupApi
 import com.youneko.rate.data.musicbrainz.CoverArtApi
 import com.youneko.rate.data.musicbrainz.MusicBrainzRetryInterceptor
@@ -79,6 +80,30 @@ object NetworkModule {
         .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
         .build()
         .create(MusicBrainzReleaseGroupApi::class.java)
+
+    @Provides
+    @Singleton
+    @Named("discogsBucket")
+    fun provideDiscogsTokenBucket(): TokenBucket = TokenBucket(capacity = 25, refillMillis = 60_000L)
+
+    @Provides
+    @Singleton
+    @Named("discogs")
+    fun provideDiscogsClient(@Named("discogsBucket") bucket: TokenBucket): OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(20, TimeUnit.SECONDS)
+        .writeTimeout(15, TimeUnit.SECONDS)
+        .addInterceptor(TokenBucketInterceptor(bucket))
+        .build()
+
+    @Provides
+    @Singleton
+    fun provideDiscogsApi(@Named("discogs") client: OkHttpClient, json: Json): DiscogsApi = Retrofit.Builder()
+        .baseUrl("https://api.discogs.com/")
+        .client(client)
+        .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+        .build()
+        .create(DiscogsApi::class.java)
 
     @Provides
     @Singleton

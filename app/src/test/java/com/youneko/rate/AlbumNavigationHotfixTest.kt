@@ -87,6 +87,10 @@ private class FakeSettingsStore : SettingsStore {
     override val dynamicColor = MutableStateFlow(false)
     override val sortOrder = MutableStateFlow("NEWEST")
     override val unfinishedOnly = MutableStateFlow(false)
+    override val discogsEnabled = MutableStateFlow(false)
+    override val discogsToken = MutableStateFlow("")
+    override val lastFmEnabled = MutableStateFlow(false)
+    override val lastFmApiKey = MutableStateFlow("")
     override suspend fun setOfflineOnly(value: Boolean) { offlineOnly.value = value }
     override suspend fun setRatingStep(value: Double) { ratingStep.value = value }
     override suspend fun setScoreMode(value: String) { scoreMode.value = value }
@@ -94,6 +98,10 @@ private class FakeSettingsStore : SettingsStore {
     override suspend fun setDynamicColor(value: Boolean) { dynamicColor.value = value }
     override suspend fun setSortOrder(value: String) { sortOrder.value = value }
     override suspend fun setUnfinishedOnly(value: Boolean) { unfinishedOnly.value = value }
+    override suspend fun setDiscogsEnabled(value: Boolean) { discogsEnabled.value = value }
+    override suspend fun setDiscogsToken(value: String) { discogsToken.value = value }
+    override suspend fun setLastFmEnabled(value: Boolean) { lastFmEnabled.value = value }
+    override suspend fun setLastFmApiKey(value: String) { lastFmApiKey.value = value }
 }
 
 private class FakeAlbumRepository(private val saveResult: String = "id") : AlbumRepository {
@@ -104,7 +112,7 @@ private class FakeAlbumRepository(private val saveResult: String = "id") : Album
     override suspend fun searchEntityIds(query: String): Set<String> = emptySet()
     override suspend fun saveAlbum(draft: AlbumDraft): String { saveCalled = true; return saveResult }
     override suspend fun saveAlbumBatched(draft: AlbumDraft, batchSize: Int): String { saveCalled = true; return saveResult }
-    override suspend fun saveStandalone(title: String, artistName: String, listenedDate: String?): String = "track-id"
+    override suspend fun saveStandalone(title: String, artistName: String, listenedDate: String?, sourceUri: String?, fileName: String?): String = "track-id"
     override suspend fun updateTrack(track: TrackEntity) = Unit
     override suspend fun updateAlbum(album: AlbumEntity) = Unit
     override suspend fun deleteAlbum(id: String) { albumFlow.value = null }
