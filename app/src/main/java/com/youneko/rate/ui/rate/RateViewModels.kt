@@ -255,6 +255,8 @@ class AlbumEditorViewModel @Inject constructor(
                     genreTags = current.genres.split(',').map(String::trim),
                     listenedDate = current.listenedDate.ifBlank { null },
                     coverUri = current.coverUri,
+                    coverSource = current.coverUri?.let { "Manual" },
+                    coverUpdatedAt = current.coverUri?.let { System.currentTimeMillis() },
                     tracks = validTracks.map { track -> TrackDraft(title = track, discNumber = 1) },
                 ),
             )
@@ -280,6 +282,9 @@ class ScoreSettingsViewModel @Inject constructor(
     val discogsToken = settings.discogsToken.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
     val lastFmEnabled = settings.lastFmEnabled.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
     val lastFmApiKey = settings.lastFmApiKey.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
+    val geniusEnabled = settings.geniusEnabled.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+    val geniusToken = settings.geniusToken.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
+    val showCreditSources = settings.showCreditSources.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     fun setScoreMode(mode: ScoreMode) = viewModelScope.launch(Dispatchers.IO) {
         settings.setScoreMode(mode.name)
@@ -295,5 +300,8 @@ class ScoreSettingsViewModel @Inject constructor(
     fun setDiscogsToken(token: String) = viewModelScope.launch(Dispatchers.IO) { settings.setDiscogsToken(token) }
     fun setLastFmEnabled(enabled: Boolean) = viewModelScope.launch(Dispatchers.IO) { settings.setLastFmEnabled(enabled) }
     fun setLastFmApiKey(key: String) = viewModelScope.launch(Dispatchers.IO) { settings.setLastFmApiKey(key) }
+    fun setGeniusEnabled(enabled: Boolean) = viewModelScope.launch(Dispatchers.IO) { settings.setGeniusEnabled(enabled) }
+    fun setGeniusToken(token: String) = viewModelScope.launch(Dispatchers.IO) { settings.setGeniusToken(token) }
+    fun setShowCreditSources(enabled: Boolean) = viewModelScope.launch(Dispatchers.IO) { settings.setShowCreditSources(enabled) }
     fun clearMetadataCache() = viewModelScope.launch(Dispatchers.IO) { remoteMetadataCacheDao.deleteAll() }
 }

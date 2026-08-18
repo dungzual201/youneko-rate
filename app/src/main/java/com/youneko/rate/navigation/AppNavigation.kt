@@ -130,6 +130,7 @@ fun YounekoNavHost() {
             composable("album/{albumId}", arguments = listOf(navArgument("albumId") { type = NavType.StringType })) {
                 AlbumDetailScreen(
                     onBack = { navController.popBackStack() },
+                    onAnalyzeTrack = { navController.navigate("analyze") },
                     onViewCredits = { albumId, trackId, releaseMbid ->
                         val releasePart = releaseMbid?.let { "&releaseMbid=$it" }.orEmpty()
                         if (trackId == null) {
@@ -150,6 +151,7 @@ fun YounekoNavHost() {
                 val releaseMbid = entry.arguments?.getString("releaseMbid")
                 CreditsScreen(
                     onBack = { navController.popBackStack() },
+                    onOpenSettings = { navController.navigate("settings") },
                     releaseUrl = releaseMbid?.let { "https://musicbrainz.org/release/$it" },
                 )
             }
@@ -164,6 +166,7 @@ fun YounekoNavHost() {
                 val releaseMbid = entry.arguments?.getString("releaseMbid")
                 CreditsScreen(
                     onBack = { navController.popBackStack() },
+                    onOpenSettings = { navController.navigate("settings") },
                     releaseUrl = releaseMbid?.let { "https://musicbrainz.org/release/$it" },
                 )
             }

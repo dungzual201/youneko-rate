@@ -1,5 +1,7 @@
 package com.youneko.rate.ui.rate
 
+import android.content.Intent
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
@@ -17,6 +19,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -88,6 +91,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -261,7 +265,7 @@ private fun AlbumCard(item: LibraryAlbum, onOpen: (String) -> Unit) {
             CoverArtImage(item.album.coverUri, Modifier.fillMaxWidth().height(120.dp))
             Spacer(Modifier.height(8.dp))
             Text(item.album.title, maxLines = 2, style = MaterialTheme.typography.titleMedium)
-            Text(item.artist?.name.orEmpty(), maxLines = 1, style = MaterialTheme.typography.bodySmall)
+            Text(item.artist?.name.orEmpty(), maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
             ScoreLine(item)
         }
     }
@@ -300,16 +304,16 @@ fun RateScreen(onAddAlbum: () -> Unit, onImportTags: () -> Unit, onOpenAlbum: (S
             Button(onClick = onAddAlbum, modifier = Modifier.weight(1f)) {
                 Icon(Icons.Default.Add, contentDescription = null)
                 Spacer(Modifier.width(6.dp))
-                Text(stringResource(R.string.add_album), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(stringResource(R.string.add_album), maxLines = 3, overflow = TextOverflow.Ellipsis)
             }
             OutlinedButton(onClick = { showStandalone = true }, modifier = Modifier.weight(1f)) {
-                Text(stringResource(R.string.add_standalone), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(stringResource(R.string.add_standalone), maxLines = 3, overflow = TextOverflow.Ellipsis)
             }
         }
         OutlinedButton(onClick = onImportTags, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.Default.FolderOpen, contentDescription = null)
             Spacer(Modifier.width(6.dp))
-            Text(stringResource(R.string.import_music), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(stringResource(R.string.import_music), maxLines = 3, overflow = TextOverflow.Ellipsis)
         }
         Spacer(Modifier.height(20.dp))
         Text(stringResource(R.string.albums_in_progress), style = MaterialTheme.typography.headlineSmall)
@@ -379,7 +383,7 @@ fun AlbumEditorScreen(onSaved: (String) -> Unit, onCancel: () -> Unit, viewModel
         OutlinedTextField(state.listenedDate, viewModel::setListenedDate, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.listened_date)) }, singleLine = true)
         val coverPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> viewModel.setCoverUri(uri?.toString()) }
         OutlinedButton(onClick = { coverPicker.launch("image/*") }) { Text(stringResource(R.string.choose_cover)) }
-        state.coverUri?.let { Text(it, style = MaterialTheme.typography.bodySmall, maxLines = 1) }
+        state.coverUri?.let { Text(it, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis) }
         HorizontalDivider()
         Text(stringResource(R.string.tracklist), style = MaterialTheme.typography.titleLarge)
         state.tracks.forEachIndexed { index, value ->
@@ -466,6 +470,7 @@ private fun AlbumTypeMenu(value: String, onValue: (String) -> Unit) {
 fun AlbumDetailScreen(
     onBack: () -> Unit,
     onViewCredits: (albumId: String, trackId: String?, releaseMbid: String?) -> Unit = { _, _, _ -> },
+    onAnalyzeTrack: (String) -> Unit = {},
     viewModel: AlbumDetailViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -499,19 +504,19 @@ fun AlbumDetailScreen(
                         IconButton(onClick = { menuExpanded = true }) { Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.edit_album)) }
                         DropdownMenu(menuExpanded, { menuExpanded = false }) {
                             DropdownMenuItem(
-                                text = { Text(stringResource(R.string.refresh_metadata), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                text = { Text(stringResource(R.string.refresh_metadata), maxLines = 3, overflow = TextOverflow.Ellipsis) },
                                 onClick = { menuExpanded = false; viewModel.refreshMetadata() },
                             )
                             DropdownMenuItem(
-                                text = { Text(stringResource(R.string.reload_cover), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                text = { Text(stringResource(R.string.reload_cover), maxLines = 3, overflow = TextOverflow.Ellipsis) },
                                 onClick = { menuExpanded = false; viewModel.reloadCover() },
                             )
                             DropdownMenuItem(
-                                text = { Text(stringResource(R.string.view_credits), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                text = { Text(stringResource(R.string.view_credits), maxLines = 3, overflow = TextOverflow.Ellipsis) },
                                 onClick = { menuExpanded = false; onViewCredits(value.album.id, null, value.album.mbid) },
                             )
                             DropdownMenuItem(
-                                text = { Text(stringResource(R.string.delete_album), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                text = { Text(stringResource(R.string.delete_album), maxLines = 3, overflow = TextOverflow.Ellipsis) },
                                 onClick = { menuExpanded = false; showDelete = true },
                                 leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
                             )
@@ -553,8 +558,7 @@ fun AlbumDetailScreen(
                         track = track,
                         onChanged = viewModel::updateTrack,
                         onViewCredits = { onViewCredits(value.album.id, track.id, value.album.mbid) },
-                        onViewFileInfo = { fileInfoTrackId = track.id },
-                        localFileAvailable = !track.sourceUri.isNullOrBlank(),
+                        onAnalyzeTrack = { onAnalyzeTrack(track.id) },
                     )
                 }
                 Spacer(Modifier.height(32.dp))
@@ -634,9 +638,9 @@ private fun TrackRow(
     track: TrackEntity,
     onChanged: (TrackEntity) -> Unit,
     onViewCredits: () -> Unit = {},
-    onViewFileInfo: () -> Unit = {},
-    localFileAvailable: Boolean = false,
+    onAnalyzeTrack: () -> Unit = {},
 ) {
+    val context = LocalContext.current
     var review by rememberSaveable(track.id) { mutableStateOf(track.reviewText.orEmpty()) }
     var reviewExpanded by rememberSaveable(track.id) { mutableStateOf(false) }
     var actionsOpen by rememberSaveable(track.id) { mutableStateOf(false) }
@@ -653,7 +657,7 @@ private fun TrackRow(
         delay(800)
         if (review != track.reviewText.orEmpty()) onChanged(track.copy(reviewText = review))
     }
-    Card(Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
+    Card(Modifier.fillMaxWidth().padding(vertical = 5.dp).heightIn(min = 56.dp)) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -677,18 +681,20 @@ private fun TrackRow(
             sheetState = sheetState,
         ) {
             Column(Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
-                Text(track.title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
-                TextButton(onClick = { closeSheetThen { reviewExpanded = !reviewExpanded } }) { Text(stringResource(R.string.track_review)) }
+                Text(track.title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp), maxLines = 3, overflow = TextOverflow.Ellipsis)
                 TextButton(onClick = { closeSheetThen(onViewCredits) }) { Text(stringResource(R.string.track_credits)) }
-                TextButton(onClick = { closeSheetThen { onChanged(track.copy(isHighlight = !track.isHighlight)) } }) {
-                    Text(stringResource(if (track.isHighlight) R.string.track_unmark_highlight else R.string.track_mark_highlight))
-                }
-                TextButton(onClick = { closeSheetThen { onChanged(track.copy(isSkip = !track.isSkip)) } }) {
-                    Text(stringResource(if (track.isSkip) R.string.track_unskip else R.string.track_skip))
-                }
-                TextButton(enabled = localFileAvailable, onClick = { closeSheetThen(onViewFileInfo) }) {
-                    Text(stringResource(R.string.track_file_info))
-                }
+                TextButton(onClick = { closeSheetThen { reviewExpanded = true } }) { Text(stringResource(R.string.track_review)) }
+                TextButton(onClick = { closeSheetThen { /* inline stars remain the score control */ } }) { Text(stringResource(R.string.track_score)) }
+                TextButton(onClick = { closeSheetThen(onAnalyzeTrack) }) { Text(stringResource(R.string.track_analyze_quality)) }
+                TextButton(
+                    enabled = !track.recordingMbid.isNullOrBlank(),
+                    onClick = { closeSheetThen {
+                        track.recordingMbid?.let { mbid ->
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://musicbrainz.org/recording/$mbid"))
+                            context.startActivity(intent)
+                        }
+                    } },
+                ) { Text(stringResource(R.string.track_musicbrainz)) }
             }
         }
     }
@@ -731,23 +737,26 @@ fun SettingsScreen(viewModel: ScoreSettingsViewModel = hiltViewModel()) {
     val discogsToken by viewModel.discogsToken.collectAsStateWithLifecycle()
     val lastFmEnabled by viewModel.lastFmEnabled.collectAsStateWithLifecycle()
     val lastFmApiKey by viewModel.lastFmApiKey.collectAsStateWithLifecycle()
+    val geniusEnabled by viewModel.geniusEnabled.collectAsStateWithLifecycle()
+    val geniusToken by viewModel.geniusToken.collectAsStateWithLifecycle()
+    val showCreditSources by viewModel.showCreditSources.collectAsStateWithLifecycle()
     val applicationLanguage = AppCompatDelegate.getApplicationLocales().toLanguageTags()
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(stringResource(R.string.language), style = MaterialTheme.typography.titleLarge)
         FilterChip(
             selected = applicationLanguage.isBlank(),
             onClick = { AppCompatDelegate.setApplicationLocales(LocaleListCompat.getEmptyLocaleList()) },
-            label = { Text(stringResource(R.string.language_system), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            label = { Text(stringResource(R.string.language_system), maxLines = 3, overflow = TextOverflow.Ellipsis) },
         )
         FilterChip(
             selected = applicationLanguage == "en",
             onClick = { AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags("en")) },
-            label = { Text(stringResource(R.string.language_english), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            label = { Text(stringResource(R.string.language_english), maxLines = 3, overflow = TextOverflow.Ellipsis) },
         )
         FilterChip(
             selected = applicationLanguage == "vi",
             onClick = { AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags("vi")) },
-            label = { Text(stringResource(R.string.language_vietnamese), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            label = { Text(stringResource(R.string.language_vietnamese), maxLines = 3, overflow = TextOverflow.Ellipsis) },
         )
         Text(stringResource(R.string.score_mode), style = MaterialTheme.typography.titleLarge)
         FilterChip(
@@ -797,6 +806,24 @@ fun SettingsScreen(viewModel: ScoreSettingsViewModel = hiltViewModel()) {
             label = { Text(stringResource(R.string.provider_api_key)) },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
+        )
+        Text(stringResource(R.string.provider_genius), style = MaterialTheme.typography.titleMedium)
+        FilterChip(
+            selected = geniusEnabled,
+            onClick = { viewModel.setGeniusEnabled(!geniusEnabled) },
+            label = { Text(if (geniusEnabled) stringResource(R.string.provider_enabled) else stringResource(R.string.provider_need_key)) },
+        )
+        OutlinedTextField(
+            value = geniusToken,
+            onValueChange = viewModel::setGeniusToken,
+            label = { Text(stringResource(R.string.provider_api_key)) },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        FilterChip(
+            selected = showCreditSources,
+            onClick = { viewModel.setShowCreditSources(!showCreditSources) },
+            label = { Text(stringResource(R.string.credits_show_sources)) },
         )
         TextButton(onClick = viewModel::clearMetadataCache) { Text(stringResource(R.string.metadata_cache_clear)) }
         Text(stringResource(R.string.settings_body), style = MaterialTheme.typography.bodyMedium)
