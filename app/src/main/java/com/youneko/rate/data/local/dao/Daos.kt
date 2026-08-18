@@ -10,6 +10,7 @@ import com.youneko.rate.data.local.entity.ArtistEntity
 import com.youneko.rate.data.local.entity.AudioAnalysisEntity
 import com.youneko.rate.data.local.entity.CreditEntity
 import com.youneko.rate.data.local.entity.LibrarySearchFtsEntity
+import com.youneko.rate.data.local.entity.ImportSessionEntity
 import com.youneko.rate.data.local.entity.RemoteMetadataCacheEntity
 import com.youneko.rate.data.local.entity.SearchHistoryEntity
 import com.youneko.rate.data.local.entity.TrackEntity
@@ -83,6 +84,9 @@ interface TrackDao {
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertAll(tracks: List<TrackEntity>)
 
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertAllIgnore(tracks: List<TrackEntity>)
+
     @Update(onConflict = OnConflictStrategy.ABORT)
     suspend fun update(track: TrackEntity)
 
@@ -118,6 +122,18 @@ interface RemoteMetadataCacheDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(value: RemoteMetadataCacheEntity)
+}
+
+@Dao
+interface ImportSessionDao {
+    @Query("SELECT * FROM import_sessions WHERE id = :id LIMIT 1")
+    suspend fun findById(id: String): ImportSessionEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(session: ImportSessionEntity)
+
+    @Query("DELETE FROM import_sessions WHERE id = :id")
+    suspend fun deleteById(id: String)
 }
 
 @Dao

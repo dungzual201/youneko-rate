@@ -17,7 +17,7 @@ data class AudioTag(
     val year: Int?,
     val genre: String?,
     val durationMs: Long?,
-    val embeddedCover: ByteArray? = null,
+    val embeddedCoverPath: String? = null,
 )
 
 data class ImportedTrack(
@@ -37,7 +37,7 @@ data class ImportGroup(
     val artist: String,
     val year: Int?,
     val tracks: List<ImportedTrack>,
-    val embeddedCover: ByteArray? = null,
+    val embeddedCoverPath: String? = null,
 ) {
     val isStandalone: Boolean get() = album == null
     val displayTitle: String get() = album ?: "Bài lẻ"
@@ -75,7 +75,7 @@ object ImportGrouping {
                 }.sortedWith(compareBy<ImportedTrack> { it.discNumber ?: Int.MAX_VALUE }
                     .thenBy { it.trackNumber ?: Int.MAX_VALUE }
                     .thenBy(String.CASE_INSENSITIVE_ORDER) { it.title }),
-                embeddedCover = group.firstNotNullOfOrNull { it.embeddedCover },
+                embeddedCoverPath = group.firstNotNullOfOrNull { it.embeddedCoverPath },
             )
         }
         .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.displayTitle })

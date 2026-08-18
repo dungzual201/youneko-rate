@@ -8,6 +8,8 @@ import com.youneko.rate.data.LibraryAlbum
 import com.youneko.rate.data.importer.ImportGroup
 import com.youneko.rate.data.importer.ImportedTrack
 import com.youneko.rate.data.SettingsStore
+import com.youneko.rate.data.musicbrainz.AlbumMetadataRefreshService
+import com.youneko.rate.data.musicbrainz.Resource
 import com.youneko.rate.data.local.entity.AlbumEntity
 import com.youneko.rate.data.local.entity.ArtistEntity
 import com.youneko.rate.data.local.entity.TrackEntity
@@ -62,6 +64,9 @@ class AlbumNavigationHotfixTest {
             SavedStateHandle(mapOf("albumId" to albumId)),
             repository,
             FakeSettingsStore(),
+            object : AlbumMetadataRefreshService {
+                override suspend fun refreshMetadata(album: AlbumEntity): Resource<Unit> = Resource.Success(Unit)
+            },
         )
         viewModel.state.first { it is AlbumDetailUiState.Content }
         val event = async { viewModel.events.first() }
@@ -98,12 +103,15 @@ private class FakeAlbumRepository(private val saveResult: String = "id") : Album
     override fun observeAlbum(id: String, scoreMode: ScoreMode): Flow<LibraryAlbum?> = albumFlow
     override suspend fun searchEntityIds(query: String): Set<String> = emptySet()
     override suspend fun saveAlbum(draft: AlbumDraft): String { saveCalled = true; return saveResult }
+    override suspend fun saveAlbumBatched(draft: AlbumDraft, batchSize: Int): String { saveCalled = true; return saveResult }
     override suspend fun saveStandalone(title: String, artistName: String, listenedDate: String?): String = "track-id"
     override suspend fun updateTrack(track: TrackEntity) = Unit
     override suspend fun updateAlbum(album: AlbumEntity) = Unit
     override suspend fun deleteAlbum(id: String) { albumFlow.value = null }
     override suspend fun findMatchingAlbum(group: ImportGroup): String? = null
     override suspend fun appendImportedTracks(albumId: String, tracks: List<ImportedTrack>): Int = tracks.size
+    override suspend fun findMusicBrainzMatch(draft: AlbumDraft): String? = null
+    override suspend fun mergeMusicBrainzMetadata(albumId: String, draft: AlbumDraft) = Unit
 }
 
 private fun sampleAlbum(id: String): LibraryAlbum {

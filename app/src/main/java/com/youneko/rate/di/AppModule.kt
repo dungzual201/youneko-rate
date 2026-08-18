@@ -9,11 +9,14 @@ import com.youneko.rate.data.local.dao.ArtistDao
 import com.youneko.rate.data.local.dao.AudioAnalysisDao
 import com.youneko.rate.data.local.dao.CreditDao
 import com.youneko.rate.data.local.dao.LibrarySearchFtsDao
+import com.youneko.rate.data.local.dao.ImportSessionDao
 import com.youneko.rate.data.local.dao.RemoteMetadataCacheDao
 import com.youneko.rate.data.local.dao.SearchHistoryDao
 import com.youneko.rate.data.local.dao.TrackDao
 import com.youneko.rate.data.AlbumRepository
 import com.youneko.rate.data.RateRepository
+import com.youneko.rate.data.musicbrainz.AlbumMetadataRefreshService
+import com.youneko.rate.data.musicbrainz.MusicBrainzImportService
 import com.youneko.rate.data.SettingsStore
 import com.youneko.rate.domain.usecase.CalculateAlbumScoreUseCase
 import dagger.Module
@@ -30,7 +33,7 @@ object AppModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): YounekoDatabase =
         Room.databaseBuilder(context, YounekoDatabase::class.java, "youneko_rate.db")
-            .addMigrations(YounekoDatabase.MIGRATION_1_2, YounekoDatabase.MIGRATION_2_3)
+            .addMigrations(YounekoDatabase.MIGRATION_1_2, YounekoDatabase.MIGRATION_2_3, YounekoDatabase.MIGRATION_3_4)
             .build()
 
     @Provides
@@ -60,8 +63,15 @@ object AppModule {
         database.librarySearchFtsDao()
 
     @Provides
+    fun provideImportSessionDao(database: YounekoDatabase): ImportSessionDao = database.importSessionDao()
+
+    @Provides
     @Singleton
     fun provideAlbumRepository(repository: RateRepository): AlbumRepository = repository
+
+    @Provides
+    @Singleton
+    fun provideAlbumMetadataRefreshService(service: MusicBrainzImportService): AlbumMetadataRefreshService = service
 
     @Provides
     fun provideCalculateAlbumScoreUseCase(): CalculateAlbumScoreUseCase = CalculateAlbumScoreUseCase()

@@ -171,6 +171,16 @@ data class RemoteMetadataCacheEntity(
     val expiresAt: Long,
 )
 
+@Entity(tableName = "import_sessions")
+data class ImportSessionEntity(
+    @PrimaryKey val id: String,
+    val sourceUrisJson: String,
+    val sourceIsTree: Boolean,
+    val selectedUrisJson: String,
+    val selectionsJson: String,
+    val createdAt: Long,
+)
+
 @Entity(tableName = "search_history")
 data class SearchHistoryEntity(
     @PrimaryKey val id: String,

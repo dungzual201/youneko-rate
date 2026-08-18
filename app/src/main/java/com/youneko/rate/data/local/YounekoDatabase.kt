@@ -10,6 +10,7 @@ import com.youneko.rate.data.local.dao.ArtistDao
 import com.youneko.rate.data.local.dao.AudioAnalysisDao
 import com.youneko.rate.data.local.dao.CreditDao
 import com.youneko.rate.data.local.dao.LibrarySearchFtsDao
+import com.youneko.rate.data.local.dao.ImportSessionDao
 import com.youneko.rate.data.local.dao.RemoteMetadataCacheDao
 import com.youneko.rate.data.local.dao.SearchHistoryDao
 import com.youneko.rate.data.local.dao.TrackDao
@@ -18,6 +19,7 @@ import com.youneko.rate.data.local.entity.ArtistEntity
 import com.youneko.rate.data.local.entity.AudioAnalysisEntity
 import com.youneko.rate.data.local.entity.CreditEntity
 import com.youneko.rate.data.local.entity.LibrarySearchFtsEntity
+import com.youneko.rate.data.local.entity.ImportSessionEntity
 import com.youneko.rate.data.local.entity.RemoteMetadataCacheEntity
 import com.youneko.rate.data.local.entity.SearchHistoryEntity
 import com.youneko.rate.data.local.entity.TrackEntity
@@ -32,8 +34,9 @@ import com.youneko.rate.data.local.entity.TrackEntity
         RemoteMetadataCacheEntity::class,
         SearchHistoryEntity::class,
         LibrarySearchFtsEntity::class,
+        ImportSessionEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 @TypeConverters(YounekoTypeConverters::class)
@@ -46,6 +49,7 @@ abstract class YounekoDatabase : RoomDatabase() {
     abstract fun remoteMetadataCacheDao(): RemoteMetadataCacheDao
     abstract fun searchHistoryDao(): SearchHistoryDao
     abstract fun librarySearchFtsDao(): LibrarySearchFtsDao
+    abstract fun importSessionDao(): ImportSessionDao
 
     companion object {
         val MIGRATION_1_2: Migration = object : Migration(1, 2) {
@@ -138,6 +142,19 @@ abstract class YounekoDatabase : RoomDatabase() {
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_albums_artistId ON albums(artistId)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_albums_mbid ON albums(mbid)")
                 db.execSQL("PRAGMA foreign_keys=ON")
+            }
+        }
+
+        val MIGRATION_3_4: Migration = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""CREATE TABLE IF NOT EXISTS import_sessions (
+                    id TEXT NOT NULL PRIMARY KEY,
+                    sourceUrisJson TEXT NOT NULL,
+                    sourceIsTree INTEGER NOT NULL,
+                    selectedUrisJson TEXT NOT NULL,
+                    selectionsJson TEXT NOT NULL,
+                    createdAt INTEGER NOT NULL
+                )""")
             }
         }
     }

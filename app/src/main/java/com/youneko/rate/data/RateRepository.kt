@@ -33,12 +33,20 @@ class AlbumDraft(
     val listenedDate: String?,
     val coverUri: String?,
     val tracks: List<TrackDraft>,
+    val mbid: String? = null,
+    val releaseGroupMbid: String? = null,
+    val label: String? = null,
+    val catalogNumber: String? = null,
+    val country: String? = null,
+    val sourceProvider: String? = null,
+    val metadataFetchedAt: Long? = null,
 )
 
 data class TrackDraft(
     val title: String,
     val discNumber: Int = 1,
     val durationMs: Long? = null,
+    val recordingMbid: String? = null,
     val id: String = UUID.randomUUID().toString(),
 )
 
@@ -54,12 +62,15 @@ interface AlbumRepository {
     fun observeAlbum(id: String, scoreMode: ScoreMode = ScoreMode.SIMPLE): Flow<LibraryAlbum?>
     suspend fun searchEntityIds(query: String): Set<String>
     suspend fun saveAlbum(draft: AlbumDraft): String
+    suspend fun saveAlbumBatched(draft: AlbumDraft, batchSize: Int = 50): String
     suspend fun saveStandalone(title: String, artistName: String, listenedDate: String?): String
     suspend fun updateTrack(track: TrackEntity)
     suspend fun updateAlbum(album: AlbumEntity)
     suspend fun deleteAlbum(id: String)
     suspend fun findMatchingAlbum(group: ImportGroup): String?
     suspend fun appendImportedTracks(albumId: String, tracks: List<ImportedTrack>): Int
+    suspend fun findMusicBrainzMatch(draft: AlbumDraft): String?
+    suspend fun mergeMusicBrainzMetadata(albumId: String, draft: AlbumDraft)
 }
 
 @Singleton
@@ -132,7 +143,14 @@ class RateRepository @Inject constructor(
             coverThumbUri = draft.coverUri,
             genreTags = draft.genreTags.map { it.trim() }.filter { it.isNotEmpty() }.distinct(),
             albumType = draft.albumType,
+            label = draft.label,
+            catalogNumber = draft.catalogNumber,
+            country = draft.country,
             listenedDate = draft.listenedDate,
+            mbid = draft.mbid,
+            releaseGroupMbid = draft.releaseGroupMbid,
+            sourceProvider = draft.sourceProvider,
+            metadataFetchedAt = draft.metadataFetchedAt,
             createdAt = now,
             updatedAt = now,
         )
@@ -144,6 +162,7 @@ class RateRepository @Inject constructor(
                 trackNumber = index + 1,
                 discNumber = item.discNumber,
                 durationMs = item.durationMs,
+                recordingMbid = item.recordingMbid,
                 createdAt = now,
                 updatedAt = now,
             )
@@ -154,6 +173,101 @@ class RateRepository @Inject constructor(
             rebuildSearchIndex(albumId, album, artist, tracks)
         }
         return albumId
+    }
+
+    override suspend fun saveAlbumBatched(draft: AlbumDraft, batchSize: Int): String {
+        require(batchSize > 0) { "batchSize phải lớn hơn 0" }
+        require(draft.title.isNotBlank()) { "Tên album không được để trống" }
+        require(draft.artistName.isNotBlank()) { "Tên nghệ sĩ không được để trống" }
+        require(draft.tracks.all { it.title.isNotBlank() }) { "Tên bài không được để trống" }
+        val now = System.currentTimeMillis()
+        val artist = artistDao.findByName(draft.artistName.trim()) ?: ArtistEntity(
+            id = UUID.randomUUID().toString(),
+            name = draft.artistName.trim(),
+            createdAt = now,
+            updatedAt = now,
+        )
+        val albumId = UUID.randomUUID().toString()
+        val album = AlbumEntity(
+            id = albumId,
+            title = draft.title.trim(),
+            artistId = artist.id,
+            releaseYear = draft.releaseYear,
+            coverUri = draft.coverUri,
+            coverThumbUri = draft.coverUri,
+            genreTags = draft.genreTags.map { it.trim() }.filter { it.isNotEmpty() }.distinct(),
+            albumType = draft.albumType,
+            label = draft.label,
+            catalogNumber = draft.catalogNumber,
+            country = draft.country,
+            listenedDate = draft.listenedDate,
+            mbid = draft.mbid,
+            releaseGroupMbid = draft.releaseGroupMbid,
+            sourceProvider = draft.sourceProvider,
+            metadataFetchedAt = draft.metadataFetchedAt,
+            createdAt = now,
+            updatedAt = now,
+        )
+        val tracks = draft.tracks.mapIndexed { index, item ->
+            TrackEntity(
+                id = item.id,
+                albumId = albumId,
+                title = item.title.trim(),
+                trackNumber = index + 1,
+                discNumber = item.discNumber,
+                durationMs = item.durationMs,
+                recordingMbid = item.recordingMbid,
+                createdAt = now,
+                updatedAt = now,
+            )
+        }
+        database.withTransaction {
+            if (artistDao.findById(artist.id) == null) artistDao.insert(artist)
+            albumDao.insert(album)
+        }
+        tracks.chunked(batchSize).forEach { batch ->
+            database.withTransaction { trackDao.insertAllIgnore(batch) }
+        }
+        database.withTransaction {
+            rebuildSearchIndex(albumId, album, artistDao.findById(artist.id) ?: artist, trackDao.findForAlbum(albumId))
+        }
+        return albumId
+    }
+
+    override suspend fun findMusicBrainzMatch(draft: AlbumDraft): String? {
+        val albums = albumDao.findAll()
+        draft.mbid?.let { mbid -> albums.firstOrNull { it.mbid == mbid }?.let { return it.id } }
+        draft.releaseGroupMbid?.let { groupMbid -> albums.firstOrNull { it.releaseGroupMbid == groupMbid }?.let { return it.id } }
+        return albums.firstOrNull { album ->
+            val artist = artistDao.findById(album.artistId) ?: return@firstOrNull false
+            ImportDedupe.sameAlbum(
+                title = draft.title,
+                artist = draft.artistName,
+                year = draft.releaseYear,
+                existingTitle = album.title,
+                existingArtist = artist.name,
+                existingYear = album.releaseYear,
+            )
+        }?.id
+    }
+
+    override suspend fun mergeMusicBrainzMetadata(albumId: String, draft: AlbumDraft) {
+        val existing = albumDao.findById(albumId) ?: return
+        val now = System.currentTimeMillis()
+        albumDao.update(
+            existing.copy(
+                coverUri = existing.coverUri ?: draft.coverUri,
+                coverThumbUri = existing.coverThumbUri ?: draft.coverUri,
+                label = existing.label ?: draft.label,
+                catalogNumber = existing.catalogNumber ?: draft.catalogNumber,
+                country = existing.country ?: draft.country,
+                mbid = existing.mbid ?: draft.mbid,
+                releaseGroupMbid = existing.releaseGroupMbid ?: draft.releaseGroupMbid,
+                sourceProvider = existing.sourceProvider ?: draft.sourceProvider,
+                metadataFetchedAt = now,
+                updatedAt = now,
+            ),
+        )
     }
 
     override suspend fun saveStandalone(title: String, artistName: String, listenedDate: String?): String {

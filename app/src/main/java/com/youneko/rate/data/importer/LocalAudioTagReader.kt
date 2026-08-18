@@ -88,8 +88,16 @@ class LocalAudioTagReader(private val context: Context) {
             year = yearText?.take(4)?.toIntOrNull(),
             genre = first(tag, FieldKey.GENRE),
             durationMs = audioFile.audioHeader?.trackLength?.times(1000L),
-            embeddedCover = tag?.firstArtwork?.binaryData,
+            embeddedCoverPath = persistCover(tag?.firstArtwork?.binaryData),
         )
+    }
+
+    private fun persistCover(bytes: ByteArray?): String? {
+        if (bytes == null || bytes.isEmpty()) return null
+        val directory = File(context.cacheDir, "import_covers").apply { mkdirs() }
+        val file = File(directory, "${UUID.randomUUID()}.img")
+        file.outputStream().use { it.write(bytes) }
+        return file.absolutePath
     }
 
     private fun readWithMediaMetadataRetriever(uri: Uri, fileName: String): AudioTag? {

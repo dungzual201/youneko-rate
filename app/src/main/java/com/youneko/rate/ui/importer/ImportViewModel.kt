@@ -14,6 +14,8 @@ import com.youneko.rate.data.importer.ImportWorker
 import com.youneko.rate.data.importer.ImportDedupe
 import com.youneko.rate.data.importer.LocalAudioTagReader
 import com.youneko.rate.data.importer.stableKey
+import com.youneko.rate.data.local.dao.ImportSessionDao
+import com.youneko.rate.data.local.entity.ImportSessionEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.UUID
@@ -40,11 +42,14 @@ import kotlinx.serialization.json.Json
     val workState: WorkInfo.State? = null,
     val importedCount: Int = 0,
     val error: String? = null,
+    val sourceUris: List<String> = emptyList(),
+    val sourceIsTree: Boolean = false,
 )
 
 @HiltViewModel
 class ImportViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
+    private val importSessionDao: ImportSessionDao,
 ) : ViewModel() {
     private val _state = MutableStateFlow(ImportUiState())
     val state: StateFlow<ImportUiState> = _state.asStateFlow()
@@ -84,6 +89,8 @@ class ImportViewModel @Inject constructor(
                 selectedUris = selectedUris,
                 selections = selections,
                 failures = result.failures.map { "${it.fileName}: ${it.reason}" },
+                sourceUris = uris.map(Uri::toString),
+                sourceIsTree = isTree,
             )
         }
     }
@@ -114,19 +121,26 @@ class ImportViewModel @Inject constructor(
 
     fun enqueueImport() {
         val current = _state.value
-        if (current.selectedUris.isEmpty() || current.selections.isEmpty()) return
-        val request = OneTimeWorkRequestBuilder<ImportWorker>()
-            .setInputData(
-                workDataOf(
-                    ImportWorker.KEY_URIS to current.selectedUris.toTypedArray(),
-                    ImportWorker.KEY_SELECTED to current.selectedUris.toTypedArray(),
-                    ImportWorker.KEY_SELECTIONS to json.encodeToString(current.selections.values.toList()),
+        if (current.selectedUris.isEmpty() || current.selections.isEmpty() || current.sourceUris.isEmpty()) return
+        viewModelScope.launch {
+            val sessionId = UUID.randomUUID().toString()
+            importSessionDao.upsert(
+                ImportSessionEntity(
+                    id = sessionId,
+                    sourceUrisJson = json.encodeToString(current.sourceUris),
+                    sourceIsTree = current.sourceIsTree,
+                    selectedUrisJson = json.encodeToString(current.selectedUris.toList()),
+                    selectionsJson = json.encodeToString(current.selections.values.toList()),
+                    createdAt = System.currentTimeMillis(),
                 ),
             )
-            .build()
-        workManager.enqueue(request)
-        _state.value = current.copy(workId = request.id, workState = WorkInfo.State.ENQUEUED)
-        observeWork(request.id)
+            val request = OneTimeWorkRequestBuilder<ImportWorker>()
+                .setInputData(workDataOf(ImportWorker.KEY_SESSION_ID to sessionId))
+                .build()
+            workManager.enqueue(request)
+            _state.value = _state.value.copy(workId = request.id, workState = WorkInfo.State.ENQUEUED)
+            observeWork(request.id)
+        }
     }
 
     fun cancelImport() {
