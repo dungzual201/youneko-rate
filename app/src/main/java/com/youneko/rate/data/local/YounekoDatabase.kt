@@ -33,7 +33,7 @@ import com.youneko.rate.data.local.entity.TrackEntity
         SearchHistoryEntity::class,
         LibrarySearchFtsEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 @TypeConverters(YounekoTypeConverters::class)
@@ -106,6 +106,37 @@ abstract class YounekoDatabase : RoomDatabase() {
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_audio_analysis_trackId ON audio_analysis(trackId)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_audio_analysis_albumId ON audio_analysis(albumId)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_audio_analysis_fileHash ON audio_analysis(fileHash)")
+                db.execSQL("PRAGMA foreign_keys=ON")
+            }
+        }
+
+        val MIGRATION_2_3: Migration = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("PRAGMA foreign_keys=OFF")
+                db.execSQL("""CREATE TABLE albums_new (
+                    id TEXT NOT NULL PRIMARY KEY, title TEXT NOT NULL, artistId TEXT NOT NULL,
+                    releaseYear INTEGER, coverUri TEXT, coverThumbUri TEXT, genreTags TEXT NOT NULL,
+                    albumType TEXT NOT NULL, label TEXT, catalogNumber TEXT, barcode TEXT, country TEXT,
+                    listenedDate TEXT, manualScoreOverride REAL, reviewText TEXT, mbid TEXT,
+                    releaseGroupMbid TEXT, discogsReleaseId TEXT, deezerId TEXT, sourceProvider TEXT,
+                    metadataFetchedAt INTEGER, createdAt INTEGER NOT NULL, updatedAt INTEGER NOT NULL,
+                    FOREIGN KEY(artistId) REFERENCES artists(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                )""")
+                db.execSQL("""INSERT INTO albums_new (
+                    id, title, artistId, releaseYear, coverUri, coverThumbUri, genreTags, albumType,
+                    label, catalogNumber, barcode, country, listenedDate, manualScoreOverride, reviewText,
+                    mbid, releaseGroupMbid, discogsReleaseId, deezerId, sourceProvider, metadataFetchedAt,
+                    createdAt, updatedAt
+                ) SELECT
+                    id, title, artistId, releaseYear, coverUri, coverThumbUri, genreTags, albumType,
+                    label, catalogNumber, barcode, country, listenedDate, manualScoreOverride, reviewText,
+                    mbid, releaseGroupMbid, discogsReleaseId, deezerId, sourceProvider, metadataFetchedAt,
+                    createdAt, updatedAt
+                FROM albums""")
+                db.execSQL("DROP TABLE albums")
+                db.execSQL("ALTER TABLE albums_new RENAME TO albums")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_albums_artistId ON albums(artistId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_albums_mbid ON albums(mbid)")
                 db.execSQL("PRAGMA foreign_keys=ON")
             }
         }

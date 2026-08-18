@@ -123,10 +123,10 @@ class RateDaoTest {
         database.audioAnalysisDao().upsert(AudioAnalysisEntity(UUID.randomUUID().toString(), albumId = album.id, fileName = "album.flac", fileUriOrPath = "file:///album.flac", fileHash = "hash", analyzedAt = now))
 
         val albumUpdates = listOf(
-            album.copy(isFavorite = true),
+            album.copy(listenedDate = "2024-01-02"),
             album.copy(reviewText = "Review"),
             album.copy(manualScoreOverride = 4.5),
-            album.copy(title = "Renamed", releaseYear = 2024, listenedDate = "2024-01-01"),
+            album.copy(title = "Renamed", releaseYear = 2024),
             album.copy(coverUri = "content://cover", coverThumbUri = "content://cover-thumb"),
         )
         albumUpdates.forEach { update ->

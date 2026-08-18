@@ -50,7 +50,6 @@ data class LibraryUiState(
     val query: String = "",
     val gridView: Boolean = true,
     val sort: LibrarySort = LibrarySort.NEWEST,
-    val favoriteOnly: Boolean = false,
     val unfinishedOnly: Boolean = false,
     val error: String? = null,
 )
@@ -73,23 +72,21 @@ class LibraryViewModel @Inject constructor(
     private val prefs = combine(
         settings.gridView,
         settings.sortOrder,
-        settings.favoriteOnly,
         settings.unfinishedOnly,
-    ) { grid, sort, favorite, unfinished ->
-        QuadPrefs(grid, runCatching { LibrarySort.valueOf(sort) }.getOrDefault(LibrarySort.NEWEST), favorite, unfinished)
+    ) { grid, sort, unfinished ->
+        QuadPrefs(grid, runCatching { LibrarySort.valueOf(sort) }.getOrDefault(LibrarySort.NEWEST), unfinished)
     }
 
     val uiState: StateFlow<LibraryUiState> = combine(rawAlbums, query, searchIds, prefs) { albums, text, ids, pref ->
         val filtered = albums.asSequence()
             .filter { text.isBlank() || it.album.id in ids || it.tracks.any { track -> track.id in ids } }
-            .filter { !pref.favorite || it.album.isFavorite }
             .filter { !pref.unfinished || (it.tracks.isNotEmpty() && it.score?.ratedCount != it.tracks.size) }
             .sortedWith(sortComparator(pref.sort))
             .toList()
-        LibraryUiState(filtered, text, pref.grid, pref.sort, pref.favorite, pref.unfinished, error.value)
+        LibraryUiState(filtered, text, pref.grid, pref.sort, pref.unfinished, error.value)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LibraryUiState())
 
-    private data class QuadPrefs(val grid: Boolean, val sort: LibrarySort, val favorite: Boolean, val unfinished: Boolean)
+    private data class QuadPrefs(val grid: Boolean, val sort: LibrarySort, val unfinished: Boolean)
 
     private fun sortComparator(sort: LibrarySort): Comparator<com.youneko.rate.data.LibraryAlbum> = when (sort) {
         LibrarySort.NEWEST -> compareByDescending { it.album.createdAt }
@@ -103,7 +100,6 @@ class LibraryViewModel @Inject constructor(
     fun setQuery(value: String) { query.value = value }
     fun setGridView(value: Boolean) = viewModelScope.launch(Dispatchers.IO) { settings.setGridView(value) }
     fun setSort(value: LibrarySort) = viewModelScope.launch(Dispatchers.IO) { settings.setSortOrder(value.name) }
-    fun setFavoriteOnly(value: Boolean) = viewModelScope.launch(Dispatchers.IO) { settings.setFavoriteOnly(value) }
     fun setUnfinishedOnly(value: Boolean) = viewModelScope.launch(Dispatchers.IO) { settings.setUnfinishedOnly(value) }
     fun clearError() { error.value = null }
 }

@@ -47,7 +47,6 @@
     <string name="sort_year">Release year</string>
     <string name="sort_listened">Listened date</string>
     <string name="filters">Filters</string>
-    <string name="favorite_only">Favorites only</string>
     <string name="unfinished_only">Unfinished ratings</string>
     <string name="clear_filters">Clear filters</string>
     <string name="no_results">No matching results</string>
@@ -57,7 +56,6 @@
     <string name="album_review">Album review</string>
     <string name="track_review">Track review</string>
     <string name="characters">%1$d characters</string>
-    <string name="favorite">Favorite</string>
     <string name="delete_album">Delete album</string>
     <string name="confirm_delete_title">Delete album?</string>
     <string name="confirm_delete_body">The album and all related tracks will be deleted.</string>

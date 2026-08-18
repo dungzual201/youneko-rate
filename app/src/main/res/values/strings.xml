@@ -47,7 +47,6 @@
     <string name="sort_year">Năm phát hành</string>
     <string name="sort_listened">Ngày nghe</string>
     <string name="filters">Bộ lọc</string>
-    <string name="favorite_only">Chỉ yêu thích</string>
     <string name="unfinished_only">Chưa chấm xong</string>
     <string name="clear_filters">Xoá bộ lọc</string>
     <string name="no_results">Không có kết quả phù hợp</string>
@@ -57,7 +56,6 @@
     <string name="album_review">Review album</string>
     <string name="track_review">Review bài</string>
     <string name="characters">%1$d ký tự</string>
-    <string name="favorite">Yêu thích</string>
     <string name="delete_album">Xoá album</string>
     <string name="confirm_delete_title">Xoá album?</string>
     <string name="confirm_delete_body">Album và toàn bộ track liên quan sẽ bị xoá.</string>

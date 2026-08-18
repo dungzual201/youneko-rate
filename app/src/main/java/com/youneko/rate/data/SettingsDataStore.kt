@@ -17,7 +17,6 @@ interface SettingsStore {
     val scoreMode: Flow<String>
     val gridView: Flow<Boolean>
     val sortOrder: Flow<String>
-    val favoriteOnly: Flow<Boolean>
     val unfinishedOnly: Flow<Boolean>
 
     suspend fun setOfflineOnly(value: Boolean)
@@ -25,7 +24,6 @@ interface SettingsStore {
     suspend fun setScoreMode(value: String)
     suspend fun setGridView(value: Boolean)
     suspend fun setSortOrder(value: String)
-    suspend fun setFavoriteOnly(value: Boolean)
     suspend fun setUnfinishedOnly(value: Boolean)
 }
 
@@ -36,7 +34,6 @@ class SettingsDataStore(private val context: Context) : SettingsStore {
         val scoreMode = stringPreferencesKey("score_mode")
         val gridView = booleanPreferencesKey("library_grid_view")
         val sortOrder = stringPreferencesKey("library_sort_order")
-        val favoriteOnly = booleanPreferencesKey("library_favorite_only")
         val unfinishedOnly = booleanPreferencesKey("library_unfinished_only")
     }
 
@@ -45,7 +42,6 @@ class SettingsDataStore(private val context: Context) : SettingsStore {
     override val scoreMode: Flow<String> = context.settingsDataStore.data.map { it[Keys.scoreMode] ?: "SIMPLE" }
     override val gridView: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.gridView] ?: true }
     override val sortOrder: Flow<String> = context.settingsDataStore.data.map { it[Keys.sortOrder] ?: "NEWEST" }
-    override val favoriteOnly: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.favoriteOnly] ?: false }
     override val unfinishedOnly: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.unfinishedOnly] ?: false }
 
     override suspend fun setOfflineOnly(value: Boolean) { context.settingsDataStore.edit { it[Keys.offlineOnly] = value } }
@@ -53,6 +49,5 @@ class SettingsDataStore(private val context: Context) : SettingsStore {
     override suspend fun setScoreMode(value: String) { context.settingsDataStore.edit { it[Keys.scoreMode] = value } }
     override suspend fun setGridView(value: Boolean) { context.settingsDataStore.edit { it[Keys.gridView] = value } }
     override suspend fun setSortOrder(value: String) { context.settingsDataStore.edit { it[Keys.sortOrder] = value } }
-    override suspend fun setFavoriteOnly(value: Boolean) { context.settingsDataStore.edit { it[Keys.favoriteOnly] = value } }
     override suspend fun setUnfinishedOnly(value: Boolean) { context.settingsDataStore.edit { it[Keys.unfinishedOnly] = value } }
 }

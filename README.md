@@ -96,9 +96,9 @@ Chưa chốt license phát hành của phần mã nguồn ứng dụng. `jaudiot
 
 Phase 2 đã hoàn tất trong commit `72c667666e3074444dec1aba0eabf2333353c127`. Người dùng có thể thêm album thủ công hoặc bài lẻ, nhập artist, năm, loại album, genre, ngày nghe, ảnh bìa từ SAF và tracklist. Form dùng `SavedStateHandle`; tracklist hỗ trợ thêm/xoá, thêm nhanh N dòng và long-press drag reorder. Khi lưu, `trackNumber` được đánh lại theo thứ tự hiện tại.
 
-Library dùng Room FTS4 cho search local-first với debounce 400 ms trên tên album, nghệ sĩ, track và review. Có grid/list, sort theo mới thêm/điểm/tên/năm/ngày nghe, filter favorite và unfinished ratings; lựa chọn được lưu trong DataStore. Empty state phân biệt thư viện trống với không có kết quả. Tab Rate hiển thị album đang chấm dở và luồng thêm album/bài lẻ.
+Library dùng Room FTS4 cho search local-first với debounce 400 ms trên tên album, nghệ sĩ, track và review. Có grid/list, sort theo mới thêm/điểm/tên/năm/ngày nghe, filter unfinished ratings; lựa chọn được lưu trong DataStore. Empty state phân biệt thư viện trống với không có kết quả. Tab Rate hiển thị album đang chấm dở và luồng thêm album/bài lẻ.
 
-Album detail có cover placeholder hoặc URI ảnh đã chọn, điểm 2 chữ số, tiến độ chấm, review album auto-save sau 800 ms, tracklist, chấm sao trực tiếp, highlight/skip, review từng track, favorite, manual score override và xác nhận xoá. `StarRatingBar` hỗ trợ 0.5–5.0, tap, kéo ngang, haptic, animation nhẹ, long-press để xoá điểm và semantics cho accessibility. Chế độ tính điểm đơn giản/trọng số theo duration được lưu trong Settings; track thiếu duration sẽ fallback trọng số bằng nhau và hiển thị ghi chú.
+Album detail có cover placeholder hoặc URI ảnh đã chọn, điểm 2 chữ số, tiến độ chấm, review album auto-save sau 800 ms, tracklist, chấm sao trực tiếp, highlight/skip, review từng track, manual score override và xác nhận xoá. `StarRatingBar` hỗ trợ 0.5–5.0, tap, kéo ngang, haptic, animation nhẹ, long-press để xoá điểm và semantics cho accessibility. Chế độ tính điểm đơn giản/trọng số theo duration được lưu trong Settings; track thiếu duration sẽ fallback trọng số bằng nhau và hiển thị ghi chú.
 
 Các lệnh kiểm chứng phase 2:
 

@@ -78,14 +78,12 @@ private class FakeSettingsStore : SettingsStore {
     override val scoreMode = MutableStateFlow("SIMPLE")
     override val gridView = MutableStateFlow(true)
     override val sortOrder = MutableStateFlow("NEWEST")
-    override val favoriteOnly = MutableStateFlow(false)
     override val unfinishedOnly = MutableStateFlow(false)
     override suspend fun setOfflineOnly(value: Boolean) { offlineOnly.value = value }
     override suspend fun setRatingStep(value: Double) { ratingStep.value = value }
     override suspend fun setScoreMode(value: String) { scoreMode.value = value }
     override suspend fun setGridView(value: Boolean) { gridView.value = value }
     override suspend fun setSortOrder(value: String) { sortOrder.value = value }
-    override suspend fun setFavoriteOnly(value: Boolean) { favoriteOnly.value = value }
     override suspend fun setUnfinishedOnly(value: Boolean) { unfinishedOnly.value = value }
 }
 

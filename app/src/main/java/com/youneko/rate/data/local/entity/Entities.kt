@@ -44,7 +44,6 @@ data class AlbumEntity(
     val barcode: String? = null,
     val country: String? = null,
     val listenedDate: String? = null,
-    val isFavorite: Boolean = false,
     val manualScoreOverride: Double? = null,
     val reviewText: String? = null,
     val mbid: String? = null,

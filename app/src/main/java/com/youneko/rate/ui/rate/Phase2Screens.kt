@@ -28,8 +28,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Highlight
@@ -136,7 +134,7 @@ fun LibraryScreen(
         }
         Spacer(Modifier.height(8.dp))
         if (state.albums.isEmpty()) {
-            EmptyLibrary(onAddAlbum, hasQuery = state.query.isNotBlank() || state.favoriteOnly || state.unfinishedOnly)
+            EmptyLibrary(onAddAlbum, hasQuery = state.query.isNotBlank() || state.unfinishedOnly)
         } else if (state.gridView) {
             LazyVerticalGrid(
                 columns = GridCells.Adaptive(160.dp),
@@ -155,14 +153,9 @@ fun LibraryScreen(
     if (showFilters) {
         ModalBottomSheet(onDismissRequest = { showFilters = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
             FilterSheet(
-                favoriteOnly = state.favoriteOnly,
                 unfinishedOnly = state.unfinishedOnly,
-                onFavorite = viewModel::setFavoriteOnly,
                 onUnfinished = viewModel::setUnfinishedOnly,
-                onClear = {
-                    viewModel.setFavoriteOnly(false)
-                    viewModel.setUnfinishedOnly(false)
-                },
+                onClear = { viewModel.setUnfinishedOnly(false) },
             )
         }
     }
@@ -199,15 +192,12 @@ private fun sortLabel(sort: LibrarySort): String = stringResource(
 
 @Composable
 private fun FilterSheet(
-    favoriteOnly: Boolean,
     unfinishedOnly: Boolean,
-    onFavorite: (Boolean) -> Unit,
     onUnfinished: (Boolean) -> Unit,
     onClear: () -> Unit,
 ) {
     Column(Modifier.fillMaxWidth().padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(stringResource(R.string.filters), style = MaterialTheme.typography.headlineSmall)
-        FilterChip(selected = favoriteOnly, onClick = { onFavorite(!favoriteOnly) }, label = { Text(stringResource(R.string.favorite_only)) })
         FilterChip(selected = unfinishedOnly, onClick = { onUnfinished(!unfinishedOnly) }, label = { Text(stringResource(R.string.unfinished_only)) })
         TextButton(onClick = onClear) { Text(stringResource(R.string.clear_filters)) }
         Spacer(Modifier.height(24.dp))
@@ -247,7 +237,6 @@ private fun AlbumListRow(item: LibraryAlbum, onOpen: (String) -> Unit) {
                 Text(item.artist?.name.orEmpty(), style = MaterialTheme.typography.bodySmall)
                 ScoreLine(item)
             }
-            if (item.album.isFavorite) Icon(Icons.Default.Favorite, contentDescription = stringResource(R.string.favorite), tint = Color(0xFFE5739A))
         }
     }
 }
@@ -453,7 +442,6 @@ fun AlbumDetailScreen(onBack: () -> Unit, viewModel: AlbumDetailViewModel = hilt
                     IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.cancel)) }
                     Text(stringResource(R.string.album_detail), style = MaterialTheme.typography.titleLarge)
                     Spacer(Modifier.weight(1f))
-                    IconButton(onClick = { viewModel.updateAlbum(value.album.copy(isFavorite = !value.album.isFavorite)) }) { Icon(if (value.album.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder, contentDescription = stringResource(R.string.favorite)) }
                     Box {
                         IconButton(onClick = { menuExpanded = true }) { Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.edit_album)) }
                         DropdownMenu(menuExpanded, { menuExpanded = false }) { DropdownMenuItem(text = { Text(stringResource(R.string.delete_album)) }, onClick = { menuExpanded = false; showDelete = true }, leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) }) }

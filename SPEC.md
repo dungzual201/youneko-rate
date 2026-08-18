@@ -63,8 +63,7 @@ và hệ thống xuất/nhập dữ liệu để người dùng tự quản lý 
 - `Artist(id, name, sortName?, imageUri?, mbid?, note?)`
 - `Album(id, title, artistId, releaseYear?, coverUri?, coverThumbUri?, genreTags[],
    albumType[ALBUM|EP|SINGLE|COMPILATION], label?, catalogNumber?, barcode?, country?,
-   listenedDate?, isFavorite, manualScoreOverride?, reviewText?,
-   mbid?, releaseGroupMbid?, discogsReleaseId?, deezerId?, sourceProvider?, metadataFetchedAt?,
+         listenedDate?, manualScoreOverride?, reviewText?, mbid?, releaseGroupMbid?, discogsReleaseId?, deezerId?, sourceProvider?, metadataFetchedAt?,
    createdAt, updatedAt)`
 - `Track(id, albumId?, title, trackNumber?, discNumber?, durationMs?, isStandalone,
    stars?, reviewText?, isSkip, isHighlight, listenedDate?,
@@ -107,7 +106,8 @@ và hệ thống xuất/nhập dữ liệu để người dùng tự quản lý 
 ### 3.3 Màn hình
 - **Tab Library**: album/single dạng grid hoặc list (đổi được), hiện cover + tên + điểm trung bình.
   - Sort: điểm cao→thấp, thấp→cao, mới thêm, tên A-Z, năm phát hành, ngày nghe.
-  - Filter: theo nghệ sĩ, tag/genre, khoảng điểm, album type, chỉ favorite, chỉ album chưa chấm xong.
+  - Filter: theo nghệ sĩ, tag/genre, khoảng điểm, album type, chỉ album chưa chấm xong.
+
 - **Màn chi tiết album**: cover lớn, thông tin phát hành, điểm trung bình nổi bật ở giữa, review album,
   và tracklist — mỗi dòng có sao (chạm để chấm nhanh), icon highlight/skip, ô review mở rộng, và
   **badge chất lượng audio** nếu track đã được phân tích ở mục 5.
