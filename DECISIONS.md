@@ -243,3 +243,25 @@ Full verification local ngày 2026-08-18: `:app:assembleDebug`, `:app:testDebugU
 | D-0065 | Credits từ embedded tag file là nguồn ưu tiên cao cho nhạc Việt và được đọc ngay khi import, không cần mạng. | jaudiotagger đọc COMPOSER, LYRICIST, PRODUCER, ARRANGER, PERFORMER, MIXER, ENGINEER, TIPL và TMCL; candidate lưu `sourceProvider = "file_tags"`, đi qua `ImportedTrack`/`TrackDraft` và được upsert theo `trackId` ngay trong import transaction. | Đã triển khai trong commit `1cb0ba7`; compile/KSP và full unit test PASS. |
 | D-0066 | Credits thủ công (`sourceProvider = "manual"`) không bao giờ bị ghi đè hoặc mất khi refresh MusicBrainz hay nạp cache. | Trước khi xóa scope remote, đọc manual credits, merge chúng cùng candidates mới, sau đó upsert lại với scope gốc; manual source token được giữ khi provider được gộp. | Đã triển khai trong commit `e810ca1` và logic ở `MusicBrainzCreditsService`; full `assembleDebug`, `testDebugUnitTest`, `lintDebug` PASS. |
 | D-0067 | Metadata cover cần ghi nhận nguồn và độ phân giải để UI/backup không mất provenance. | Thêm `coverSource` và `coverWidth` vào `AlbumEntity`, migration Room 8→9, schema artifact `9.json`, và cover picker grid từ các provider. | Room schema 9 sinh thành công; compile/KSP/full verification PASS. Manual device verification còn chờ ảnh người dùng. |
+
+
+## Quyết định Phase 13 — Analyze progress, credits đa nguồn và cover validation
+
+| Mã | Quyết định | Lý do và tác động | Trạng thái |
+|---|---|---|---|
+| D-0068 | App không bao giờ có khả năng phát nhạc; `MediaExtractor` + `MediaCodec` chỉ decode PCM phục vụ phân tích và PCM không đi vào `AudioTrack`. | Giữ nguyên bất biến an toàn/phạm vi sản phẩm; playback guard test quét source set và dependency declarations. | Đã triển khai; cần CI/device verification |
+| D-0069 | Analyze phát progress theo file/bước/frame qua WorkManager foreground notification, có action Huỷ và kiểm tra `isStopped` trong FFT/decode/finally. | Người dùng biết file/bước/% hiện tại, cancel không chờ tới hết file và MediaCodec được release trong finally. | Đã triển khai; cần ảnh thiết bị |
+| D-0070 | Verdict sau decode thành công luôn thuộc một bucket có giải thích; UNKNOWN chỉ dành cho decode thất bại/không có PCM/silence hoặc metadata không thể xác định. Cutoff dùng ref 1–4 kHz, ref−50 dB, 6 stable bins, percentile frame và slope 2 kHz. | Chặn hồi quy mọi file rơi vào “chưa xác định” do bin→Hz, `-Infinity` hoặc nhánh else quá rộng. | Đã triển khai; AudioAnalysisTest PASS |
+| D-0071 | Embedded file tags là nguồn credits ưu tiên số 1; MusicBrainz → Discogs → Genius là thứ tự mạng; mọi source network chạy độc lập với limiter/cache riêng và lỗi suy giảm mềm. | Credits vẫn có khi offline, không để một provider lỗi làm mất dữ liệu nguồn khác. | Đã triển khai; Phase6CreditsTest PASS |
+| D-0072 | Credit merger gộp cùng người trong cùng roleGroup, giữ vai trò khác nhau trên một dòng, ưu tiên tên có dấu và hợp nhất danh sách sourceProvider; manual/file_tags không bị xóa khi refresh. | UI dễ đọc hơn nhưng không mất role/source provenance, đồng thời bảo toàn dữ liệu người dùng. | Đã triển khai; regression merge PASS |
+| D-0073 | Cover tự động chỉ nhận ứng viên đã match title ≥0.85, artist ≥0.80 và track count/year/duration condition; nếu không match thì không tự gán. Embedded/CAA là nguồn xác thực đặc biệt; iTunes/Deezer/Discogs phải có metadata match. | Ngăn cover sai album khi tên trùng/ngắn; giữ placeholder và cho người dùng chọn Manual khi không có ứng viên hợp lệ. | Đã triển khai; CoverArtTest PASS |
+| D-0074 | Cover provenance gồm `coverSource`, `coverWidth`, `coverUpdatedAt`; Room nâng schema 9→10; Manual cover không bị refresh tự động ghi đè. | UI/backup biết nguồn và thời điểm cover, đồng thời bảo vệ lựa chọn của người dùng. | Đã triển khai; schema 10 export và compile PASS |
+| D-0075 | Discogs/Genius/Last.fm/API tokens lưu qua AES-GCM Android Keystore trong SettingsDataStore; đọc tương thích token cũ chưa mã hóa nhưng mọi lần ghi mới đều mã hóa. | Credential không lưu plaintext trong DataStore; không đưa token vào backup/Room/cache. | Đã triển khai; cần kiểm thử thiết bị thật |
+
+### Bug log Phase 13
+
+| Mã | Bug | Cách sửa | Bằng chứng |
+|---|---|---|---|
+| BUG-0017 | Credits album chỉ đọc release-scope, khiến track credits không xuất hiện khi xem toàn album. | Thêm DAO union album credits + credits của mọi track thuộc album; track route vẫn filter theo trackId. | Phase6CreditsTest và compile PASS |
+| BUG-0018 | Cover lookup lấy candidate đầu tiên theo text, có thể sai album trùng tên. | Thêm CoverMatch title/artist/metadata scoring, loại ứng viên không đạt và chỉ chọn ảnh lớn nhất trong tập hợp hợp lệ. | CoverArtTest match regression PASS |
+| BUG-0019 | Cover source/manual provenance mất khi import session đi qua WorkManager. | Serialize `coverSource` trong ImportSelection, truyền vào AlbumDraft cùng coverUpdatedAt và đánh dấu Manual khi chọn thiết bị/URL. | Compile/KSP PASS; cần ảnh thiết bị |

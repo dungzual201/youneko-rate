@@ -41,3 +41,10 @@ Giai đoạn 0 là bước chuẩn bị ngoài 12 giai đoạn phát triển tro
 Các sửa chữa A-D của `FIX_ANALYZE_COVERS_CREDITS.md` đã có bảy commit bắt buộc: `bb428b5`, `8623c99`, `7761f2a`, `a11425d`, `1cb0ba7`, `4f6ccfb`, `e810ca1`. Full local verification `assembleDebug`, `testDebugUnitTest` và `lintDebug` PASS; regression manual-credit test cũng PASS. GitHub Actions [Android Build #32147162916](https://github.com/dungzual201/youneko-rate/actions/runs/32147162916) trên SHA `3fd6f6277cdae980dff39119dc6ae8d30495d816` đã PASS toàn bộ build, unit tests, MainActivity launch regression và artifact upload.
 
 APK debug local đã được tạo tại `app/build/outputs/apk/debug/youneko-rate-fft-credits-covers.apk`, kích thước khoảng 27 MB, SHA-256 `2fa75aa4b0b5a342b1be2f14abdd3b7d13234d373ec8a5311a228052055d1107`. Sandbox vẫn không có emulator/adb nên APK chưa được cài/chạy thủ công và chưa có ảnh xác nhận; Phase 9 chưa bắt đầu.
+
+
+## Phase 13 update — 2026-08-18
+
+Đã hoàn thiện ma trận audit trong `PHASE13_AUDIT.md`. Analyze foreground worker hiện phát progress theo file/index/tổng số/bước/frame, có notification action Huỷ và cancellation guard; FFT/verdict đã có reference band 1–4 kHz, ref−50 dB, stable 6 bins, slope 2 kHz và fallback bucket sau decode thành công. Credits đã có album/track union, Genius/Discogs settings và provider, merge roleGroup/source/diacritics, manual/file-tag preservation. Cover đã có validation title/artist + track/year, provenance `coverSource`/`coverWidth`/`coverUpdatedAt`, Room schema 10 và cover picker manual/provider metadata. Track bottom sheet đã chuyển đúng 5 mục và loại bỏ cắt text một dòng.
+
+Regression `AudioAnalysisTest`, `CoverArtTest` và `Phase6CreditsTest` đã được mở rộng; focused AudioAnalysis và Phase6Credits hiện PASS. Cần chạy full verification sau toàn bộ thay đổi phase 13, commit theo chỉ thị, push CI và build APK. Sandbox không có emulator/adb nên không thể tự cài, chụp screenshot hay thay thế xác nhận thiết bị của người dùng; Phase 9 vẫn chưa bắt đầu.
