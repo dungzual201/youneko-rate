@@ -291,6 +291,7 @@ class Phase6CreditsTest {
         override fun observeForItem(albumId: String, trackId: String?): Flow<List<CreditEntity>> = flowOf(emptyList())
         override fun observeForAlbum(albumId: String): Flow<List<CreditEntity>> = flowOf(emptyList())
         override suspend fun findAlbumCredits(albumId: String): List<CreditEntity> = rows.filter { it.albumId == albumId && it.trackId == null }
+        override suspend fun findAll(): List<CreditEntity> = rows.toList()
         override fun observeForAlbumWithTracks(albumId: String): Flow<List<CreditEntity>> = flowOf(rows.filter { it.albumId == albumId || it.trackId == "track-1" })
         override suspend fun findForAlbumWithTracks(albumId: String): List<CreditEntity> = rows.filter { it.albumId == albumId || it.trackId == "track-1" }
         override suspend fun findTrackCredits(trackId: String): List<CreditEntity> = rows.filter { it.trackId == trackId }
@@ -312,5 +313,6 @@ class Phase6CreditsTest {
         override suspend fun update(track: TrackEntity) = Unit
         override suspend fun deleteById(id: String) = Unit
         override suspend fun findForAlbum(albumId: String): List<TrackEntity> = listOf(track)
+        override suspend fun findAll(): List<TrackEntity> = listOf(track)
     }
 }

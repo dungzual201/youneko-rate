@@ -91,17 +91,20 @@ class AlbumNavigationHotfixTest {
 
 private class FakeReviewRevisionDao : ReviewRevisionDao {
     override suspend fun insert(value: ReviewRevisionEntity) = Unit
+    override suspend fun findAll(): List<ReviewRevisionEntity> = emptyList()
     override fun observeRecent(albumId: String, trackId: String?): Flow<List<ReviewRevisionEntity>> = emptyFlow()
 }
 
 private class FakeAlbumTagDao : AlbumTagDao {
     override suspend fun insert(value: AlbumTagEntity) = Unit
+    override suspend fun findAll(): List<AlbumTagEntity> = emptyList()
     override fun observeForAlbum(albumId: String): Flow<List<AlbumTagEntity>> = emptyFlow()
     override suspend fun delete(id: String) = Unit
 }
 
 private class FakeListeningLogDao : ListeningLogDao {
     override suspend fun insert(value: ListeningLogEntity) = Unit
+    override suspend fun findAll(): List<ListeningLogEntity> = emptyList()
     override fun observeForAlbum(albumId: String): Flow<List<ListeningLogEntity>> = emptyFlow()
     override suspend fun countForAlbum(albumId: String): Int = 0
 }

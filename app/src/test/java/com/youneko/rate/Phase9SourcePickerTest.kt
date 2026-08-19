@@ -9,8 +9,8 @@ import org.junit.Test
 
 class Phase9SourcePickerTest {
     @Test
-    fun sourceRegistryHasExactlySixStableSources() {
-        assertEquals(6, CreditSourceId.entries.size)
+    fun sourceRegistryHasSevenStableSourcesIncludingManual() {
+        assertEquals(7, CreditSourceId.entries.size)
         assertEquals(CreditSourceId.FILE_TAG, CreditSourceId.parse("FILE_TAG").first())
         assertTrue(CreditSourceId.DISCOGS.needsToken)
         assertTrue(CreditSourceId.GENIUS.needsToken)
