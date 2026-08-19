@@ -1,10 +1,13 @@
 package com.youneko.rate.ui.credits
 
 import android.content.Intent
+import android.util.Log
 import android.net.Uri
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,7 +16,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Refresh
@@ -98,6 +100,8 @@ data class CreditsUiState(
     val searchUrl: String? = null,
     val loadingSources: Set<CreditSourceId> = emptySet(),
 ) {
+    fun rowsFor(sourceId: CreditSourceId): List<CreditEntity> = perSourceCredits[sourceId].orEmpty()
+    val hasRenderableRows: Boolean get() = activeSources.any { rowsFor(it).isNotEmpty() }
     val visibleCredits: List<CreditEntity>
         get() = if (mergeMode) perSourceCredits.filterKeys(activeSources::contains).values.flatten().let { values ->
             val byScope = values.groupBy { it.albumId to it.trackId }
@@ -198,16 +202,25 @@ class CreditsViewModel @Inject constructor(
         _state.update { it.copy(loadingSources = it.loadingSources + id) }
         val result = runCatching { sourceById[id]?.fetch(current) ?: SourceResult.Error("Provider chưa đăng ký") }
             .getOrElse { SourceResult.Error(it.message ?: "Nguồn lỗi") }
-        val credits = result.toEntities(id, current)
-        if (result is SourceResult.Success) persist(result, current)
-        _state.update { it.copy(perSource = it.perSource + (id to result), perSourceCredits = it.perSourceCredits + (id to credits), loadingSources = it.loadingSources - id, content = if (credits.isNotEmpty()) CreditsContentState.Data else it.content) }
+        val effectiveResult = includeAlbumRowsForTrack(result, current, id)
+        val rows = effectiveResult.toEntities(id, current)
+        if (effectiveResult is SourceResult.Success) persist(effectiveResult, current)
+        _state.update { it.copy(perSource = it.perSource + (id to effectiveResult), perSourceCredits = it.perSourceCredits + (id to rows), loadingSources = it.loadingSources - id, content = if (rows.isNotEmpty()) CreditsContentState.Data else it.content) }
+    }
+
+    private suspend fun includeAlbumRowsForTrack(result: SourceResult, request: CreditFetchRequest, sourceId: CreditSourceId): SourceResult {
+        if (request.selectedTrackId == null || result !is SourceResult.Success) return result
+        val albumRows = creditDao.findForAlbumWithTracks(request.albumId)
+            .filter { it.trackId == null && it.sourceProvider.split(',').mapNotNull(CreditSourceId::fromStored).contains(sourceId) }
+            .map { it.toCandidate() }
+        val trackRows = result.trackCredits[request.selectedTrackId].orEmpty().ifEmpty { result.credits }
+        return result.copy(credits = albumRows, trackCredits = mapOf(request.selectedTrackId to trackRows))
     }
 
     private suspend fun persist(result: SourceResult.Success, request: CreditFetchRequest) {
         val albumCandidates = if (request.selectedTrackId == null) result.credits else emptyList()
         if (albumCandidates.isNotEmpty()) mergePersist(request.albumId, null, albumCandidates)
         result.trackCredits.forEach { (id, candidates) -> if (candidates.isNotEmpty()) mergePersist(null, id, candidates) }
-        if (request.selectedTrackId != null && result.credits.isNotEmpty()) mergePersist(null, request.selectedTrackId, result.credits)
     }
 
     private suspend fun mergePersist(albumId: String?, trackId: String?, candidates: List<CreditCandidate>) {
@@ -234,6 +247,8 @@ fun CreditsScreen(
     var manualSource by rememberSaveable { mutableStateOf(CreditSourceId.DISCOGS) }
     var manualLink by rememberSaveable { mutableStateOf("") }
     var manualLinkError by rememberSaveable { mutableStateOf(false) }
+    var manualExpanded by rememberSaveable { mutableStateOf(false) }
+    var showEmptySources by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) { viewModel.load() }
     val openUrl: (String) -> Unit = { url -> context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
     Scaffold(
@@ -253,13 +268,16 @@ fun CreditsScreen(
                 onSettings = onOpenSettings,
                 onMergeMode = viewModel::setMergeMode,
             )
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf(CreditSourceId.DISCOGS, CreditSourceId.GENIUS, CreditSourceId.MUSICBRAINZ).forEach { id -> FilterChip(selected = manualSource == id, onClick = { manualSource = id }, label = { Text(id.displayName) }) }
-            }
-            OutlinedTextField(value = manualLink, onValueChange = { manualLink = it; manualLinkError = false }, modifier = Modifier.fillMaxWidth(), label = { Text("URL/MBID ${manualSource.displayName}") }, maxLines = 2)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Button(onClick = { manualLinkError = !viewModel.saveManualLink(manualSource, manualLink); if (!manualLinkError) manualLink = "" }, enabled = manualLink.isNotBlank()) { Text("Lưu liên kết") }
-                if (manualLinkError) Text("Liên kết không hợp lệ", color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(start = 8.dp))
+            TextButton(onClick = { manualExpanded = !manualExpanded }) { Text(stringResource(if (manualExpanded) R.string.credits_manual_link_close else R.string.credits_manual_link_open)) }
+            if (manualExpanded) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf(CreditSourceId.DISCOGS, CreditSourceId.GENIUS, CreditSourceId.MUSICBRAINZ).forEach { id -> FilterChip(selected = manualSource == id, onClick = { manualSource = id }, label = { Text(id.displayName) }) }
+                }
+                OutlinedTextField(value = manualLink, onValueChange = { manualLink = it; manualLinkError = false }, modifier = Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.credits_manual_link_label, manualSource.displayName)) }, maxLines = 2)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Button(onClick = { manualLinkError = !viewModel.saveManualLink(manualSource, manualLink); if (!manualLinkError) manualLink = "" }, enabled = manualLink.isNotBlank()) { Text(stringResource(R.string.credits_manual_link_save)) }
+                    if (manualLinkError) Text(stringResource(R.string.credits_manual_link_invalid), color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(start = 8.dp))
+                }
             }
             when (state.content) {
                 CreditsContentState.Loading -> Row(Modifier.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) { CircularProgressIndicator(); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.credits_progress_loading)) }
@@ -274,18 +292,26 @@ fun CreditsScreen(
             if (state.mergeMode) {
                 CreditSections(title = stringResource(R.string.credits_merged_title), credits = state.visibleCredits, trackTitles = state.trackTitles, showSources = true)
             } else {
+                val dataSources = state.activeSources.filter { state.rowsFor(it).isNotEmpty() }
+                val emptySources = state.activeSources.filterNot { it in dataSources }
                 LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    state.activeSources.forEach { sourceId ->
+                    dataSources.forEach { sourceId ->
                         val result = state.perSource[sourceId]
-                        item(key = "source-$sourceId") { SourceStatusHeader(sourceId, result, state.loadingSources.contains(sourceId)) }
-                        item(key = "source-content-$sourceId") { CreditSections(title = sourceId.displayName, credits = state.perSourceCredits[sourceId].orEmpty(), trackTitles = state.trackTitles, showSources = true) }
+                        val rows = state.rowsFor(sourceId)
+                        item(key = "source-$sourceId") { SourceStatusHeader(sourceId, result, rows, state.loadingSources.contains(sourceId)) }
+                        item(key = "source-content-$sourceId") { CreditSections(title = sourceId.displayName, credits = rows, trackTitles = state.trackTitles, showSources = true, sourceId = sourceId) }
+                    }
+                    if (emptySources.isNotEmpty()) {
+                        item(key = "empty-sources-toggle") { TextButton(onClick = { showEmptySources = !showEmptySources }) { Text(stringResource(R.string.credits_empty_sources, emptySources.size)) } }
+                        if (showEmptySources) emptySources.forEach { sourceId -> item(key = "empty-source-$sourceId") { SourceStatusHeader(sourceId, state.perSource[sourceId], emptyList(), state.loadingSources.contains(sourceId)) } }
                     }
                 }
             }
             Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                val count = state.visibleCredits.size
+                val rows = state.visibleCredits
+                val count = rows.size
                 Text(stringResource(R.string.credits_source_summary, state.activeSources.joinToString(" · ") { it.displayName }), modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelSmall)
-                Text("$count credit", style = MaterialTheme.typography.labelSmall)
+                Text(stringResource(R.string.credits_count, count), style = MaterialTheme.typography.labelSmall)
             }
         }
     }
@@ -297,15 +323,18 @@ fun CreditsScreen(
 @Composable
 private fun SourcePicker(state: CreditsUiState, onToggle: (CreditSourceId) -> Unit, onSettings: () -> Unit, onMergeMode: (Boolean) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            CreditSourceId.entries.forEach { id ->
-                val active = id in state.activeSources
-                val result = state.perSource[id]
-                val count = (state.perSourceCredits[id].orEmpty()).size
-                val needsToken = result is SourceResult.NeedsToken
-                FilterChip(selected = active, onClick = { onToggle(id) }, label = { Text(buildString { append(if (active) "✓ " else ""); append(id.displayName); if (count > 0) append(" $count"); if (needsToken) append(" ⚠") }) })
+        LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            items(CreditSourceId.entries.toList() + null) { id ->
+                if (id == null) AssistChip(onClick = onSettings, label = { Text(stringResource(R.string.credits_more_sources)) })
+                else {
+                    val active = id in state.activeSources
+                    val result = state.perSource[id]
+                    val rows = state.rowsFor(id)
+                    val count = rows.size
+                    val needsToken = result is SourceResult.NeedsToken
+                    FilterChip(selected = active, onClick = { onToggle(id) }, label = { Text(buildString { append(if (active) "✓ " else ""); append(id.displayName); if (count > 0) append(" $count"); if (needsToken) append(" ⚠") }) })
+                }
             }
-            AssistChip(onClick = onSettings, label = { Text(stringResource(R.string.credits_more_sources)) })
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             FilterChip(selected = !state.mergeMode, onClick = { onMergeMode(false) }, label = { Text(stringResource(R.string.credits_view_separate)) })
@@ -315,12 +344,12 @@ private fun SourcePicker(state: CreditsUiState, onToggle: (CreditSourceId) -> Un
 }
 
 @Composable
-private fun SourceStatusHeader(id: CreditSourceId, result: SourceResult?, loading: Boolean) {
+private fun SourceStatusHeader(id: CreditSourceId, result: SourceResult?, rows: List<CreditEntity>, loading: Boolean) {
     Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(id.displayName, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
         when {
             loading -> CircularProgressIndicator(strokeWidth = 2.dp)
-            result is SourceResult.Success -> Text("${result.credits.size + result.trackCredits.values.sumOf { it.size }} credit", style = MaterialTheme.typography.labelSmall)
+            result is SourceResult.Success -> Text(stringResource(R.string.credits_count, rows.size), style = MaterialTheme.typography.labelSmall)
             result is SourceResult.NeedsToken -> Text(stringResource(R.string.credits_needs_token), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
             result is SourceResult.Empty -> Text(stringResource(R.string.credits_source_empty), style = MaterialTheme.typography.labelSmall)
             result is SourceResult.Offline -> Text(stringResource(R.string.network_offline), style = MaterialTheme.typography.labelSmall)
@@ -330,12 +359,22 @@ private fun SourceStatusHeader(id: CreditSourceId, result: SourceResult?, loadin
     }
 }
 
+private fun renderCreditRows(sourceId: CreditSourceId?, rawRows: List<CreditEntity>): List<CreditEntity> {
+    val renderedRows = rawRows
+    if (rawRows.isNotEmpty() && renderedRows.isEmpty()) Log.w("CreditsRenderMismatch", "sourceId=$sourceId rawSize=${rawRows.size} renderedSize=0")
+    return renderedRows
+}
+
 @Composable
-private fun CreditSections(title: String, credits: List<CreditEntity>, trackTitles: Map<String, String>, showSources: Boolean) {
+private fun CreditSections(title: String, credits: List<CreditEntity>, trackTitles: Map<String, String>, showSources: Boolean, sourceId: CreditSourceId? = null) {
+    val rows = renderCreditRows(sourceId, credits)
+    if (rows.isEmpty()) {
+        Text("$title · ${stringResource(R.string.credits_source_empty)}", style = MaterialTheme.typography.bodySmall)
+        return
+    }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        if (credits.isEmpty()) Text("$title · ${stringResource(R.string.credits_source_empty)}", style = MaterialTheme.typography.bodySmall)
-        credits.groupBy { it.trackId }.toList().sortedBy { it.first.orEmpty() }.forEach { (trackId, values) ->
-            trackId?.let { Text(trackTitles[it] ?: it, style = MaterialTheme.typography.titleSmall) }
+        rows.groupBy { it.trackId }.toList().sortedBy { it.first.orEmpty() }.forEach { (trackId, values) ->
+            Text(if (trackId == null) stringResource(R.string.credits_release_album_scope) else trackTitles[trackId] ?: trackId, style = MaterialTheme.typography.titleSmall)
             values.groupBy { creditGroupForUi(it.role) }.forEach { (group, groupValues) ->
                 Text("${creditGroupLabel(group)} (${groupValues.size})", style = MaterialTheme.typography.labelLarge)
                 groupValues.groupBy { it.personMbid ?: normalizeCreditPerson(it.personName) }.values.forEach { personCredits ->
@@ -344,7 +383,7 @@ private fun CreditSections(title: String, credits: List<CreditEntity>, trackTitl
                         Column(Modifier.padding(10.dp)) {
                             Text(first.personName, style = MaterialTheme.typography.titleSmall)
                             Text(personCredits.flatMap { listOf(it.role, it.instrumentOrAttribute).filterNotNull() }.distinct().joinToString(", "), style = MaterialTheme.typography.bodySmall)
-                            if (showSources) Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) { personCredits.flatMap { it.sourceProvider.split(",") }.distinct().forEach { source -> AssistChip(onClick = {}, label = { Text(source.trim()) }) } }
+                            if (showSources) Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) { personCredits.flatMap { it.sourceProvider.split(",") }.mapNotNull(CreditSourceId::fromStored).distinct().forEach { source -> AssistChip(onClick = {}, label = { Text(source.displayName) }) } }
                         }
                     }
                 }
@@ -355,8 +394,10 @@ private fun CreditSections(title: String, credits: List<CreditEntity>, trackTitl
 
 private fun SourceResult.toEntities(source: CreditSourceId, request: CreditFetchRequest): List<CreditEntity> = when (this) {
     is SourceResult.Success -> buildList {
-        if (request.selectedTrackId != null) addAll(credits.map { it.toEntity(source, null, request.selectedTrackId) })
-        else {
+        if (request.selectedTrackId != null) {
+            addAll(credits.map { it.toEntity(source, request.albumId, null) })
+            addAll(trackCredits[request.selectedTrackId].orEmpty().map { it.toEntity(source, null, request.selectedTrackId) })
+        } else {
             addAll(credits.map { it.toEntity(source, request.albumId, null) })
             trackCredits.forEach { (trackId, candidates) -> addAll(candidates.map { it.toEntity(source, null, trackId) }) }
         }

@@ -31,6 +31,16 @@ enum class CreditSourceId(
     ITUNES("Apple Music", needsToken = false, worksOffline = false),
     ;
 
+    val legacyProviderNames: Set<String>
+        get() = when (this) {
+            FILE_TAG -> setOf("file_tags", "file_tag", "filetag", "tag")
+            MUSICBRAINZ -> setOf("musicbrainz", "mb")
+            DISCOGS -> setOf("discogs")
+            GENIUS -> setOf("genius")
+            DEEZER -> setOf("deezer")
+            ITUNES -> setOf("itunes", "apple_music", "applemusic")
+        }
+
     companion object {
         val defaultOrder = listOf(FILE_TAG, MUSICBRAINZ, DISCOGS, GENIUS, DEEZER, ITUNES)
         fun parse(value: String): List<CreditSourceId> = value.split(',')
@@ -38,6 +48,10 @@ enum class CreditSourceId(
             .distinct()
             .let { parsed -> if (parsed.isEmpty()) defaultOrder else parsed + defaultOrder.filterNot(parsed::contains) }
         fun encode(value: Iterable<CreditSourceId>): String = value.distinct().joinToString(",") { it.name }
+        fun fromStored(value: String): CreditSourceId? {
+            val normalized = value.trim().lowercase().replace('-', '_').replace(' ', '_')
+            return entries.firstOrNull { it.name.lowercase() == normalized || it.legacyProviderNames.any { legacy -> legacy == normalized } }
+        }
     }
 }
 
@@ -77,19 +91,15 @@ class TagCreditSource @Inject constructor(private val creditDao: CreditDao) : Cr
     override val id = CreditSourceId.FILE_TAG
 
     override suspend fun fetch(request: CreditFetchRequest): SourceResult = withContext(Dispatchers.IO) {
-        val rows = if (request.selectedTrackId == null) {
-            creditDao.findForAlbumWithTracks(request.albumId)
-        } else {
-            creditDao.findTrackCredits(request.selectedTrackId)
-        }.filter { credit ->
-            credit.sourceProvider.split(',').any { it.trim().equals("file_tags", ignoreCase = true) || it.trim().equals("file tag", ignoreCase = true) }
-        }
+        val rows = creditDao.findForAlbumWithTracks(request.albumId)
+            .filter { credit -> request.selectedTrackId == null || credit.trackId == null || credit.trackId == request.selectedTrackId }
+            .filter { credit -> credit.sourceProvider.split(',').mapNotNull(CreditSourceId::fromStored).contains(id) }
         if (rows.isEmpty()) SourceResult.Empty else rows.toSourceResult()
     }
 }
 
 @Singleton
-class MusicBrainzCreditSource @Inject constructor(private val service: MusicBrainzCreditsService) : CreditSource {
+class MusicBrainzCreditSource @Inject constructor(private val service: MusicBrainzCreditsService, private val creditDao: CreditDao) : CreditSource {
     override val id = CreditSourceId.MUSICBRAINZ
 
     override suspend fun fetch(request: CreditFetchRequest): SourceResult {
@@ -100,7 +110,17 @@ class MusicBrainzCreditSource @Inject constructor(private val service: MusicBrai
             service.loadTrackCredits(request.toAlbum(), request.selectedTrackId, request.force, enabledSourcesHash = request.enabledSourcesHash)
         }
         return when (result) {
-            is Resource.Success -> result.value.credits.toSourceResult()
+            is Resource.Success -> {
+                val parsed = result.value.credits.toSourceResult()
+                if (request.selectedTrackId == null || parsed !is SourceResult.Success) parsed
+                else {
+                    val albumRows = creditDao.findAlbumCredits(request.albumId)
+                        .filter { it.sourceProvider.split(',').mapNotNull(CreditSourceId::fromStored).contains(id) }
+                        .map { it.toCandidate() }
+                    val trackRows = parsed.trackCredits[request.selectedTrackId].orEmpty().ifEmpty { parsed.credits }
+                    SourceResult.Success(albumRows, mapOf(request.selectedTrackId to trackRows), parsed.fetchedAt)
+                }
+            }
             is Resource.Error -> result.message?.let(SourceResult::Error) ?: SourceResult.Error(result.kind.name)
             is Resource.Loading -> SourceResult.Error("MusicBrainz đang tải")
         }
