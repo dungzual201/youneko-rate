@@ -76,10 +76,10 @@ class DiscogsCreditsService @Inject constructor(
         manualReleaseId: Long? = null,
     ): SourceResult {
         if (settings.offlineOnly.first()) return SourceResult.Offline
-        if (!settings.discogsEnabled.first()) return SourceResult.Empty
+        if (!settings.discogsEnabled.first()) return SourceResult.Empty()
         if (settings.discogsToken.first().trim().isBlank()) return SourceResult.NeedsToken
         return when (val result = load(albumId, title, artist, trackTitles, enabledSourcesHash, forceRefresh, manualReleaseId)) {
-            is Resource.Success -> if (result.value.credits.isEmpty() && result.value.trackCredits.isEmpty()) SourceResult.Empty else SourceResult.Success(result.value.credits, result.value.trackCredits)
+            is Resource.Success -> if (result.value.credits.isEmpty() && result.value.trackCredits.isEmpty()) SourceResult.Empty() else SourceResult.Success(result.value.credits, result.value.trackCredits)
             is Resource.Error -> if (result.kind == NetworkError.RATE_LIMITED) SourceResult.RateLimited(60) else SourceResult.Error(result.message ?: result.kind.name)
             is Resource.Loading -> SourceResult.Error("Discogs đang tải")
         }

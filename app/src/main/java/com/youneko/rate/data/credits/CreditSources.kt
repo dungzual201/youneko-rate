@@ -24,16 +24,18 @@ enum class CreditSourceId(
     val worksOffline: Boolean,
 ) {
     FILE_TAG("Tag trong file", needsToken = false, worksOffline = true),
+    MANUAL("Tự nhập", needsToken = false, worksOffline = true),
     MUSICBRAINZ("MusicBrainz", needsToken = false, worksOffline = false),
     DISCOGS("Discogs", needsToken = true, worksOffline = false),
     GENIUS("Genius", needsToken = true, worksOffline = false),
     DEEZER("Deezer", needsToken = false, worksOffline = false),
-    ITUNES("Apple Music", needsToken = false, worksOffline = false),
+    ITUNES("Apple Music (chỉ metadata)", needsToken = false, worksOffline = false),
     ;
 
     val legacyProviderNames: Set<String>
         get() = when (this) {
             FILE_TAG -> setOf("file_tags", "file_tag", "filetag", "tag")
+            MANUAL -> setOf("manual", "user", "tay")
             MUSICBRAINZ -> setOf("musicbrainz", "mb")
             DISCOGS -> setOf("discogs")
             GENIUS -> setOf("genius")
@@ -42,7 +44,7 @@ enum class CreditSourceId(
         }
 
     companion object {
-        val defaultOrder = listOf(FILE_TAG, MUSICBRAINZ, DISCOGS, GENIUS, DEEZER, ITUNES)
+        val defaultOrder = listOf(FILE_TAG, MANUAL, GENIUS, DISCOGS, MUSICBRAINZ, DEEZER, ITUNES)
         fun parse(value: String): List<CreditSourceId> = value.split(',')
             .mapNotNull { raw -> entries.firstOrNull { it.name == raw.trim() } }
             .distinct()
@@ -61,7 +63,7 @@ sealed interface SourceResult {
         val trackCredits: Map<String, List<CreditCandidate>> = emptyMap(),
         val fetchedAt: Long = System.currentTimeMillis(),
     ) : SourceResult
-    data object Empty : SourceResult
+    data class Empty(val reason: String? = null) : SourceResult
     data object NeedsToken : SourceResult
     data object NoMatch : SourceResult
     data object Offline : SourceResult
@@ -94,7 +96,19 @@ class TagCreditSource @Inject constructor(private val creditDao: CreditDao) : Cr
         val rows = creditDao.findForAlbumWithTracks(request.albumId)
             .filter { credit -> request.selectedTrackId == null || credit.trackId == null || credit.trackId == request.selectedTrackId }
             .filter { credit -> credit.sourceProvider.split(',').mapNotNull(CreditSourceId::fromStored).contains(id) }
-        if (rows.isEmpty()) SourceResult.Empty else rows.toSourceResult()
+        if (rows.isEmpty()) SourceResult.Empty() else rows.toSourceResult()
+    }
+}
+
+@Singleton
+class ManualCreditSource @Inject constructor(private val creditDao: CreditDao) : CreditSource {
+    override val id = CreditSourceId.MANUAL
+
+    override suspend fun fetch(request: CreditFetchRequest): SourceResult {
+        val rows = creditDao.findForAlbumWithTracks(request.albumId)
+            .filter { row -> row.sourceProvider.split(',').mapNotNull(CreditSourceId::fromStored).contains(id) }
+            .filter { row -> request.selectedTrackId == null || row.trackId == null || row.trackId == request.selectedTrackId }
+        return if (rows.isEmpty()) SourceResult.Empty("Chưa có credit tay") else rows.toSourceResult()
     }
 }
 
@@ -158,12 +172,12 @@ class GeniusCreditSource @Inject constructor(private val service: GeniusCreditsS
 
     override suspend fun fetch(request: CreditFetchRequest): SourceResult = supervisorScope {
         val selected = request.tracks.filter { request.selectedTrackId == null || it.id == request.selectedTrackId }
-        if (selected.isEmpty()) return@supervisorScope SourceResult.Empty
+        if (selected.isEmpty()) return@supervisorScope SourceResult.Empty()
         val results = selected.map { track -> async { service.loadSource(track.id, track.title, request.artistName, request.enabledSourcesHash, request.force, request.manualLinks[CreditSourceId.GENIUS]?.toLongOrNull()) } }.map { deferred -> runCatching { deferred.await() }.getOrElse { SourceResult.Error(it.message ?: "Genius error") } }
         val firstFailure = results.firstOrNull { it !is SourceResult.Success && it !is SourceResult.Empty }
         if (firstFailure != null && results.none { it is SourceResult.Success }) return@supervisorScope firstFailure
         val successful = results.filterIsInstance<SourceResult.Success>()
-        if (successful.isEmpty()) SourceResult.Empty else SourceResult.Success(
+        if (successful.isEmpty()) SourceResult.Empty() else SourceResult.Success(
             credits = if (request.selectedTrackId != null) successful.flatMap { it.credits } else emptyList(),
             trackCredits = successful.flatMapIndexed { index, result ->
                 listOfNotNull(selected.getOrNull(index)?.id?.let { it to result.credits })
@@ -176,19 +190,19 @@ class GeniusCreditSource @Inject constructor(private val service: GeniusCreditsS
 @Singleton
 class DeezerCreditSource @Inject constructor(private val settings: SettingsStore) : CreditSource {
     override val id = CreditSourceId.DEEZER
-    override suspend fun fetch(request: CreditFetchRequest): SourceResult = if (settings.offlineOnly.firstValue()) SourceResult.Offline else SourceResult.Empty
+    override suspend fun fetch(request: CreditFetchRequest): SourceResult = if (settings.offlineOnly.firstValue()) SourceResult.Offline else SourceResult.Empty()
 }
 
 @Singleton
 class ItunesCreditSource @Inject constructor(private val settings: SettingsStore) : CreditSource {
     override val id = CreditSourceId.ITUNES
-    override suspend fun fetch(request: CreditFetchRequest): SourceResult = if (settings.offlineOnly.firstValue()) SourceResult.Offline else SourceResult.Empty
+    override suspend fun fetch(request: CreditFetchRequest): SourceResult = if (settings.offlineOnly.firstValue()) SourceResult.Offline else SourceResult.Empty()
 }
 
 private suspend fun kotlinx.coroutines.flow.Flow<Boolean>.firstValue(): Boolean = first()
 
 private fun List<CreditEntity>.toSourceResult(): SourceResult {
-    if (isEmpty()) return SourceResult.Empty
+    if (isEmpty()) return SourceResult.Empty()
     val candidates = map { it.toCandidate() }
     val trackMap = filter { it.trackId != null }.groupBy { it.trackId!! }.mapValues { (_, values) -> values.map { it.toCandidate() } }
     return SourceResult.Success(
