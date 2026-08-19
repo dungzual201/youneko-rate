@@ -45,6 +45,7 @@ import com.youneko.rate.ui.rate.RateScreen
 import com.youneko.rate.ui.rate.SettingsScreen
 import com.youneko.rate.ui.analyze.AudioAnalysisScreen
 import com.youneko.rate.ui.credits.CreditsScreen
+import com.youneko.rate.ui.stats.StatsScreen
 
 private data class AppDestination(
     val route: String,
@@ -116,14 +117,14 @@ fun YounekoNavHost() {
             composable("rate") {
                 RateScreen(
                     onAddAlbum = { navController.navigate("addAlbum") },
-                    onImportTags = { navController.navigate("importTags") },
+                    onImportTags = { navController.navigate("importTags") { launchSingleTop = true } },
                     onOpenAlbum = { navController.navigate("album/$it") },
                 )
             }
             composable("analyze") { AudioAnalysisScreen() }
-            composable("stats") { PlaceholderScreen(R.string.stats, R.string.stats_empty_body, "▥  ▥  ▥") }
+            composable("stats") { StatsScreen() }
             composable("settings") { SettingsScreen() }
-            composable("importTags") { ImportScreen(onDone = { navController.popBackStack() }) }
+            composable("importTags") { ImportScreen(onDone = { navController.popBackStack("rate", inclusive = false) }) }
             composable("addAlbum") {
                 AlbumEditorScreen(onSaved = { navController.navigate("album/$it") { popUpTo("library") } }, onCancel = { navController.popBackStack() })
             }

@@ -1,5 +1,6 @@
 package com.youneko.rate.ui.importer
 
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -29,6 +30,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -38,12 +40,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.youneko.rate.R
 import com.youneko.rate.data.importer.ImportGroup
 import com.youneko.rate.data.importer.stableKey
+import com.youneko.rate.ui.importer.ImportEvent
 import androidx.compose.runtime.saveable.rememberSaveable
 
 @Composable
@@ -52,6 +56,16 @@ fun ImportScreen(
     viewModel: ImportViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    LaunchedEffect(Unit) {
+        viewModel.events.collect { event ->
+            when (event) {
+                ImportEvent.Success -> { viewModel.dismissDialog(); onDone() }
+                ImportEvent.Cancelled -> viewModel.dismissDialog()
+            }
+        }
+    }
+    DisposableEffect(Unit) { onDispose { viewModel.resetImportState() } }
+    BackHandler(enabled = state.dialogVisible || state.isReading) { viewModel.dismissDialog() }
     val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isNotEmpty()) viewModel.readSelections(uris, false)
     }
@@ -68,6 +82,7 @@ fun ImportScreen(
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(stringResource(R.string.import_title), style = MaterialTheme.typography.headlineSmall)
         Text(stringResource(R.string.import_body), style = MaterialTheme.typography.bodyMedium)
+        if (state.groups.isNotEmpty()) Text(stringResource(R.string.import_preview_note), style = MaterialTheme.typography.bodySmall)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = { filePicker.launch(arrayOf("audio/*")) }) { Text(stringResource(R.string.import_file)) }
             OutlinedButton(onClick = { folderPicker.launch(null) }) { Text(stringResource(R.string.import_folder)) }
@@ -139,7 +154,8 @@ fun ImportScreen(
     }
     if (state.isReading) {
         AlertDialog(
-            onDismissRequest = {},
+            onDismissRequest = viewModel::dismissDialog,
+            properties = DialogProperties(dismissOnBackPress = true, dismissOnClickOutside = false),
             title = { Text(stringResource(R.string.import_title)) },
             text = {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -153,7 +169,8 @@ fun ImportScreen(
     val workRunning = state.workState == androidx.work.WorkInfo.State.RUNNING || state.workState == androidx.work.WorkInfo.State.ENQUEUED
     if (workRunning) {
         AlertDialog(
-            onDismissRequest = {},
+            onDismissRequest = viewModel::dismissDialog,
+            properties = DialogProperties(dismissOnBackPress = true, dismissOnClickOutside = false),
             title = { Text(stringResource(R.string.import_save)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {

@@ -24,6 +24,8 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -33,7 +35,12 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
- data class ImportUiState(
+sealed interface ImportEvent {
+    data object Success : ImportEvent
+    data object Cancelled : ImportEvent
+}
+
+data class ImportUiState(
     val isReading: Boolean = false,
     val groups: List<ImportGroup> = emptyList(),
     val selectedUris: Set<String> = emptySet(),
@@ -49,6 +56,7 @@ import kotlinx.serialization.json.Json
     val sourceIsTree: Boolean = false,
     val coverCandidates: Map<String, List<CoverCandidate>> = emptyMap(),
     val coverLoadingKey: String? = null,
+    val dialogVisible: Boolean = false,
 )
 
 @HiltViewModel
@@ -59,6 +67,10 @@ class ImportViewModel @Inject constructor(
 ) : ViewModel() {
     private val _state = MutableStateFlow(ImportUiState())
     val state: StateFlow<ImportUiState> = _state.asStateFlow()
+    private val eventsChannel = Channel<ImportEvent>(Channel.BUFFERED)
+    val events = eventsChannel.receiveAsFlow()
+    private var terminalEventSent = false
+    private var lastEnqueueAt = 0L
     private val workManager = WorkManager.getInstance(context)
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -155,8 +167,11 @@ class ImportViewModel @Inject constructor(
     }
 
     fun enqueueImport() {
+        val now = System.currentTimeMillis()
         val current = _state.value
-        if (current.selectedUris.isEmpty() || current.selections.isEmpty() || current.sourceUris.isEmpty()) return
+        if (now - lastEnqueueAt < 500L || current.dialogVisible || current.workState == WorkInfo.State.RUNNING || current.workState == WorkInfo.State.ENQUEUED || current.selectedUris.isEmpty() || current.selections.isEmpty() || current.sourceUris.isEmpty()) return
+        lastEnqueueAt = now
+        terminalEventSent = false
         viewModelScope.launch {
             val sessionId = UUID.randomUUID().toString()
             importSessionDao.upsert(
@@ -173,7 +188,7 @@ class ImportViewModel @Inject constructor(
                 .setInputData(workDataOf(ImportWorker.KEY_SESSION_ID to sessionId))
                 .build()
             workManager.enqueue(request)
-            _state.value = _state.value.copy(workId = request.id, workState = WorkInfo.State.ENQUEUED)
+            _state.value = _state.value.copy(workId = request.id, workState = WorkInfo.State.ENQUEUED, dialogVisible = true)
             observeWork(request.id)
         }
     }
@@ -182,11 +197,24 @@ class ImportViewModel @Inject constructor(
         _state.value.workId?.let(workManager::cancelWorkById)
     }
 
+    fun dismissDialog() {
+        _state.value = _state.value.copy(dialogVisible = false, isReading = false, workId = null, workState = null, progressCurrent = 0, progressTotal = 0)
+    }
+
+    fun resetImportState() {
+        _state.value = ImportUiState()
+        terminalEventSent = false
+    }
+
     private fun observeWork(id: UUID) {
         viewModelScope.launch {
             workManager.getWorkInfoByIdFlow(id).collectLatest { info ->
                 if (info == null) return@collectLatest
                 val progress = info.progress
+                if (!terminalEventSent && info.state.isFinished) {
+                    terminalEventSent = true
+                    if (info.state == WorkInfo.State.SUCCEEDED) eventsChannel.trySend(ImportEvent.Success) else if (info.state == WorkInfo.State.CANCELLED) eventsChannel.trySend(ImportEvent.Cancelled)
+                }
                 _state.value = _state.value.copy(
                     workState = info.state,
                     progressCurrent = progress.getInt(ImportWorker.KEY_CURRENT, 0),
