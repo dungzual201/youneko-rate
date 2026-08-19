@@ -13,6 +13,12 @@ import com.youneko.rate.data.musicbrainz.Resource
 import com.youneko.rate.data.local.entity.AlbumEntity
 import com.youneko.rate.data.local.entity.ArtistEntity
 import com.youneko.rate.data.local.entity.TrackEntity
+import com.youneko.rate.data.local.dao.ReviewRevisionDao
+import com.youneko.rate.data.local.dao.AlbumTagDao
+import com.youneko.rate.data.local.dao.ListeningLogDao
+import com.youneko.rate.data.local.entity.ReviewRevisionEntity
+import com.youneko.rate.data.local.entity.AlbumTagEntity
+import com.youneko.rate.data.local.entity.ListeningLogEntity
 import com.youneko.rate.domain.usecase.ScoreMode
 import com.youneko.rate.ui.rate.AlbumDetailEvent
 import com.youneko.rate.ui.rate.AlbumDetailUiState
@@ -67,6 +73,10 @@ class AlbumNavigationHotfixTest {
             object : AlbumMetadataRefreshService {
                 override suspend fun refreshMetadata(album: AlbumEntity): Resource<Unit> = Resource.Success(Unit)
             },
+            null,
+            FakeReviewRevisionDao(),
+            FakeAlbumTagDao(),
+            FakeListeningLogDao(),
         )
         viewModel.state.first { it is AlbumDetailUiState.Content }
         val event = async { viewModel.events.first() }
@@ -77,6 +87,23 @@ class AlbumNavigationHotfixTest {
         assertTrue(viewModel.state.first { it is AlbumDetailUiState.AlbumDeleted } is AlbumDetailUiState.AlbumDeleted)
     }
 
+}
+
+private class FakeReviewRevisionDao : ReviewRevisionDao {
+    override suspend fun insert(value: ReviewRevisionEntity) = Unit
+    override fun observeRecent(albumId: String, trackId: String?): Flow<List<ReviewRevisionEntity>> = emptyFlow()
+}
+
+private class FakeAlbumTagDao : AlbumTagDao {
+    override suspend fun insert(value: AlbumTagEntity) = Unit
+    override fun observeForAlbum(albumId: String): Flow<List<AlbumTagEntity>> = emptyFlow()
+    override suspend fun delete(id: String) = Unit
+}
+
+private class FakeListeningLogDao : ListeningLogDao {
+    override suspend fun insert(value: ListeningLogEntity) = Unit
+    override fun observeForAlbum(albumId: String): Flow<List<ListeningLogEntity>> = emptyFlow()
+    override suspend fun countForAlbum(albumId: String): Int = 0
 }
 
 private class FakeSettingsStore : SettingsStore {
