@@ -286,3 +286,33 @@ Full verification local ngày 2026-08-18: `:app:assembleDebug`, `:app:testDebugU
 | BUG-0022 | Rate tab lọc album đã đủ số vote ra khỏi danh sách, tạo cảm giác item bị mất ngay sau khi chấm. | RateScreen render toàn bộ `state.albums`; Room Flow vẫn cung cấp score/ratedCount mới. | Code regression và compile PASS; cần xác nhận trên thiết bị thật |
 
 Không thêm playback, preview audio, MediaPlayer, ExoPlayer, Media3, MediaSession hay AudioTrack. Audio vẫn chỉ dùng MediaExtractor + MediaCodec decode PCM cho phân tích.
+
+
+## Hotfix vòng 7 — Credits render, Import back, Phase 9/10 — 2026-08-19
+
+### D-0083 — Credits renderer dùng một nguồn sự thật
+Header count, source chip count và nội dung section đều lấy từ cùng `CreditsUiState.rowsFor(sourceId)`. `SourceResult.Success` chỉ là kết quả fetch; renderer không lọc lại qua Room trong chế độ xem riêng. Empty state toàn màn hình chỉ được xác định từ tổng rows đã render.
+
+### D-0084 — Scope credits track/album
+Release relations được lưu `albumId != null, trackId == null`; recording/work relations được lưu `trackId != null, albumId == null`. Màn track hiển thị cả track rows và release-level album rows trong nhóm “Thông tin phát hành (cả album)”.
+
+### D-0085 — Source identity là enum id
+`CreditEntity.sourceProvider` được đối chiếu qua `CreditSourceId.fromStored()` và enum id, không so sánh display name. Legacy values như `file_tags`, `MusicBrainz` và `Apple Music` được normalize về enum tương ứng.
+
+### D-0086 — Xoá dữ liệu credits legacy
+Room migration `11→12` xoá bảng `credits` để loại bỏ rows cũ bị gán sai track/album scope; dữ liệu sẽ được fetch lại với mapping mới.
+
+### D-0087 — Import navigation là one-shot
+Import success/cancel dùng `Channel<ImportEvent>`, dismiss dialog trước navigation, `BackHandler` đóng dialog, `DisposableEffect` reset state khi rời màn hình, debounce 500 ms và `launchSingleTop` chống duplicate back stack.
+
+### D-0088 — Phase 9 persistence
+Schema `12→13` bổ sung review revisions, album tags và listening logs. Review autosave debounce 3 giây, giữ tối đa 5 bản gần nhất qua query; tags giới hạn 10 mỗi album; listening log chỉ nhập tay, không suy ra từ playback.
+
+### D-0089 — Phase 10 thống kê
+Stats đọc trực tiếp Room cho histogram, trung bình theo tháng/năm, top artist/label/producer-mixer, phân bố verdict audio và album điểm cao nhất. Year Summary có xuất PNG qua FileProvider.
+
+### BUG-0023 — Credits header có số nhưng thân rỗng
+Nguyên nhân là raw `SourceResult.Success.credits` được đếm riêng trong header trong khi thân section lấy rows khác scope/source string. Đã hợp nhất rows truth và enum source mapping.
+
+### BUG-0024 — Import back mở lại dialog
+Nguyên nhân là state import terminal còn sống và navigation không one-shot. Đã dismiss/reset trước navigate và dùng event channel.

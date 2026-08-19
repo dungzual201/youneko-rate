@@ -75,3 +75,14 @@ Full local verification sau source picker và Phase 9 PASS: `assembleDebug`, to�
 GitHub Actions [Android Build #32162195361](https://github.com/dungzual201/youneko-rate/actions/runs/32162195361) trên SHA `9fc64a8eee7895895802931dee0f63fe982e8a88` PASS toàn bộ assemble debug APK, unit tests, MainActivity launch regression và artifact upload.
 
 APK local: `app/build/outputs/apk/debug/youneko-rate-phase9.apk`; SHA-256 `7d61deee4fb4726c9061c932399166b30aee16e8f051d2ee68cedd9aaed47973`. Sandbox không có emulator/adb nên chưa thể cài APK, xác minh thủ công source picker/token/merge, numeric rating hoặc Rate tab sau vote và không tạo screenshot giả. Cần gửi APK lên thiết bị thật và phản hồi ảnh xác nhận theo checklist Phase 9.
+
+
+## Hotfix vòng 7 — Credits render, Import back, Phase 9/10 — 2026-08-19
+
+Đã sửa Credits render theo một nguồn sự thật duy nhất: header, chip count, section body và tổng count dùng cùng `rows`; chế độ riêng render trực tiếp từ `perSourceCredits`, không lọc lại qua DB. Credit scope đã được chuẩn hoá; track view giữ cả recording/work rows và release-level album rows, source identity dùng enum id với legacy normalization. Migration Room `11→12` xoá credits legacy để fetch lại đúng scope. UI dùng LazyRow chip không cắt, manual link nằm trong expander, nguồn rỗng gom cuối và các nhãn Credits/Import đã chuyển vào strings tiếng Việt.
+
+Import flow đã dùng `ImportEvent` one-shot qua Channel, dismiss dialog trước navigate, BackHandler, reset on dispose, DialogProperties cho back/outside touch và debounce 500 ms; route import dùng `launchSingleTop` và import success pop về Rate không tạo stack trùng.
+
+Phase 9 đã có configurable 5 sao/10 điểm/100 điểm, Rate Room Flow retention, filter chưa chấm/đã chấm/điểm cao nhất, review autosave 3 giây với 5 revision gần nhất, tags tối đa 10 album và listening log nhập tay. Phase 10 đã có StatsScreen thật với histogram/bar, trung bình tháng/năm, top artist/label/producer-mixer, quality verdict distribution, top-rated album và PNG share image qua FileProvider. Room schema hiện là version 13 với `MIGRATION_12_13`.
+
+Full local verification cuối PASS: `assembleDebug`, `testDebugUnitTest`, `lintDebug`; playback grep PASS với 0 match cho MediaPlayer/ExoPlayer/Media3/MediaSession/AudioTrack/preview_url/Play preview/▶. Sandbox không có emulator/adb nên chưa thể cài APK, test Espresso trên thiết bị thật hoặc tạo screenshot giả; cần kiểm thử thủ công Credits riêng/gộp, import back một lần, Rate sau vote và Stats share image trên thiết bị thật.
