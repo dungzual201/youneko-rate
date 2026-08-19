@@ -1,5 +1,7 @@
 package com.youneko.rate.data
 
+import android.content.Context
+import android.net.Uri
 import androidx.room.withTransaction
 import com.youneko.rate.data.local.YounekoDatabase
 import com.youneko.rate.data.local.dao.AlbumDao
@@ -20,6 +22,8 @@ import com.youneko.rate.data.importer.ImportDedupe
 import com.youneko.rate.data.importer.ImportGroup
 import com.youneko.rate.data.importer.ImportMergePolicy
 import com.youneko.rate.data.importer.ImportedTrack
+import com.youneko.rate.data.scan.StableMediaKey
+import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -83,6 +87,7 @@ interface AlbumRepository {
 
 @Singleton
 class RateRepository @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val database: YounekoDatabase,
     private val albumDao: AlbumDao,
     private val artistDao: ArtistDao,
@@ -179,6 +184,12 @@ class RateRepository @Inject constructor(
                 fileName = item.fileName,
                 createdAt = now,
                 updatedAt = now,
+                fileSizeBytes = item.sourceUri?.let { StableMediaKey.sizeBytes(context, Uri.parse(it)) },
+                fileHash64k = item.sourceUri?.let { StableMediaKey.first64kHash(context, Uri.parse(it)) },
+                stableKey = item.sourceUri?.let { source ->
+                    val uri = Uri.parse(source)
+                    StableMediaKey.from(StableMediaKey.sizeBytes(context, uri), item.durationMs, StableMediaKey.first64kHash(context, uri))
+                },
             )
         }
         database.withTransaction {
@@ -239,6 +250,12 @@ class RateRepository @Inject constructor(
                 fileName = item.fileName,
                 createdAt = now,
                 updatedAt = now,
+                fileSizeBytes = item.sourceUri?.let { StableMediaKey.sizeBytes(context, Uri.parse(it)) },
+                fileHash64k = item.sourceUri?.let { StableMediaKey.first64kHash(context, Uri.parse(it)) },
+                stableKey = item.sourceUri?.let { source ->
+                    val uri = Uri.parse(source)
+                    StableMediaKey.from(StableMediaKey.sizeBytes(context, uri), item.durationMs, StableMediaKey.first64kHash(context, uri))
+                },
             )
         }
         database.withTransaction {
@@ -379,6 +396,12 @@ class RateRepository @Inject constructor(
                 fileName = track.fileName,
                 createdAt = now,
                 updatedAt = now,
+                fileSizeBytes = track.uri.let { StableMediaKey.sizeBytes(context, Uri.parse(it)) },
+                fileHash64k = track.uri.let { StableMediaKey.first64kHash(context, Uri.parse(it)) },
+                stableKey = track.uri.let { source ->
+                    val uri = Uri.parse(source)
+                    StableMediaKey.from(StableMediaKey.sizeBytes(context, uri), track.durationMs, StableMediaKey.first64kHash(context, uri))
+                },
             )
         }
         database.withTransaction {

@@ -8,11 +8,15 @@ import androidx.documentfile.provider.DocumentFile
 import org.jaudiotagger.audio.AudioFileIO
 import org.jaudiotagger.tag.FieldKey
 import com.youneko.rate.data.musicbrainz.CreditCandidate
+import com.youneko.rate.data.lyrics.Lyrics
+import com.youneko.rate.data.lyrics.LyricsParser
 import java.io.File
 import java.util.Locale
 import java.util.UUID
+import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Inject
 
-class LocalAudioTagReader(private val context: Context) {
+class LocalAudioTagReader @Inject constructor(@ApplicationContext private val context: Context) {
     data class ReadResult(val tags: List<AudioTag>, val failures: List<ImportFailure>)
     data class ImportFailure(val fileName: String, val reason: String)
 
@@ -91,7 +95,27 @@ class LocalAudioTagReader(private val context: Context) {
             durationMs = audioFile.audioHeader?.trackLength?.times(1000L),
             embeddedCoverPath = persistCover(tag?.firstArtwork?.binaryData),
             embeddedCredits = readEmbeddedCredits(tag),
+            lyrics = readLyrics(tag, uri, fileName),
         )
+    }
+
+    private fun readLyrics(tag: org.jaudiotagger.tag.Tag?, uri: Uri, fileName: String): Lyrics? {
+        val embedded = listOf("SYLT", "SYNCEDLYRICS", "USLT", "UNSYNCEDLYRICS", "LYRICS", "©lyr")
+            .asSequence()
+            .mapNotNull { key -> runCatching { tag?.getFirst(key)?.trim()?.takeIf(String::isNotEmpty) }.getOrNull() }
+            .firstOrNull()
+        if (embedded != null) return LyricsParser.parse(embedded, fileName)
+        return readSidecarLyrics(uri, fileName)
+    }
+
+    private fun readSidecarLyrics(uri: Uri, fileName: String): Lyrics? {
+        val base = fileName.substringBeforeLast('.', fileName)
+        val parent = DocumentFile.fromSingleUri(context, uri)?.parentFile ?: return null
+        return listOf("$base.lrc", "$base.ttml").asSequence().mapNotNull { name ->
+            val file = parent.listFiles().firstOrNull { it.name?.equals(name, ignoreCase = true) == true } ?: return@mapNotNull null
+            val raw = runCatching { context.contentResolver.openInputStream(file.uri)?.bufferedReader()?.use { it.readText() } }.getOrNull()
+            raw?.takeIf(String::isNotBlank)?.let { LyricsParser.parse(it, name) }
+        }.firstOrNull()
     }
 
     private fun readEmbeddedCredits(tag: org.jaudiotagger.tag.Tag?): List<CreditCandidate> = buildList {
@@ -166,6 +190,7 @@ class LocalAudioTagReader(private val context: Context) {
         title = primary.title ?: fallback.title,
         year = primary.year ?: fallback.year,
         durationMs = primary.durationMs ?: fallback.durationMs,
+        lyrics = primary.lyrics ?: fallback.lyrics,
     )
 
     private fun readHeader(uri: Uri): ByteArray = context.contentResolver.openInputStream(uri)?.use { input ->
