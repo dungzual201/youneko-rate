@@ -12,6 +12,7 @@ import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,6 +25,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -111,10 +113,12 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.youneko.rate.R
 import com.youneko.rate.data.LibraryAlbum
+import com.youneko.rate.data.artwork.ArtworkStore
 import com.youneko.rate.data.local.entity.AlbumEntity
 import com.youneko.rate.data.local.entity.TrackEntity
 import com.youneko.rate.data.importer.LocalAudioTagReader
 import com.youneko.rate.data.lyrics.Lyrics
+import com.youneko.rate.data.lyrics.toPlainText
 import com.youneko.rate.data.lyrics.LyricLine
 import com.youneko.rate.ui.artwork.CoverArtImage
 import com.youneko.rate.domain.usecase.ScoreMode
@@ -707,7 +711,7 @@ private fun TrackRow(
         value = withContext(Dispatchers.IO) {
             runCatching {
                 track.sourceUri?.let { source ->
-                    LocalAudioTagReader(context).readAll(listOf(Uri.parse(source))).tags.firstOrNull()?.lyrics
+                    LocalAudioTagReader(context, ArtworkStore(context)).readAll(listOf(Uri.parse(source))).tags.firstOrNull()?.lyrics
                 }
             }
         }
@@ -842,54 +846,70 @@ private fun LyricsSection(
 
 @Composable
 private fun LyricsLines(lyrics: Lyrics, timestamps: Boolean, showAll: Boolean) {
-    val lines = when (lyrics) {
-        is Lyrics.Plain -> listOf(LyricLine(0L, text = lyrics.text))
-        is Lyrics.Timed -> lyrics.lines
-    }
+    val lines = lyrics.toLyricLines()
     val agents = lines.mapNotNull { it.agent }.distinct()
     val visible = if (showAll) lines else lines.take(4)
     SelectionContainer {
         Column(Modifier.fillMaxWidth().heightIn(max = 360.dp).verticalScroll(rememberScrollState())) {
-            visible.forEach { line ->
-                val rendered = buildString {
-                    if (timestamps && line.startMs > 0) append("[").append(line.startMs / 60_000).append(":")
-                        .append(((line.startMs % 60_000) / 1_000).toString().padStart(2, '0')).append("] ")
-                    if (agents.size >= 2 && !line.agent.isNullOrBlank()) append("[").append(line.agent).append("] ")
-                    if (line.isBackground) append("(").append(line.text).append(")") else append(line.text)
-                    line.translation?.takeIf { it.isNotBlank() }?.let { append("\n").append(it) }
-                }
-                Text(rendered, modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp), color = if (line.isBackground) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface)
-            }
+            visible.forEach { line -> LyricLineText(line, timestamps, agents) }
         }
     }
 }
 
 @Composable
+private fun LyricLineText(line: LyricLine, timestamps: Boolean, agents: List<String>) {
+    val rendered = buildString {
+        if (timestamps && line.startMs > 0) append("[").append(line.startMs / 60_000).append(":")
+            .append(((line.startMs % 60_000) / 1_000).toString().padStart(2, '0')).append("] ")
+        if (agents.size >= 2 && !line.agent.isNullOrBlank()) append("[").append(line.agent).append("] ")
+        if (line.isBackground) append("(").append(line.text).append(")") else append(line.text)
+        line.translation?.takeIf { it.isNotBlank() }?.let { append("\n").append(it) }
+    }
+    Text(
+        rendered,
+        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+        color = if (line.isBackground) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
 private fun LyricsFullscreenDialog(lyrics: Lyrics?, timestamps: Boolean, onDismiss: () -> Unit) {
     if (lyrics == null) return
+    val lines = lyrics.toLyricLines()
+    val agents = lines.mapNotNull { it.agent }.distinct()
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(Modifier.fillMaxSize().padding(16.dp), color = MaterialTheme.colorScheme.surface) {
-            Column(Modifier.fillMaxSize().padding(16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(stringResource(R.string.lyrics_title), style = MaterialTheme.typography.headlineSmall)
-                    Spacer(Modifier.weight(1f))
-                    TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) }
+        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
+            Scaffold(
+                topBar = {
+                    TopAppBar(
+                        title = { Text(stringResource(R.string.lyrics_title)) },
+                        actions = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) } },
+                    )
+                },
+            ) { innerPadding ->
+                SelectionContainer {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize().padding(innerPadding).navigationBarsPadding(),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.Top,
+                    ) {
+                        items(lines.size) { index -> LyricLineText(lines[index], timestamps, agents) }
+                    }
                 }
-                LyricsLines(lyrics, timestamps, showAll = true)
             }
         }
     }
 }
 
-private fun Lyrics.lineCount(): Int = when (this) {
-    is Lyrics.Plain -> if (text.isBlank()) 0 else text.lines().size
-    is Lyrics.Timed -> lines.size
+private fun Lyrics.toLyricLines(): List<LyricLine> = when (this) {
+    is Lyrics.Plain -> listOf(LyricLine(0L, text = text))
+    is Lyrics.Timed -> lines
 }
 
-private fun Lyrics.toCopyText(): String = when (this) {
-    is Lyrics.Plain -> text
-    is Lyrics.Timed -> lines.joinToString("\n") { buildString { append(it.text); it.translation?.let { translation -> append("\n").append(translation) } } }
-}
+private fun Lyrics.lineCount(): Int = toLyricLines().size
+
+private fun Lyrics.toCopyText(): String = toPlainText()
 
 @Composable
 private fun ReviewEditor(label: String, initial: String, max: Int, onChanged: (String) -> Unit) {
