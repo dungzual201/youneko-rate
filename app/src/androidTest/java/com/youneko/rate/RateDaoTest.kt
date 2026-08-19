@@ -70,10 +70,12 @@ class RateDaoTest {
     @Test
     fun repositorySaveQueriesAllTracksAndDeleteEmitsNull() = runBlocking {
         val repository = RateRepository(
+            ApplicationProvider.getApplicationContext(),
             database,
             database.albumDao(),
             database.artistDao(),
             database.trackDao(),
+            database.creditDao(),
             database.librarySearchFtsDao(),
             CalculateAlbumScoreUseCase(),
         )
@@ -103,10 +105,12 @@ class RateDaoTest {
     @Test
     fun updateAlbumVariantsPreserveTracksCreditsAndAudioAnalysis() = runBlocking {
         val repository = RateRepository(
+            ApplicationProvider.getApplicationContext(),
             database,
             database.albumDao(),
             database.artistDao(),
             database.trackDao(),
+            database.creditDao(),
             database.librarySearchFtsDao(),
             CalculateAlbumScoreUseCase(),
         )
