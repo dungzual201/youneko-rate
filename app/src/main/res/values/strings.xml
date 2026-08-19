@@ -34,7 +34,7 @@
     <string name="audio_analysis_peak">True peak</string>
     <string name="audio_analysis_clipping">Clipping</string>
     <string name="audio_analysis_cancel">Cancel analysis</string>
-    <string name="audio_analysis_cancelled">Analysis cancelled.</string>
+    <string name="audio_analysis_cancelled">Analysis stopped by user.</string>
     <string name="stats_empty_title">Statistics</string>
     <string name="stats_empty_body">Your ratings, credits and audio quality statistics appear here.</string>
     <string name="stats_rated_albums">Rated albums</string>
@@ -138,7 +138,6 @@
     <string name="merge">Merge</string>
     <string name="create_new">Create new</string>
     <string name="load_more">Load more</string>
-    <string name="online_preview_read_only">Read-only preview; adding to the library is part of phase 5.</string>
     <string name="close">Close</string>
     <string name="network_offline">Offline mode is enabled.</string>
     <string name="network_no_connection">No network connection.</string>
@@ -166,6 +165,7 @@
     <string name="import_done">Imported %1$d tracks</string>
     <string name="import_open_library">Open library</string>
     <string name="import_preview_note">Preview — tap Start import to add to your library.</string>
+    <string name="online_preview_summary">%1$d tracks · %2$s · %3$s</string>
     <string name="import_cover_picker_title">Choose another cover</string>
     <string name="import_cover_none">No cover found from iTunes, Deezer or Cover Art Archive.</string>
     <string name="import_cover_choose_device">Choose image from device</string>

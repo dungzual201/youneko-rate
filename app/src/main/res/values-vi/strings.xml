@@ -23,7 +23,7 @@
     <string name="analyze_running">Đang phân tích (%1$d/%2$d)</string>
     <string name="audio_analysis_confidence">Độ tin cậy</string>
     <string name="audio_analysis_explanation_body">Tần số cắt là nơi năng lượng phổ giảm mạnh. Độ dốc cắt mô tả độ dốc của vách cắt; dải động mô tả crest factor; true peak và clipping mô tả biên độ cực đại. Kết luận là heuristic, không phải chứng nhận nguồn phát hành.</string>
-    <string name="audio_analysis_choose_file">Chọn file audio</string>
+    <string name="audio_analysis_choose_file">Chọn file nhạc</string>
     <string name="audio_analysis_running">Đang phân tích chất lượng audio...</string>
     <string name="audio_analysis_empty">Chọn một file audio local để bắt đầu.</string>
     <string name="audio_analysis_verdict">Kết luận chất lượng</string>
@@ -138,7 +138,6 @@
     <string name="merge">Gộp</string>
     <string name="create_new">Tạo mới</string>
     <string name="load_more">Tải thêm</string>
-    <string name="online_preview_read_only">Xem trước chỉ đọc; thêm vào thư viện sẽ có ở giai đoạn 5.</string>
     <string name="close">Đóng</string>
     <string name="network_offline">Đang bật chế độ ngoại tuyến.</string>
     <string name="network_no_connection">Không có kết nối mạng.</string>
@@ -166,6 +165,7 @@
     <string name="import_done">Đã nhập %1$d bài</string>
     <string name="import_open_library">Mở thư viện</string>
     <string name="import_preview_note">Xem trước — bấm Bắt đầu import để thêm vào thư viện.</string>
+    <string name="online_preview_summary">%1$d bài · %2$s · %3$s</string>
     <string name="import_cover_picker_title">Chọn ảnh bìa khác</string>
     <string name="import_cover_none">Không tìm thấy ảnh bìa từ iTunes, Deezer hoặc Cover Art Archive.</string>
     <string name="import_cover_choose_device">Chọn ảnh từ thiết bị</string>
