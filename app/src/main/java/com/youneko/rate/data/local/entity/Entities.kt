@@ -73,6 +73,8 @@ data class AlbumEntity(
     indices = [
         Index(value = ["albumId"]),
         Index(value = ["recordingMbid"], unique = false),
+        Index(value = ["mediaStoreId"]),
+        Index(value = ["stableKey"]),
     ],
 )
 data class TrackEntity(
