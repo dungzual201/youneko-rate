@@ -69,11 +69,15 @@ import com.youneko.rate.data.importer.LocalAudioTagReader
 import com.youneko.rate.data.local.entity.AudioAnalysisEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
@@ -92,6 +96,10 @@ data class AnalyzeHeader(
     val album: String? = null,
     val format: String? = null,
 )
+
+sealed interface AnalyzeEvent {
+    data object Cancelled : AnalyzeEvent
+}
 
 sealed interface AnalyzeUiState {
     data object Idle : AnalyzeUiState
@@ -132,10 +140,36 @@ class AudioAnalysisViewModel @Inject constructor(
     dao: AudioAnalysisDao,
 ) : ViewModel() {
     private val workManager = WorkManager.getInstance(context)
+    private val _events = Channel<AnalyzeEvent>(Channel.BUFFERED)
+    val events = _events.receiveAsFlow()
+    private var currentWorkId: UUID? = null
+    private var userRequestedCancel = false
     private val _header = MutableStateFlow<AnalyzeHeader?>(null)
     val header = _header.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
     val analyses = dao.observeAll().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-    val workInfos = workManager.getWorkInfosForUniqueWorkFlow(AudioAnalysisWorker.UNIQUE_WORK).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    private val workInfosFlow = workManager.getWorkInfosForUniqueWorkFlow(AudioAnalysisWorker.UNIQUE_WORK)
+    val workInfos = workInfosFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    init {
+        viewModelScope.launch {
+            workInfosFlow.collect { infos ->
+                val workId = currentWorkId ?: return@collect
+                val workInfo = infos.firstOrNull { it.id == workId } ?: return@collect
+                when (workInfo.state) {
+                    WorkInfo.State.SUCCEEDED, WorkInfo.State.FAILED -> {
+                        userRequestedCancel = false
+                        currentWorkId = null
+                    }
+                    WorkInfo.State.CANCELLED -> {
+                        if (userRequestedCancel) _events.trySend(AnalyzeEvent.Cancelled)
+                        userRequestedCancel = false
+                        currentWorkId = null
+                    }
+                    else -> Unit
+                }
+            }
+        }
+    }
 
     fun enqueue(uri: String) {
         viewModelScope.launch(Dispatchers.IO) {
@@ -143,6 +177,7 @@ class AudioAnalysisViewModel @Inject constructor(
             val fileName = parsedUri.lastPathSegment.orEmpty().substringAfterLast('/').ifBlank { "audio" }
             val tag = runCatching { LocalAudioTagReader(context).readAll(listOf(parsedUri)).tags.firstOrNull() }.getOrNull()
             _header.value = tag.toAnalyzeHeader(fileName)
+            userRequestedCancel = false
             val request = OneTimeWorkRequestBuilder<AudioAnalysisWorker>()
                 .setInputData(workDataOf(
                     AudioAnalysisWorker.KEY_URI to uri,
@@ -152,11 +187,15 @@ class AudioAnalysisViewModel @Inject constructor(
                 ))
                 .setBackoffCriteria(androidx.work.BackoffPolicy.EXPONENTIAL, 10, TimeUnit.SECONDS)
                 .build()
+            currentWorkId = request.id
             workManager.enqueueUniqueWork(AudioAnalysisWorker.UNIQUE_WORK, ExistingWorkPolicy.REPLACE, request)
         }
     }
 
-    fun cancel() = workManager.cancelUniqueWork(AudioAnalysisWorker.UNIQUE_WORK)
+    fun onCancelClicked() {
+        userRequestedCancel = true
+        currentWorkId?.let(workManager::cancelWorkById) ?: workManager.cancelUniqueWork(AudioAnalysisWorker.UNIQUE_WORK)
+    }
 }
 
 @Composable
@@ -175,29 +214,39 @@ fun AudioAnalysisScreen(viewModel: AudioAnalysisViewModel = hiltViewModel()) {
     val analyzeState = workInfos.firstOrNull().toAnalyzeUiState()
     val snackbarHostState = remember { SnackbarHostState() }
     val cancelledMessage = stringResource(R.string.audio_analysis_cancelled)
-    var hadRunning by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(analyzeState) {
-        if (analyzeState is AnalyzeUiState.Running) hadRunning = true
-        if (hadRunning && analyzeState is AnalyzeUiState.Idle) {
-            snackbarHostState.showSnackbar(cancelledMessage)
-            hadRunning = false
+    LaunchedEffect(viewModel) {
+        viewModel.events.collect { event ->
+            when (event) {
+                AnalyzeEvent.Cancelled -> {
+                    snackbarHostState.currentSnackbarData?.dismiss()
+                    snackbarHostState.showSnackbar(cancelledMessage)
+                }
+            }
         }
     }
-    Box(Modifier.fillMaxSize()) {
+    Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        snackbarHost = { SnackbarHost(snackbarHostState, Modifier.navigationBarsPadding()) },
+    ) { innerPadding ->
         Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp).navigationBarsPadding(),
+            Modifier.fillMaxSize().padding(innerPadding).verticalScroll(rememberScrollState()).padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(stringResource(R.string.analyze), style = MaterialTheme.typography.headlineSmall)
             header?.let { selectedHeader ->
                 Text(selectedHeader.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text(listOfNotNull(selectedHeader.artist, selectedHeader.album, selectedHeader.format).joinToString(" · ").ifBlank { "—" }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    listOfNotNull(selectedHeader.artist, selectedHeader.album?.takeUnless { it.equals(selectedHeader.title, ignoreCase = true) }, selectedHeader.format).joinToString(" · ").ifBlank { "—" },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 3,
+                )
             } ?: Text(stringResource(R.string.analyze_choose_file_short), style = MaterialTheme.typography.bodyMedium)
             Button(enabled = analyzeState !is AnalyzeUiState.Running, onClick = { picker.launch(arrayOf("audio/*")) }) {
                 Text(stringResource(R.string.audio_analysis_choose_file))
             }
             when (val state = analyzeState) {
-                is AnalyzeUiState.Running -> AnalyzeRunningCard(state, viewModel::cancel)
+                is AnalyzeUiState.Running -> AnalyzeRunningCard(state, viewModel::onCancelClicked)
                 is AnalyzeUiState.Failed -> Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(state.fileName, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -210,7 +259,6 @@ fun AudioAnalysisScreen(viewModel: AudioAnalysisViewModel = hiltViewModel()) {
                 ?: Text(stringResource(R.string.audio_analysis_empty), style = MaterialTheme.typography.bodyLarge)
             Text(stringResource(R.string.analyze_decode_note), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        SnackbarHost(snackbarHostState, Modifier.align(Alignment.BottomCenter))
     }
     if (explain) {
         AlertDialog(
