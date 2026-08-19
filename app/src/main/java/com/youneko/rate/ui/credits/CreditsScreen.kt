@@ -6,6 +6,7 @@ import android.net.Uri
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -25,6 +27,9 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Icon
@@ -37,6 +42,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -132,7 +138,7 @@ class CreditsViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             settings.activeCreditSources.collect { raw ->
-                val active = CreditSourceId.parse(raw).toSet().let { it + CreditSourceId.FILE_TAG }
+                val active = CreditSourceId.parse(raw).toSet().let { it + CreditSourceId.FILE_TAG + CreditSourceId.MANUAL }
                 _state.update { it.copy(activeSources = active) }
             }
         }
@@ -171,7 +177,7 @@ class CreditsViewModel @Inject constructor(
     }
 
     fun toggleSource(id: CreditSourceId, onNeedsToken: () -> Unit = {}) {
-        if (id == CreditSourceId.FILE_TAG) return
+        if (id == CreditSourceId.FILE_TAG || id == CreditSourceId.MANUAL) return
         viewModelScope.launch(Dispatchers.IO) {
             val active = _state.value.activeSources.toMutableSet()
             if (id in active) active.remove(id) else active.add(id)
@@ -193,6 +199,36 @@ class CreditsViewModel @Inject constructor(
         return true
     }
     fun reloadAll() = load(forceRefresh = true)
+
+    fun addManualCredit(personName: String, role: String, targetTrackId: String? = null) {
+        val name = personName.trim()
+        val cleanRole = role.trim()
+        if (name.isBlank() || cleanRole.isBlank()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            creditDao.upsertAll(listOf(manualEntity(name, cleanRole, targetTrackId)))
+            load(forceRefresh = false)
+        }
+    }
+
+    fun bulkPasteCredits(text: String, targetTrackId: String? = null) {
+        val drafts = com.youneko.rate.data.credits.ManualCreditParser.parse(text)
+        if (drafts.isEmpty()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            creditDao.upsertAll(drafts.map { manualEntity(it.personName, it.role, targetTrackId) })
+            load(forceRefresh = false)
+        }
+    }
+
+    private fun manualEntity(personName: String, role: String, targetTrackId: String?): CreditEntity = CreditEntity(
+        id = UUID.randomUUID().toString(),
+        albumId = if (targetTrackId == null) albumId else null,
+        trackId = targetTrackId,
+        personName = personName,
+        role = role,
+        sourceProvider = CreditSourceId.MANUAL.name.lowercase(),
+        sortOrder = 0,
+    )
+
     fun setMergeMode(value: Boolean) = viewModelScope.launch(Dispatchers.IO) { settings.setCreditsMergeMode(value) }
     fun cancel() { loadJob?.cancel(); loadJob = null; _state.update { it.copy(content = if (it.visibleCredits.isEmpty()) CreditsContentState.Idle else CreditsContentState.Data) } }
 
@@ -200,7 +236,7 @@ class CreditsViewModel @Inject constructor(
         val base = request ?: return
         val current = base.copy(force = force, enabledSourcesHash = activeHash(_state.value.activeSources))
         _state.update { it.copy(loadingSources = it.loadingSources + id) }
-        val result = runCatching { sourceById[id]?.fetch(current) ?: SourceResult.Error("Provider chưa đăng ký") }
+        val result = runCatching { sourceById[id]?.fetch(current) ?: SourceResult.Error("provider_not_registered") }
             .getOrElse { SourceResult.Error(it.message ?: "Nguồn lỗi") }
         val effectiveResult = includeAlbumRowsForTrack(result, current, id)
         val rows = effectiveResult.toEntities(id, current)
@@ -249,6 +285,15 @@ fun CreditsScreen(
     var manualLinkError by rememberSaveable { mutableStateOf(false) }
     var manualExpanded by rememberSaveable { mutableStateOf(false) }
     var showEmptySources by rememberSaveable { mutableStateOf(false) }
+    var showManualEditor by rememberSaveable { mutableStateOf(false) }
+    var showBulkEditor by rememberSaveable { mutableStateOf(false) }
+    var manualName by rememberSaveable { mutableStateOf("") }
+    var manualRole by rememberSaveable { mutableStateOf("Producer") }
+    var manualScopeTrackId by rememberSaveable { mutableStateOf<String?>(null) }
+    var manualAlbumScope by rememberSaveable { mutableStateOf(true) }
+    var showRoleMenu by rememberSaveable { mutableStateOf(false) }
+    var showTrackMenu by rememberSaveable { mutableStateOf(false) }
+    var bulkText by rememberSaveable { mutableStateOf("") }
     LaunchedEffect(Unit) { viewModel.load() }
     val openUrl: (String) -> Unit = { url -> context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
     Scaffold(
@@ -281,29 +326,36 @@ fun CreditsScreen(
             }
             when (state.content) {
                 CreditsContentState.Loading -> Row(Modifier.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) { CircularProgressIndicator(); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.credits_progress_loading)) }
-                CreditsContentState.Empty -> Column(Modifier.padding(vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(stringResource(R.string.credits_empty_truthful))
-                    TextButton(onClick = onOpenSettings) { Text(stringResource(R.string.credits_enable_sources)) }
-                    releaseUrl?.let { Button(onClick = { openUrl(it) }) { Text(stringResource(R.string.credits_open_musicbrainz)) } }
+                CreditsContentState.Empty -> Card(Modifier.fillMaxWidth().padding(vertical = 16.dp)) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(stringResource(R.string.credits_empty_truthful), style = MaterialTheme.typography.titleSmall)
+                        Text(stringResource(R.string.credits_reason_no_manual), style = MaterialTheme.typography.bodySmall)
+                        Text(state.activeSources.joinToString(" · ") { it.displayName }, style = MaterialTheme.typography.bodySmall)
+                        Button(onClick = { showManualEditor = true }) { Text(stringResource(R.string.credits_add_manual)) }
+                        TextButton(onClick = onOpenSettings) { Text(stringResource(R.string.credits_enable_sources)) }
+                        releaseUrl?.let { TextButton(onClick = { openUrl(it) }) { Text(stringResource(R.string.credits_open_musicbrainz)) } }
+                    }
                 }
                 CreditsContentState.Error -> Text(stringResource(R.string.network_error), color = MaterialTheme.colorScheme.error)
                 else -> Unit
             }
-            if (state.mergeMode) {
-                CreditSections(title = stringResource(R.string.credits_merged_title), credits = state.visibleCredits, trackTitles = state.trackTitles, showSources = true)
-            } else {
-                val dataSources = state.activeSources.filter { state.rowsFor(it).isNotEmpty() }
-                val emptySources = state.activeSources.filterNot { it in dataSources }
-                LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    dataSources.forEach { sourceId ->
-                        val result = state.perSource[sourceId]
-                        val rows = state.rowsFor(sourceId)
-                        item(key = "source-$sourceId") { SourceStatusHeader(sourceId, result, rows, state.loadingSources.contains(sourceId)) }
-                        item(key = "source-content-$sourceId") { CreditSections(title = sourceId.displayName, credits = rows, trackTitles = state.trackTitles, showSources = true, sourceId = sourceId) }
-                    }
-                    if (emptySources.isNotEmpty()) {
-                        item(key = "empty-sources-toggle") { TextButton(onClick = { showEmptySources = !showEmptySources }) { Text(stringResource(R.string.credits_empty_sources, emptySources.size)) } }
-                        if (showEmptySources) emptySources.forEach { sourceId -> item(key = "empty-source-$sourceId") { SourceStatusHeader(sourceId, state.perSource[sourceId], emptyList(), state.loadingSources.contains(sourceId)) } }
+            if (state.content != CreditsContentState.Empty) {
+                if (state.mergeMode) {
+                    CreditSections(title = stringResource(R.string.credits_merged_title), credits = state.visibleCredits, trackTitles = state.trackTitles, showSources = true)
+                } else {
+                    val dataSources = state.activeSources.filter { state.rowsFor(it).isNotEmpty() }
+                    val emptySources = state.activeSources.filterNot { it in dataSources }
+                    LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        dataSources.forEach { sourceId ->
+                            val result = state.perSource[sourceId]
+                            val rows = state.rowsFor(sourceId)
+                            item(key = "source-$sourceId") { SourceStatusHeader(sourceId, result, rows, state.loadingSources.contains(sourceId)) }
+                            item(key = "source-content-$sourceId") { CreditSections(title = sourceId.displayName, credits = rows, trackTitles = state.trackTitles, showSources = true, sourceId = sourceId) }
+                        }
+                        if (emptySources.isNotEmpty()) {
+                            item(key = "empty-sources-toggle") { TextButton(onClick = { showEmptySources = !showEmptySources }) { Text(stringResource(R.string.credits_empty_sources, emptySources.size)) } }
+                            if (showEmptySources) emptySources.forEach { sourceId -> item(key = "empty-source-$sourceId") { SourceStatusHeader(sourceId, state.perSource[sourceId], emptyList(), state.loadingSources.contains(sourceId)) } }
+                        }
                     }
                 }
             }
@@ -312,6 +364,52 @@ fun CreditsScreen(
                 val count = rows.size
                 Text(stringResource(R.string.credits_source_summary, state.activeSources.joinToString(" · ") { it.displayName }), modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelSmall)
                 Text(stringResource(R.string.credits_count, count), style = MaterialTheme.typography.labelSmall)
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = { showManualEditor = !showManualEditor; showBulkEditor = false }) { Text(stringResource(R.string.credits_add_manual)) }
+                TextButton(onClick = { showBulkEditor = !showBulkEditor; showManualEditor = false }) { Text(stringResource(R.string.credits_bulk_paste)) }
+            }
+            if (showManualEditor) {
+                ManualCreditEditor(
+                    name = manualName,
+                    onNameChange = { manualName = it },
+                    role = manualRole,
+                    onRoleChange = { manualRole = it },
+                    showRoleMenu = showRoleMenu,
+                    onShowRoleMenu = { showRoleMenu = it },
+                    albumScope = manualAlbumScope,
+                    onAlbumScopeChange = { manualAlbumScope = it; if (it) manualScopeTrackId = null },
+                    trackId = manualScopeTrackId,
+                    trackTitles = state.trackTitles,
+                    showTrackMenu = showTrackMenu,
+                    onShowTrackMenu = { showTrackMenu = it },
+                    onTrackChange = { manualScopeTrackId = it; manualAlbumScope = false },
+                    onSave = {
+                        viewModel.addManualCredit(manualName, manualRole, if (manualAlbumScope) null else manualScopeTrackId)
+                        manualName = ""
+                        showManualEditor = false
+                    },
+                    onCancel = { showManualEditor = false },
+                )
+            }
+            if (showBulkEditor) {
+                BulkCreditEditor(
+                    text = bulkText,
+                    onTextChange = { bulkText = it },
+                    albumScope = manualAlbumScope,
+                    onAlbumScopeChange = { manualAlbumScope = it; if (it) manualScopeTrackId = null },
+                    trackId = manualScopeTrackId,
+                    trackTitles = state.trackTitles,
+                    showTrackMenu = showTrackMenu,
+                    onShowTrackMenu = { showTrackMenu = it },
+                    onTrackChange = { manualScopeTrackId = it; manualAlbumScope = false },
+                    onSave = {
+                        viewModel.bulkPasteCredits(bulkText, if (manualAlbumScope) null else manualScopeTrackId)
+                        bulkText = ""
+                        showBulkEditor = false
+                    },
+                    onCancel = { showBulkEditor = false },
+                )
             }
         }
     }
@@ -376,7 +474,7 @@ private fun CreditSections(title: String, credits: List<CreditEntity>, trackTitl
         rows.groupBy { it.trackId }.toList().sortedBy { it.first.orEmpty() }.forEach { (trackId, values) ->
             Text(if (trackId == null) stringResource(R.string.credits_release_album_scope) else trackTitles[trackId] ?: trackId, style = MaterialTheme.typography.titleSmall)
             values.groupBy { creditGroupForUi(it.role) }.forEach { (group, groupValues) ->
-                Text("${creditGroupLabel(group)} (${groupValues.size})", style = MaterialTheme.typography.labelLarge)
+                Text("${stringResource(creditGroupLabelRes(group))} (${groupValues.size})", style = MaterialTheme.typography.labelLarge)
                 groupValues.groupBy { it.personMbid ?: normalizeCreditPerson(it.personName) }.values.forEach { personCredits ->
                     val first = personCredits.first()
                     Card(Modifier.fillMaxWidth()) {
@@ -423,11 +521,159 @@ private fun CreditCandidate.toEntity(source: CreditSourceId, albumId: String?, t
 private fun CreditEntity.toCandidate() = CreditCandidate(personName, personMbid, role, instrumentOrAttribute, sourceProvider, sourceUrl, beginDate, endDate)
 private fun normalizeCreditPerson(value: String): String = java.text.Normalizer.normalize(value, java.text.Normalizer.Form.NFD).replace("\\p{M}+".toRegex(), "").lowercase().replace(Regex("\\s+"), " ").trim()
 private fun creditGroupForUi(role: String): CreditGroup = com.youneko.rate.data.musicbrainz.creditGroupForRole(role)
-private fun creditGroupLabel(group: CreditGroup): String = when (group) {
-    CreditGroup.WRITING -> "Sáng tác"
-    CreditGroup.PRODUCTION -> "Sản xuất"
-    CreditGroup.ENGINEERING -> "Kỹ thuật"
-    CreditGroup.PERFORMANCE -> "Trình diễn"
-    CreditGroup.RELEASE -> "Phát hành"
-    CreditGroup.OTHER -> "Khác"
+private fun creditGroupLabelRes(group: CreditGroup): Int = when (group) {
+    CreditGroup.WRITING -> R.string.credits_group_writing
+    CreditGroup.PRODUCTION -> R.string.credits_group_production
+    CreditGroup.ENGINEERING -> R.string.credits_group_engineering
+    CreditGroup.PERFORMANCE -> R.string.credits_group_performance
+    CreditGroup.RELEASE -> R.string.credits_group_release
+    CreditGroup.OTHER -> R.string.credits_group_other
 }
+
+@Composable
+private fun ManualCreditEditor(
+    name: String,
+    onNameChange: (String) -> Unit,
+    role: String,
+    onRoleChange: (String) -> Unit,
+    showRoleMenu: Boolean,
+    onShowRoleMenu: (Boolean) -> Unit,
+    albumScope: Boolean,
+    onAlbumScopeChange: (Boolean) -> Unit,
+    trackId: String?,
+    trackTitles: Map<String, String>,
+    showTrackMenu: Boolean,
+    onShowTrackMenu: (Boolean) -> Unit,
+    onTrackChange: (String) -> Unit,
+    onSave: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    Card(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(
+                value = name,
+                onValueChange = onNameChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text(stringResource(R.string.credits_manual_name)) },
+                maxLines = 3,
+            )
+            Box {
+                OutlinedTextField(
+                    value = stringResource(manualRoleRes(role)),
+                    onValueChange = {},
+                    readOnly = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(stringResource(R.string.credits_manual_role)) },
+                )
+                DropdownMenu(expanded = showRoleMenu, onDismissRequest = { onShowRoleMenu(false) }) {
+                    manualRoleOptions().forEach { (raw, labelRes) ->
+                        DropdownMenuItem(
+                            text = { Text(stringResource(labelRes)) },
+                            onClick = { onRoleChange(raw); onShowRoleMenu(false) },
+                        )
+                    }
+                }
+                Button(onClick = { onShowRoleMenu(true) }, modifier = Modifier.matchParentSize()) { Text(stringResource(manualRoleRes(role))) }
+            }
+            Text(stringResource(R.string.credits_manual_scope), style = MaterialTheme.typography.labelLarge)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                RadioButton(selected = albumScope, onClick = { onAlbumScopeChange(true) })
+                Text(stringResource(R.string.credits_manual_scope_album))
+                RadioButton(selected = !albumScope, onClick = { onAlbumScopeChange(false) })
+                Text(stringResource(R.string.credits_manual_scope_track))
+            }
+            if (!albumScope) {
+                Box {
+                    val selectedTitle = trackId?.let(trackTitles::get).orEmpty()
+                    OutlinedTextField(
+                        value = selectedTitle,
+                        onValueChange = {},
+                        readOnly = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text(stringResource(R.string.credits_manual_choose_track)) },
+                    )
+                    DropdownMenu(expanded = showTrackMenu, onDismissRequest = { onShowTrackMenu(false) }) {
+                        trackTitles.toList().sortedBy { it.second }.forEach { (id, title) ->
+                            DropdownMenuItem(text = { Text(title) }, onClick = { onTrackChange(id); onShowTrackMenu(false) })
+                        }
+                    }
+                    Button(onClick = { onShowTrackMenu(true) }, modifier = Modifier.matchParentSize(), enabled = trackTitles.isNotEmpty()) {
+                        Text(selectedTitle.ifBlank { stringResource(R.string.credits_manual_choose_track) })
+                    }
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = onSave, enabled = name.isNotBlank() && (albumScope || trackId != null)) { Text(stringResource(R.string.credits_manual_save)) }
+                TextButton(onClick = onCancel) { Text(stringResource(R.string.credits_manual_cancel)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BulkCreditEditor(
+    text: String,
+    onTextChange: (String) -> Unit,
+    albumScope: Boolean,
+    onAlbumScopeChange: (Boolean) -> Unit,
+    trackId: String?,
+    trackTitles: Map<String, String>,
+    showTrackMenu: Boolean,
+    onShowTrackMenu: (Boolean) -> Unit,
+    onTrackChange: (String) -> Unit,
+    onSave: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    val drafts = com.youneko.rate.data.credits.ManualCreditParser.parse(text)
+    Card(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(
+                value = text,
+                onValueChange = onTextChange,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp, max = 260.dp),
+                label = { Text(stringResource(R.string.credits_bulk_paste)) },
+                placeholder = { Text(stringResource(R.string.credits_bulk_paste_hint)) },
+                maxLines = 12,
+            )
+            Text(stringResource(R.string.credits_bulk_preview, drafts.size), style = MaterialTheme.typography.labelLarge)
+            if (drafts.isEmpty()) Text(stringResource(R.string.credits_bulk_empty), style = MaterialTheme.typography.bodySmall)
+            else drafts.forEach { draft -> Text("${draft.personName} — ${draft.role}", style = MaterialTheme.typography.bodySmall) }
+            Text(stringResource(R.string.credits_manual_scope), style = MaterialTheme.typography.labelLarge)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                RadioButton(selected = albumScope, onClick = { onAlbumScopeChange(true) })
+                Text(stringResource(R.string.credits_manual_scope_album))
+                RadioButton(selected = !albumScope, onClick = { onAlbumScopeChange(false) })
+                Text(stringResource(R.string.credits_manual_scope_track))
+            }
+            if (!albumScope) {
+                Box {
+                    val selectedTitle = trackId?.let(trackTitles::get).orEmpty()
+                    OutlinedTextField(value = selectedTitle, onValueChange = {}, readOnly = true, modifier = Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.credits_manual_choose_track)) })
+                    DropdownMenu(expanded = showTrackMenu, onDismissRequest = { onShowTrackMenu(false) }) {
+                        trackTitles.toList().sortedBy { it.second }.forEach { (id, title) -> DropdownMenuItem(text = { Text(title) }, onClick = { onTrackChange(id); onShowTrackMenu(false) }) }
+                    }
+                    Button(onClick = { onShowTrackMenu(true) }, modifier = Modifier.matchParentSize(), enabled = trackTitles.isNotEmpty()) { Text(selectedTitle.ifBlank { stringResource(R.string.credits_manual_choose_track) }) }
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = onSave, enabled = drafts.isNotEmpty() && (albumScope || trackId != null)) { Text(stringResource(R.string.credits_bulk_save)) }
+                TextButton(onClick = onCancel) { Text(stringResource(R.string.credits_manual_cancel)) }
+            }
+        }
+    }
+}
+
+private fun manualRoleOptions(): List<Pair<String, Int>> = listOf(
+    "Vocal" to R.string.credits_manual_role_vocal,
+    "Writer" to R.string.credits_manual_role_writer,
+    "Producer" to R.string.credits_manual_role_producer,
+    "Composer" to R.string.credits_manual_role_composer,
+    "Lyricist" to R.string.credits_manual_role_lyricist,
+    "Arranger" to R.string.credits_manual_role_arranger,
+    "Engineer" to R.string.credits_manual_role_engineer,
+    "Instrument" to R.string.credits_manual_role_instrument,
+    "Other" to R.string.credits_manual_role_other,
+)
+
+private fun manualRoleRes(role: String): Int = manualRoleOptions().firstOrNull { it.first == role }?.second ?: R.string.credits_manual_role_other
+
