@@ -2,6 +2,7 @@ package com.youneko.rate
 
 import com.youneko.rate.data.lyrics.Lyrics
 import com.youneko.rate.data.lyrics.LyricsParser
+import com.youneko.rate.data.lyrics.toPlainText
 import com.youneko.rate.data.local.entity.TrackEntity
 import com.youneko.rate.data.scan.StableMediaKey
 import org.junit.Assert.assertEquals
@@ -28,6 +29,29 @@ class FeatureMediaScanLyricsTest {
         val timed = lyrics as Lyrics.Timed
         assertEquals("Hello world", timed.lines.single().text)
         assertEquals("Xin chào", timed.lines.single().translation)
+    }
+
+    @Test
+    fun ttmlAppleWordTiming_staysOutOfReadableText() {
+        val lyrics = LyricsParser.parse(
+            """
+            <tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata"><body><div>
+              <p begin="8s" ttm:agent="v1"><span begin="8.835s" end="9.155s">Now</span> <span begin="9.155s" end="10.056s">he's</span> <span begin="10.056s" end="11s">thinkin'</span></p>
+            </div></body></tt>
+            """.trimIndent(),
+            "apple-word-timing.ttml",
+        ) as Lyrics.Timed
+        val line = lyrics.lines.single()
+        assertEquals("Now he's thinkin'", line.text)
+        assertEquals("v1", line.agent)
+        assertTrue(line.words.size == 3)
+        assertEquals(8_835L, line.words.first().startMs)
+        assertEquals("Now", line.words.first().text)
+        assertTrue('<' !in line.text)
+        assertTrue('>' !in line.text)
+        assertTrue("v1" !in line.text)
+        assertTrue("00:08" !in line.text)
+        assertEquals("Now he's thinkin'", lyrics.toPlainText())
     }
 
     @Test
