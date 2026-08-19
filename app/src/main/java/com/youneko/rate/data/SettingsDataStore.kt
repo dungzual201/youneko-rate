@@ -18,6 +18,7 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.first
 
 private val Context.settingsDataStore by preferencesDataStore(name = "youneko_settings")
 
@@ -89,6 +90,47 @@ class MediaScanStore(private val context: Context) {
             it[Keys.providerVersion] = providerVersion
         }
     }
+}
+
+class PendingRestoreStore(private val context: Context) {
+    private object Keys {
+        val pending = booleanPreferencesKey("pending_restore")
+        val stagingPath = stringPreferencesKey("pending_restore_staging_path")
+        val preRestorePath = stringPreferencesKey("pending_restore_pre_restore_path")
+    }
+
+    suspend fun setPending(stagingPath: String, preRestorePath: String) {
+        context.settingsDataStore.edit {
+            it[Keys.pending] = true
+            it[Keys.stagingPath] = stagingPath
+            it[Keys.preRestorePath] = preRestorePath
+        }
+    }
+
+    suspend fun state(): Triple<Boolean, String?, String?> = context.settingsDataStore.data.map {
+        Triple(it[Keys.pending] ?: false, it[Keys.stagingPath], it[Keys.preRestorePath])
+    }.first()
+
+    suspend fun clear() {
+        context.settingsDataStore.edit {
+            it.remove(Keys.pending)
+            it.remove(Keys.stagingPath)
+            it.remove(Keys.preRestorePath)
+        }
+    }
+}
+
+class AutoBackupStore(private val context: Context) {
+    private object Keys {
+        val enabled = booleanPreferencesKey("auto_backup_enabled")
+        val treeUri = stringPreferencesKey("auto_backup_tree_uri")
+    }
+
+    val enabled: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.enabled] ?: false }
+    val treeUri: Flow<String?> = context.settingsDataStore.data.map { it[Keys.treeUri] }
+
+    suspend fun setFolder(uri: String) { context.settingsDataStore.edit { it[Keys.treeUri] = uri } }
+    suspend fun setEnabled(value: Boolean) { context.settingsDataStore.edit { it[Keys.enabled] = value } }
 }
 
 class SettingsDataStore(private val context: Context) : SettingsStore {

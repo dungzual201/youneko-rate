@@ -326,6 +326,9 @@ interface CollectionDao {
     @Query("SELECT * FROM collection_albums WHERE collectionId = :collectionId ORDER BY sortOrder, albumId")
     suspend fun findAlbums(collectionId: String): List<com.youneko.rate.data.local.entity.CollectionAlbumEntity>
 
+    @Query("SELECT * FROM collection_albums ORDER BY collectionId, sortOrder, albumId")
+    suspend fun findAllAlbums(): List<com.youneko.rate.data.local.entity.CollectionAlbumEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAlbum(value: com.youneko.rate.data.local.entity.CollectionAlbumEntity)
 
