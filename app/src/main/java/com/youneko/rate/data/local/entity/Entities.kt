@@ -91,6 +91,13 @@ data class TrackEntity(
     val fileName: String? = null,
     val createdAt: Long,
     val updatedAt: Long,
+    val mediaStoreId: Long? = null,
+    val stableKey: String? = null,
+    val fileSizeBytes: Long? = null,
+    val fileHash64k: String? = null,
+    val isMissing: Boolean = false,
+    val missingSince: Long? = null,
+    val mediaStoreModifiedSeconds: Long? = null,
 )
 
 @Entity(
@@ -279,4 +286,12 @@ data class CollectionAlbumEntity(
     val collectionId: String,
     val albumId: String,
     val sortOrder: Int = 0,
+)
+
+@Entity(tableName = "scan_roots")
+data class ScanRootEntity(
+    @PrimaryKey val uri: String,
+    val displayName: String? = null,
+    val addedAt: Long,
+    val lastScannedAt: Long? = null,
 )

@@ -329,3 +329,18 @@ interface CollectionDao {
     @Query("DELETE FROM collection_albums WHERE collectionId = :collectionId AND albumId = :albumId")
     suspend fun removeAlbum(collectionId: String, albumId: String)
 }
+
+@Dao
+interface ScanRootDao {
+    @Query("SELECT * FROM scan_roots ORDER BY addedAt")
+    fun observeAll(): Flow<List<com.youneko.rate.data.local.entity.ScanRootEntity>>
+
+    @Query("SELECT * FROM scan_roots ORDER BY addedAt")
+    suspend fun findAll(): List<com.youneko.rate.data.local.entity.ScanRootEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(root: com.youneko.rate.data.local.entity.ScanRootEntity)
+
+    @Query("DELETE FROM scan_roots WHERE uri = :uri")
+    suspend fun delete(uri: String)
+}

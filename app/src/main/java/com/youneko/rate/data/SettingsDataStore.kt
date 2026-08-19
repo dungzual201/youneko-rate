@@ -6,6 +6,7 @@ import android.security.keystore.KeyProperties
 import android.util.Base64
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.doublePreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -58,6 +59,36 @@ interface SettingsStore {
     suspend fun setCreditSourceOrder(value: String)
     suspend fun setActiveCreditSources(value: String)
     suspend fun setCreditsMergeMode(value: Boolean)
+}
+
+data class MediaScanCheckpoint(
+    val lastScanTimeMs: Long = 0L,
+    val lastGeneration: Long = -1L,
+    val providerVersion: String = "media-scan-v1",
+)
+
+class MediaScanStore(private val context: Context) {
+    private object Keys {
+        val lastScanTimeMs = longPreferencesKey("media_scan_last_time_ms")
+        val lastGeneration = longPreferencesKey("media_scan_last_generation")
+        val providerVersion = stringPreferencesKey("media_scan_provider_version")
+    }
+
+    val checkpoint: Flow<MediaScanCheckpoint> = context.settingsDataStore.data.map {
+        MediaScanCheckpoint(
+            lastScanTimeMs = it[Keys.lastScanTimeMs] ?: 0L,
+            lastGeneration = it[Keys.lastGeneration] ?: -1L,
+            providerVersion = it[Keys.providerVersion] ?: "media-scan-v1",
+        )
+    }
+
+    suspend fun save(lastScanTimeMs: Long, lastGeneration: Long, providerVersion: String) {
+        context.settingsDataStore.edit {
+            it[Keys.lastScanTimeMs] = lastScanTimeMs
+            it[Keys.lastGeneration] = lastGeneration
+            it[Keys.providerVersion] = providerVersion
+        }
+    }
 }
 
 class SettingsDataStore(private val context: Context) : SettingsStore {

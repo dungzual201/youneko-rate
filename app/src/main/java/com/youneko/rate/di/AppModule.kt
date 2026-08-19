@@ -17,6 +17,7 @@ import com.youneko.rate.data.local.dao.LibrarySearchFtsDao
 import com.youneko.rate.data.local.dao.ImportSessionDao
 import com.youneko.rate.data.local.dao.RemoteMetadataCacheDao
 import com.youneko.rate.data.local.dao.SearchHistoryDao
+import com.youneko.rate.data.local.dao.ScanRootDao
 import com.youneko.rate.data.local.dao.TrackDao
 import com.youneko.rate.data.AlbumRepository
 import com.youneko.rate.data.RateRepository
@@ -33,6 +34,7 @@ import com.youneko.rate.data.credits.MusicBrainzCreditSource
 import com.youneko.rate.data.credits.ManualCreditSource
 import com.youneko.rate.data.credits.TagCreditSource
 import com.youneko.rate.data.SettingsStore
+import com.youneko.rate.data.MediaScanStore
 import com.youneko.rate.domain.usecase.CalculateAlbumScoreUseCase
 import dagger.Module
 import dagger.Provides
@@ -49,7 +51,7 @@ object AppModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): YounekoDatabase =
         Room.databaseBuilder(context, YounekoDatabase::class.java, "youneko_rate.db")
-            .addMigrations(YounekoDatabase.MIGRATION_1_2, YounekoDatabase.MIGRATION_2_3, YounekoDatabase.MIGRATION_3_4, YounekoDatabase.MIGRATION_4_5, YounekoDatabase.MIGRATION_5_6, YounekoDatabase.MIGRATION_6_7, YounekoDatabase.MIGRATION_7_8, YounekoDatabase.MIGRATION_8_9, YounekoDatabase.MIGRATION_9_10, YounekoDatabase.MIGRATION_10_11, YounekoDatabase.MIGRATION_11_12, YounekoDatabase.MIGRATION_12_13, YounekoDatabase.MIGRATION_13_14)
+            .addMigrations(YounekoDatabase.MIGRATION_1_2, YounekoDatabase.MIGRATION_2_3, YounekoDatabase.MIGRATION_3_4, YounekoDatabase.MIGRATION_4_5, YounekoDatabase.MIGRATION_5_6, YounekoDatabase.MIGRATION_6_7, YounekoDatabase.MIGRATION_7_8, YounekoDatabase.MIGRATION_8_9, YounekoDatabase.MIGRATION_9_10, YounekoDatabase.MIGRATION_10_11, YounekoDatabase.MIGRATION_11_12, YounekoDatabase.MIGRATION_12_13, YounekoDatabase.MIGRATION_13_14, YounekoDatabase.MIGRATION_14_15)
             .build()
 
     @Provides
@@ -129,6 +131,9 @@ object AppModule {
     fun provideImportSessionDao(database: YounekoDatabase): ImportSessionDao = database.importSessionDao()
 
     @Provides
+    fun provideScanRootDao(database: YounekoDatabase): ScanRootDao = database.scanRootDao()
+
+    @Provides
     @Singleton
     fun provideAlbumRepository(repository: RateRepository): AlbumRepository = repository
 
@@ -143,4 +148,9 @@ object AppModule {
     @Singleton
     fun provideSettingsStore(@ApplicationContext context: Context): SettingsStore =
         SettingsDataStore(context)
+
+    @Provides
+    @Singleton
+    fun provideMediaScanStore(@ApplicationContext context: Context): MediaScanStore =
+        MediaScanStore(context)
 }

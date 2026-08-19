@@ -10,6 +10,7 @@ import com.youneko.rate.data.local.dao.ArtistDao
 import com.youneko.rate.data.local.dao.AudioAnalysisDao
 import com.youneko.rate.data.local.dao.CreditDao
 import com.youneko.rate.data.local.dao.CollectionDao
+import com.youneko.rate.data.local.dao.ScanRootDao
 import com.youneko.rate.data.local.dao.LibrarySearchFtsDao
 import com.youneko.rate.data.local.dao.ImportSessionDao
 import com.youneko.rate.data.local.dao.RemoteMetadataCacheDao
@@ -29,6 +30,7 @@ import com.youneko.rate.data.local.entity.AlbumTagEntity
 import com.youneko.rate.data.local.entity.ListeningLogEntity
 import com.youneko.rate.data.local.entity.RemoteMetadataCacheEntity
 import com.youneko.rate.data.local.entity.SearchHistoryEntity
+import com.youneko.rate.data.local.entity.ScanRootEntity
 import com.youneko.rate.data.local.entity.TrackEntity
 
 @Database(
@@ -48,8 +50,9 @@ import com.youneko.rate.data.local.entity.TrackEntity
         ImportSessionEntity::class,
         CollectionEntity::class,
         CollectionAlbumEntity::class,
+        ScanRootEntity::class,
     ],
-    version = 14,
+    version = 15,
     exportSchema = true,
 )
 @TypeConverters(YounekoTypeConverters::class)
@@ -69,8 +72,24 @@ abstract class YounekoDatabase : RoomDatabase() {
     abstract fun librarySearchFtsDao(): LibrarySearchFtsDao
     abstract fun importSessionDao(): ImportSessionDao
     abstract fun collectionDao(): CollectionDao
+    abstract fun scanRootDao(): ScanRootDao
 
     companion object {
+        val MIGRATION_14_15: Migration = object : Migration(14, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE tracks ADD COLUMN mediaStoreId INTEGER")
+                db.execSQL("ALTER TABLE tracks ADD COLUMN stableKey TEXT")
+                db.execSQL("ALTER TABLE tracks ADD COLUMN fileSizeBytes INTEGER")
+                db.execSQL("ALTER TABLE tracks ADD COLUMN fileHash64k TEXT")
+                db.execSQL("ALTER TABLE tracks ADD COLUMN isMissing INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE tracks ADD COLUMN missingSince INTEGER")
+                db.execSQL("ALTER TABLE tracks ADD COLUMN mediaStoreModifiedSeconds INTEGER")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_tracks_mediaStoreId ON tracks(mediaStoreId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_tracks_stableKey ON tracks(stableKey)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS scan_roots (uri TEXT NOT NULL PRIMARY KEY, displayName TEXT, addedAt INTEGER NOT NULL, lastScannedAt INTEGER)")
+            }
+        }
+
         val MIGRATION_13_14: Migration = object : Migration(13, 14) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("CREATE TABLE IF NOT EXISTS collections (id TEXT NOT NULL PRIMARY KEY, name TEXT NOT NULL, description TEXT, createdAt INTEGER NOT NULL)")
