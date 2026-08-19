@@ -311,6 +311,7 @@ class Phase6CreditsTest {
         override suspend fun insertAll(tracks: List<TrackEntity>) = Unit
         override suspend fun insertAllIgnore(tracks: List<TrackEntity>) = Unit
         override suspend fun update(track: TrackEntity) = Unit
+        override suspend fun updateAll(tracks: List<TrackEntity>) = Unit
         override suspend fun deleteById(id: String) = Unit
         override suspend fun findForAlbum(albumId: String): List<TrackEntity> = listOf(track)
         override suspend fun findAll(): List<TrackEntity> = listOf(track)

@@ -10,6 +10,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.DefaultLifecycleObserver
@@ -36,6 +37,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 private const val CHANNEL_ID = "media_scan"
+private const val SCAN_TAG = "SCAN"
 private const val NOTIFICATION_ID = 4101
 private const val UNIQUE_PERIODIC = "media_scan_periodic"
 private const val UNIQUE_ON_RESUME = "media_scan_on_resume"
@@ -48,8 +50,12 @@ interface MediaScanWorkerEntryPoint {
 
 class MediaStoreScanWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result {
+        Log.i(SCAN_TAG, "SCAN: WorkInfo.State=RUNNING exception=null")
         val scanner = EntryPointAccessors.fromApplication(applicationContext, MediaScanWorkerEntryPoint::class.java).scanner()
-        if (!hasPermission() && !scanner.hasSafRoots()) return Result.success(workDataOf(KEY_SKIPPED to true))
+        if (!hasPermission() && !scanner.hasSafRoots()) {
+            Log.i(SCAN_TAG, "SCAN: WorkInfo.State=SUCCEEDED exception=null reason=no-access")
+            return Result.success(workDataOf(KEY_SKIPPED to true))
+        }
         setForeground(createForegroundInfo(0, 0))
         return runCatching {
             val forceFull = inputData.getBoolean(KEY_FORCE_FULL, false)
@@ -61,8 +67,11 @@ class MediaStoreScanWorker(appContext: Context, params: WorkerParameters) : Coro
                 setProgressAsync(Data.Builder().putInt(KEY_DONE, done).putInt(KEY_TOTAL, total).build())
                 setForegroundAsync(createForegroundInfo(done, total))
             }
+            Log.i(SCAN_TAG, "SCAN: WorkInfo.State=SUCCEEDED exception=null")
             Result.success(workDataOf(KEY_SCANNED to result.scanned + safResult.scanned, KEY_ADDED to result.added + safResult.added, KEY_MISSING to result.missing + safResult.missing, KEY_SKIPPED to (result.skipped && safResult.scanned == 0)))
         }.getOrElse { throwable ->
+            val nextState = if (runAttemptCount < 2) "RETRY" else "FAILED"
+            Log.e(SCAN_TAG, "SCAN: WorkInfo.State=$nextState exception=${throwable::class.java.simpleName}: ${throwable.message}", throwable)
             if (runAttemptCount < 2) Result.retry() else Result.failure(workDataOf(KEY_ERROR to throwable.message.orEmpty()))
         }
     }
@@ -118,6 +127,7 @@ class MediaScanCoordinator @Inject constructor(
 ) : DefaultLifecycleObserver {
     private val handler = Handler(Looper.getMainLooper())
     private var registered = false
+    private var observedUris: List<android.net.Uri> = emptyList()
     private val observer = object : android.database.ContentObserver(handler) {
         override fun onChange(selfChange: Boolean) {
             handler.removeCallbacksAndMessages(this)
@@ -132,13 +142,19 @@ class MediaScanCoordinator @Inject constructor(
     }
 
     override fun onStart(owner: LifecycleOwner) {
-        context.contentResolver.registerContentObserver(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, true, observer)
+        observedUris = if (Build.VERSION.SDK_INT >= 29) {
+            MediaStore.getExternalVolumeNames(context).map { volume -> MediaStore.Audio.Media.getContentUri(volume) }
+        } else {
+            listOf(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI)
+        }.ifEmpty { listOf(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI) }
+        observedUris.forEach { uri -> context.contentResolver.registerContentObserver(uri, true, observer) }
         enqueueMediaScan(context)
         schedulePeriodicMediaScan(context)
     }
 
     override fun onStop(owner: LifecycleOwner) {
-        runCatching { context.contentResolver.unregisterContentObserver(observer) }
+        if (observedUris.isNotEmpty()) runCatching { context.contentResolver.unregisterContentObserver(observer) }
+        observedUris = emptyList()
         handler.removeCallbacksAndMessages(observer)
     }
 }

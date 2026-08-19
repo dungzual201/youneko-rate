@@ -4,9 +4,12 @@ import android.content.ContentUris
 import android.content.Context
 import android.net.Uri
 import android.os.Build
+import android.content.pm.PackageManager
 import android.provider.MediaStore
+import android.util.Log
 import androidx.room.withTransaction
 import com.youneko.rate.data.MediaScanStore
+import com.youneko.rate.data.artwork.ArtworkStore
 import com.youneko.rate.data.importer.AudioTag
 import com.youneko.rate.data.importer.ImportDedupe
 import com.youneko.rate.data.importer.LocalAudioTagReader
@@ -25,9 +28,15 @@ import java.security.MessageDigest
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
 
 private const val HASH_BYTES = 64 * 1024
+private const val SCAN_BATCH_SIZE = 400
+private const val SCAN_TAG = "SCAN"
 
 /** A local MediaStore row. This class never exposes audio playback APIs. */
 data class MediaStoreAudioRow(
@@ -37,6 +46,7 @@ data class MediaStoreAudioRow(
     val artist: String?,
     val album: String?,
     val albumArtist: String?,
+    val mediaStoreAlbumId: Long?,
     val trackNumber: Int?,
     val discNumber: Int?,
     val year: Int?,
@@ -98,77 +108,119 @@ class MediaStoreScanner @Inject constructor(
     private val scanRootDao: ScanRootDao,
     private val scanStore: MediaScanStore,
     private val tagReader: LocalAudioTagReader,
+    private val artworkStore: ArtworkStore,
 ) {
     suspend fun scan(forceFull: Boolean = false, onProgress: (done: Int, total: Int) -> Unit = { _, _ -> }): MediaScanResult {
+        val scanStartedAt = System.currentTimeMillis()
+        Log.i(
+            SCAN_TAG,
+            "SCAN: sdk=${Build.VERSION.SDK_INT} " +
+                "READ_MEDIA_AUDIO=${permissionStatus(android.Manifest.permission.READ_MEDIA_AUDIO)} " +
+                "READ_EXTERNAL_STORAGE=${permissionStatus(android.Manifest.permission.READ_EXTERNAL_STORAGE)}",
+        )
         val checkpoint = scanStore.checkpoint.first()
         val generation = currentGeneration()
+        Log.i(SCAN_TAG, "SCAN: lastScanTime=${checkpoint.lastScanTimeMs} lastGeneration=${checkpoint.lastGeneration} currentGeneration=$generation")
         if (!forceFull && generation != null && MediaScanPolicy.shouldSkip(forceFull, checkpoint, generation)) {
+            Log.i(SCAN_TAG, "SCAN: gen stored=${checkpoint.lastGeneration} current=$generation decision=skip")
             return MediaScanResult(0, 0, 0, 0, skipped = true)
         }
+        Log.i(SCAN_TAG, "SCAN: gen stored=${checkpoint.lastGeneration} current=$generation decision=run")
         val full = MediaScanPolicy.requiresFull(forceFull, checkpoint, generation)
         val rows = queryRows(MediaScanPolicy.changedAfter(checkpoint, forceFull, generation))
         if (rows.isEmpty()) {
             val missing = markMissingIfNeeded(rows, full)
+            val albumCount = albumDao.findAll().size
+            val trackCount = trackDao.findAll().size
+            Log.i(SCAN_TAG, "SCAN: phase1 durationMs=${System.currentTimeMillis() - scanStartedAt} rows=0")
+            Log.i(SCAN_TAG, "SCAN: inserted=0 updated=0 albums=$albumCount")
+            Log.i(SCAN_TAG, "SCAN: db tracks=$trackCount albums=$albumCount")
             scanStore.save(System.currentTimeMillis(), generation ?: -1L, MediaScanPolicy.PROVIDER_VERSION)
             return MediaScanResult(0, 0, 0, missing)
         }
-        val tagResult = tagReader.readAll(rows.map { it.uri })
-        val tags = tagResult.tags.associateBy { it.uri }
-        var added = 0
-        var updated = 0
+
+        val phase1StartedAt = System.currentTimeMillis()
+        val existing = trackDao.findAll()
+        val inserts = mutableListOf<TrackEntity>()
+        val updates = mutableListOf<TrackEntity>()
         val seenMediaIds = rows.mapTo(mutableSetOf()) { it.id }
         rows.forEachIndexed { index, row ->
-            val tag = tags[row.uri.toString()]
-            val hash = first64kHash(row.uri)
-            val stableKey = StableMediaKey.from(row.sizeBytes, row.durationMs, hash)
-            val existing = findMatch(row, stableKey, hash)
-            val albumId = resolveAlbumId(row, tag)
-            if (existing == null) {
-                val track = TrackEntity(
+            val candidates = existing + inserts
+            val direct = findMatchWithoutHash(row, candidates)
+            val possibleRematch = if (direct == null) findPossibleRematch(row, candidates) else null
+            val lazyHash = if (possibleRematch != null) first64kHash(row.uri) else null
+            val lazyStableKey = if (possibleRematch != null) StableMediaKey.from(row.sizeBytes, row.durationMs, lazyHash) else null
+            val current = direct ?: candidates.firstOrNull { candidate ->
+                lazyStableKey != null && candidate.stableKey == lazyStableKey
+            }
+            val albumId = resolveAlbumId(row, null)
+            val now = System.currentTimeMillis()
+            if (current == null) {
+                inserts += TrackEntity(
                     id = UUID.randomUUID().toString(),
                     albumId = albumId,
-                    title = tag?.title?.takeIf(String::isNotBlank) ?: row.title?.takeIf(String::isNotBlank) ?: row.displayName,
-                    trackNumber = tag?.trackNumber ?: row.trackNumber,
-                    discNumber = tag?.discNumber ?: row.discNumber,
-                    durationMs = tag?.durationMs ?: row.durationMs,
+                    title = row.title?.takeIf(String::isNotBlank) ?: row.displayName,
+                    trackNumber = row.trackNumber,
+                    discNumber = row.discNumber,
+                    durationMs = row.durationMs,
+                    isStandalone = albumId == null,
                     sourceUri = row.uri.toString(),
                     fileName = row.displayName,
-                    createdAt = System.currentTimeMillis(),
-                    updatedAt = System.currentTimeMillis(),
+                    createdAt = now,
+                    updatedAt = now,
                     mediaStoreId = row.id,
-                    stableKey = stableKey,
                     fileSizeBytes = row.sizeBytes,
-                    fileHash64k = hash,
+                    stableKey = null,
+                    fileHash64k = null,
                     isMissing = false,
                     missingSince = null,
                     mediaStoreModifiedSeconds = row.dateModifiedSeconds,
                 )
-                database.withTransaction {
-                    trackDao.insert(track)
-                    ftsDao.upsert(LibrarySearchFtsEntity(track.id, "track", "${track.title} ${row.artist.orEmpty()}"))
-                }
-                added++
             } else {
-                val refreshed = MissingTrackPolicy.markPresent(existing.copy(
-                    sourceUri = row.uri.toString(),
-                    fileName = row.displayName,
-                    mediaStoreId = row.id,
-                    stableKey = stableKey ?: existing.stableKey,
-                    fileSizeBytes = row.sizeBytes,
-                    fileHash64k = hash ?: existing.fileHash64k,
-                    isMissing = false,
-                    missingSince = null,
-                    mediaStoreModifiedSeconds = row.dateModifiedSeconds,
-                    durationMs = existing.durationMs ?: tag?.durationMs ?: row.durationMs,
-                ), System.currentTimeMillis())
-                trackDao.update(refreshed)
-                updated++
+                updates += MissingTrackPolicy.markPresent(
+                    current.copy(
+                        albumId = albumId ?: current.albumId,
+                        isStandalone = albumId == null && current.albumId == null,
+                        sourceUri = row.uri.toString(),
+                        fileName = row.displayName,
+                        mediaStoreId = row.id,
+                        stableKey = lazyStableKey ?: current.stableKey,
+                        fileSizeBytes = row.sizeBytes,
+                        fileHash64k = lazyHash ?: current.fileHash64k,
+                        isMissing = false,
+                        missingSince = null,
+                        mediaStoreModifiedSeconds = row.dateModifiedSeconds,
+                        durationMs = current.durationMs ?: row.durationMs,
+                    ),
+                    now,
+                )
             }
             onProgress(index + 1, rows.size)
         }
+        inserts.chunked(SCAN_BATCH_SIZE).forEach { batch ->
+            database.withTransaction {
+                trackDao.insertAll(batch)
+                batch.forEach { track -> ftsDao.upsert(LibrarySearchFtsEntity(track.id, "track", "${track.title} ${track.fileName.orEmpty()}")) }
+            }
+        }
+        updates.chunked(SCAN_BATCH_SIZE).forEach { batch ->
+            database.withTransaction {
+                trackDao.updateAll(batch)
+                batch.forEach { track -> ftsDao.upsert(LibrarySearchFtsEntity(track.id, "track", "${track.title} ${track.fileName.orEmpty()}")) }
+            }
+        }
         val missing = markMissingIfNeeded(rows, full, seenMediaIds)
+        val phase1Duration = System.currentTimeMillis() - phase1StartedAt
+        Log.i(SCAN_TAG, "SCAN: phase1 durationMs=$phase1Duration rows=${rows.size}")
+        Log.i(SCAN_TAG, "SCAN: inserted=${inserts.size} updated=${updates.size} albums=${albumDao.findAll().size}")
+        val phase2StartedAt = System.currentTimeMillis()
+        val enriched = enrichRows(rows, onProgress)
+        Log.i(SCAN_TAG, "SCAN: phase2 durationMs=${System.currentTimeMillis() - phase2StartedAt} enriched=$enriched")
         scanStore.save(System.currentTimeMillis(), generation ?: -1L, MediaScanPolicy.PROVIDER_VERSION)
-        return MediaScanResult(rows.size, added, updated, missing)
+        val albumCount = albumDao.findAll().size
+        val trackCount = trackDao.findAll().size
+        Log.i(SCAN_TAG, "SCAN: db tracks=$trackCount albums=$albumCount")
+        return MediaScanResult(rows.size, inserts.size, updates.size, missing)
     }
 
     suspend fun hasSafRoots(): Boolean = scanRootDao.findAll().isNotEmpty()
@@ -193,6 +245,7 @@ class MediaStoreScanner @Inject constructor(
                 artist = tag.artist,
                 album = tag.album,
                 albumArtist = tag.albumArtist,
+                mediaStoreAlbumId = null,
                 trackNumber = tag.trackNumber,
                 discNumber = tag.discNumber,
                 year = tag.year,
@@ -210,6 +263,8 @@ class MediaStoreScanner @Inject constructor(
                 val created = TrackEntity(
                     id = UUID.randomUUID().toString(), albumId = albumId,
                     title = tag.title?.takeIf(String::isNotBlank) ?: tag.fileName,
+                    isStandalone = albumId == null,
+                    isMissing = false,
                     trackNumber = tag.trackNumber, discNumber = tag.discNumber, durationMs = tag.durationMs,
                     sourceUri = tag.uri, fileName = tag.fileName, createdAt = now, updatedAt = now,
                     stableKey = stableKey, fileSizeBytes = size, fileHash64k = hash,
@@ -226,13 +281,90 @@ class MediaStoreScanner @Inject constructor(
         return MediaScanResult(tags.size, added, updated, 0)
     }
 
+    private suspend fun enrichRows(rows: List<MediaStoreAudioRow>, onProgress: (done: Int, total: Int) -> Unit): Int = coroutineScope {
+        val dispatcher = Dispatchers.IO.limitedParallelism(4)
+        val enriched = rows.map { row ->
+            async(dispatcher) {
+                row to runCatching { tagReader.readAll(listOf(row.uri)).tags.firstOrNull() }.getOrNull()
+            }
+        }.awaitAll()
+        var count = 0
+        val currentByMediaId = trackDao.findAll().filter { it.mediaStoreId != null }.associateBy { it.mediaStoreId }
+        val currentByUri = trackDao.findAll().filter { it.sourceUri != null }.associateBy { it.sourceUri }
+        enriched.forEachIndexed { index, (row, tag) ->
+            if (tag != null) {
+                val current = currentByMediaId[row.id] ?: currentByUri[row.uri.toString()]
+                if (current != null) {
+                    val albumId = resolveAlbumId(row, tag)
+                    val cover = if (albumId != null && albumDao.findById(albumId)?.coverUri == null) {
+                        if (tag.artwork != null) {
+                            artworkStore.persistAlbumArtwork(albumId, tag.artwork.path, tag.artwork.source)
+                        } else {
+                            tagReader.extractArtwork(row.uri, albumId, row.mediaStoreAlbumId)
+                        }
+                    } else null
+                    val now = System.currentTimeMillis()
+                    database.withTransaction {
+                        trackDao.update(
+                            MissingTrackPolicy.markPresent(
+                                current.copy(
+                                    albumId = albumId ?: current.albumId,
+                                    isStandalone = albumId == null && current.albumId == null,
+                                    title = tag.title?.takeIf(String::isNotBlank) ?: current.title,
+                                    trackNumber = tag.trackNumber ?: current.trackNumber,
+                                    discNumber = tag.discNumber ?: current.discNumber,
+                                    durationMs = tag.durationMs ?: current.durationMs,
+                                    sourceUri = row.uri.toString(),
+                                    fileName = row.displayName,
+                                    mediaStoreId = row.id,
+                                    mediaStoreModifiedSeconds = row.dateModifiedSeconds,
+                                ),
+                                now,
+                            ),
+                        )
+                        if (cover != null && albumId != null) {
+                            albumDao.findById(albumId)?.let { album ->
+                                if (album.coverUri == null) {
+                                    albumDao.update(
+                                        album.copy(
+                                            coverUri = java.io.File(cover.path).toURI().toString(),
+                                            coverThumbUri = java.io.File(cover.path).toURI().toString(),
+                                            coverSource = cover.source,
+                                            coverWidth = cover.width,
+                                            coverUpdatedAt = now,
+                                            updatedAt = now,
+                                        ),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    count++
+                }
+            }
+            onProgress(index + 1, rows.size)
+        }
+        count
+    }
+
+    private fun findMatchWithoutHash(row: MediaStoreAudioRow, candidates: List<TrackEntity>): TrackEntity? {
+        candidates.firstOrNull { it.mediaStoreId == row.id }?.let { return it }
+        val path = pathKey(row.relativePath, row.displayName)
+        return candidates.firstOrNull { pathKey(null, it.fileName) == path && it.fileName != null }
+    }
+
+    private fun findPossibleRematch(row: MediaStoreAudioRow, candidates: List<TrackEntity>): TrackEntity? = candidates.firstOrNull { candidate ->
+        ImportDedupe.normalize(candidate.title) == ImportDedupe.normalize(row.title) &&
+            StableMediaKey.durationMatches(candidate.durationMs, row.durationMs)
+    }
+
     private suspend fun resolveAlbumId(row: MediaStoreAudioRow, tag: AudioTag?): String? {
         val album = tag?.album?.takeIf(String::isNotBlank) ?: row.album?.takeIf(String::isNotBlank) ?: return null
         val artistName = tag?.albumArtist?.takeIf(String::isNotBlank)
             ?: row.albumArtist?.takeIf(String::isNotBlank)
             ?: tag?.artist?.takeIf(String::isNotBlank)
             ?: row.artist?.takeIf(String::isNotBlank)
-            ?: "Nghệ sĩ chưa rõ"
+            ?: "Không rõ nghệ sĩ"
         val year = tag?.year ?: row.year
         val existing = albumDao.findAll().firstOrNull { candidate ->
             val artist = artistDao.findById(candidate.artistId)
@@ -288,13 +420,14 @@ class MediaStoreScanner @Inject constructor(
 
     private fun queryRows(changedAfterMs: Long?): List<MediaStoreAudioRow> {
         val resolver = context.contentResolver
-        val uri = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+        val volumes = mediaVolumeUris()
         val projection = buildList {
             add(MediaStore.Audio.Media._ID)
             add(MediaStore.Audio.Media.TITLE)
             add(MediaStore.Audio.Media.ARTIST)
             add(MediaStore.Audio.Media.ALBUM)
             add(MediaStore.Audio.Media.ALBUM_ARTIST)
+            add(MediaStore.Audio.Media.ALBUM_ID)
             add(MediaStore.Audio.Media.TRACK)
             add(MediaStore.Audio.Media.DISC_NUMBER)
             add(MediaStore.Audio.Media.YEAR)
@@ -306,56 +439,89 @@ class MediaStoreScanner @Inject constructor(
             add(MediaStore.Audio.Media.DATE_MODIFIED)
             add(MediaStore.Audio.Media.DATE_ADDED)
         }.toTypedArray()
-        val selection = buildString {
-            append("${MediaStore.Audio.Media.IS_MUSIC} != 0")
-            if (changedAfterMs != null) append(" AND ${MediaStore.Audio.Media.DATE_MODIFIED} > ?")
+        val baseSelection = if (Build.VERSION.SDK_INT >= 29) {
+            "(${MediaStore.Audio.Media.IS_MUSIC} != 0 OR is_podcast != 0)"
+        } else {
+            "${MediaStore.Audio.Media.IS_MUSIC} != 0"
         }
+        val selection = if (changedAfterMs == null) baseSelection else "$baseSelection AND ${MediaStore.Audio.Media.DATE_MODIFIED} > ?"
         val args = changedAfterMs?.let { arrayOf((it / 1000L).toString()) }
-        return resolver.query(uri, projection, selection, args, "${MediaStore.Audio.Media.DATE_MODIFIED} ASC")?.use { cursor ->
-            val result = mutableListOf<MediaStoreAudioRow>()
-            val index = { name: String -> cursor.getColumnIndex(name) }
-            while (cursor.moveToNext()) {
-                val id = cursor.getLong(index(MediaStore.Audio.Media._ID))
-                result += MediaStoreAudioRow(
-                    id = id,
-                    uri = ContentUris.withAppendedId(uri, id),
-                    title = cursor.string(index(MediaStore.Audio.Media.TITLE)),
-                    artist = cursor.string(index(MediaStore.Audio.Media.ARTIST)),
-                    album = cursor.string(index(MediaStore.Audio.Media.ALBUM)),
-                    albumArtist = cursor.string(index(MediaStore.Audio.Media.ALBUM_ARTIST)),
-                    trackNumber = cursor.int(index(MediaStore.Audio.Media.TRACK)),
-                    discNumber = cursor.int(index(MediaStore.Audio.Media.DISC_NUMBER)),
-                    year = cursor.int(index(MediaStore.Audio.Media.YEAR)),
-                    durationMs = cursor.long(index(MediaStore.Audio.Media.DURATION)),
-                    mimeType = cursor.string(index(MediaStore.Audio.Media.MIME_TYPE)),
-                    sizeBytes = cursor.long(index(MediaStore.Audio.Media.SIZE)),
-                    relativePath = cursor.string(index(MediaStore.Audio.Media.RELATIVE_PATH)),
-                    displayName = cursor.string(index(MediaStore.Audio.Media.DISPLAY_NAME)) ?: "audio_$id",
-                    dateModifiedSeconds = cursor.long(index(MediaStore.Audio.Media.DATE_MODIFIED)) ?: 0L,
-                    dateAddedSeconds = cursor.long(index(MediaStore.Audio.Media.DATE_ADDED)) ?: 0L,
-                )
-            }
-            result
-        }.orEmpty()
+        var rawCount = 0
+        var afterIsMusic = 0
+        val result = mutableListOf<MediaStoreAudioRow>()
+        volumes.forEach { uri ->
+            rawCount += countRows(resolver, uri, null, null)
+            afterIsMusic += countRows(resolver, uri, baseSelection, null)
+            runCatching {
+                resolver.query(uri, projection, selection, args, "${MediaStore.Audio.Media.DATE_MODIFIED} ASC")?.use { cursor ->
+                    val index = { name: String -> cursor.getColumnIndex(name) }
+                    while (cursor.moveToNext()) {
+                        val id = cursor.getLong(index(MediaStore.Audio.Media._ID))
+                        result += MediaStoreAudioRow(
+                            id = id,
+                            uri = ContentUris.withAppendedId(uri, id),
+                            title = cursor.string(index(MediaStore.Audio.Media.TITLE)),
+                            artist = cursor.string(index(MediaStore.Audio.Media.ARTIST)),
+                            album = cursor.string(index(MediaStore.Audio.Media.ALBUM)),
+                            albumArtist = cursor.string(index(MediaStore.Audio.Media.ALBUM_ARTIST)),
+                            mediaStoreAlbumId = cursor.long(index(MediaStore.Audio.Media.ALBUM_ID)),
+                            trackNumber = cursor.int(index(MediaStore.Audio.Media.TRACK)),
+                            discNumber = cursor.int(index(MediaStore.Audio.Media.DISC_NUMBER)),
+                            year = cursor.int(index(MediaStore.Audio.Media.YEAR)),
+                            durationMs = cursor.long(index(MediaStore.Audio.Media.DURATION)),
+                            mimeType = cursor.string(index(MediaStore.Audio.Media.MIME_TYPE)),
+                            sizeBytes = cursor.long(index(MediaStore.Audio.Media.SIZE)),
+                            relativePath = cursor.string(index(MediaStore.Audio.Media.RELATIVE_PATH)),
+                            displayName = cursor.string(index(MediaStore.Audio.Media.DISPLAY_NAME)) ?: "audio_$id",
+                            dateModifiedSeconds = cursor.long(index(MediaStore.Audio.Media.DATE_MODIFIED)) ?: 0L,
+                            dateAddedSeconds = cursor.long(index(MediaStore.Audio.Media.DATE_ADDED)) ?: 0L,
+                        )
+                    }
+                }
+            }.onFailure { Log.e(SCAN_TAG, "SCAN: volume query exception uri=$uri", it) }
+        }
+        Log.i(SCAN_TAG, "SCAN: cursor rawCount=$rawCount")
+        Log.i(SCAN_TAG, "SCAN: afterIsMusic=$afterIsMusic")
+        return result
     }
 
-    private fun queryCurrentMediaIds(): Set<Long> {
-        val uri = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
-        return context.contentResolver.query(
-            uri,
-            arrayOf(MediaStore.Audio.Media._ID),
-            "${MediaStore.Audio.Media.IS_MUSIC} != 0",
-            null,
-            null,
-        )?.use { cursor ->
-            buildSet {
+    private fun countRows(resolver: android.content.ContentResolver, uri: Uri, selection: String?, args: Array<String>?): Int =
+        runCatching {
+            resolver.query(uri, arrayOf(MediaStore.Audio.Media._ID), selection, args, null)?.use { cursor ->
+                var count = 0
+                while (cursor.moveToNext()) count++
+                count
+            } ?: 0
+        }.onFailure { Log.e(SCAN_TAG, "SCAN: count query exception uri=$uri", it) }.getOrDefault(0)
+
+    private fun mediaVolumeUris(): List<Uri> = if (Build.VERSION.SDK_INT >= 29) {
+        MediaStore.getExternalVolumeNames(context).map { volume -> MediaStore.Audio.Media.getContentUri(volume) }
+    } else {
+        listOf(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI)
+    }.ifEmpty { listOf(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI) }
+
+    private fun queryCurrentMediaIds(): Set<Long> = buildSet {
+        val selection = if (Build.VERSION.SDK_INT >= 29) {
+            "(${MediaStore.Audio.Media.IS_MUSIC} != 0 OR is_podcast != 0)"
+        } else {
+            "${MediaStore.Audio.Media.IS_MUSIC} != 0"
+        }
+        mediaVolumeUris().forEach { uri ->
+            context.contentResolver.query(uri, arrayOf(MediaStore.Audio.Media._ID), selection, null, null)?.use { cursor ->
                 while (cursor.moveToNext()) add(cursor.getLong(0))
             }
-        }.orEmpty()
+        }
     }
 
+    private fun permissionStatus(permission: String): String =
+        if (context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED) "granted" else "denied"
+
     private fun currentGeneration(): Long? = if (Build.VERSION.SDK_INT >= 30) {
-        runCatching { MediaStore.getGeneration(context, MediaStore.VOLUME_EXTERNAL_PRIMARY) }.getOrNull()
+        runCatching {
+            MediaStore.getExternalVolumeNames(context)
+                .mapNotNull { volume -> runCatching { MediaStore.getGeneration(context, volume) }.getOrNull() }
+                .maxOrNull()
+        }.getOrNull()
     } else null
 
     private fun first64kHash(uri: Uri): String? = StableMediaKey.first64kHash(context, uri)

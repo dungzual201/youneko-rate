@@ -97,6 +97,9 @@ interface TrackDao {
     @Update(onConflict = OnConflictStrategy.ABORT)
     suspend fun update(track: TrackEntity)
 
+    @Update(onConflict = OnConflictStrategy.ABORT)
+    suspend fun updateAll(tracks: List<TrackEntity>)
+
     @Query("DELETE FROM tracks WHERE id = :id")
     suspend fun deleteById(id: String)
 
