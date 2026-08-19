@@ -1,6 +1,7 @@
 package com.youneko.rate.ui.analyze
 
 import android.content.Intent
+import androidx.annotation.StringRes
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -38,6 +40,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -61,22 +64,34 @@ import androidx.work.workDataOf
 import com.youneko.rate.R
 import com.youneko.rate.data.audio.AudioAnalysisWorker
 import com.youneko.rate.data.local.dao.AudioAnalysisDao
+import com.youneko.rate.data.importer.AudioTag
+import com.youneko.rate.data.importer.LocalAudioTagReader
 import com.youneko.rate.data.local.entity.AudioAnalysisEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 
-enum class AnalyzeStep(val labelVi: String) {
-    READING_HEADER("Đang đọc thông tin file…"),
-    DECODING("Đang giải mã âm thanh…"),
-    FFT("Đang phân tích phổ tần (FFT)…"),
-    COMPUTING("Đang tính toán chỉ số…"),
-    SAVING("Đang lưu kết quả…"),
+enum class AnalyzeStep(@StringRes val labelRes: Int) {
+    READING_HEADER(R.string.analyze_step_reading),
+    DECODING(R.string.analyze_step_decoding),
+    FFT(R.string.analyze_step_fft),
+    COMPUTING(R.string.analyze_step_computing),
+    SAVING(R.string.analyze_step_saving),
 }
+
+data class AnalyzeHeader(
+    val title: String,
+    val artist: String? = null,
+    val album: String? = null,
+    val format: String? = null,
+)
 
 sealed interface AnalyzeUiState {
     data object Idle : AnalyzeUiState
@@ -113,25 +128,32 @@ private fun WorkInfo?.toAnalyzeUiState(): AnalyzeUiState {
 
 @HiltViewModel
 class AudioAnalysisViewModel @Inject constructor(
-    @ApplicationContext context: android.content.Context,
+    @ApplicationContext private val context: android.content.Context,
     dao: AudioAnalysisDao,
 ) : ViewModel() {
     private val workManager = WorkManager.getInstance(context)
+    private val _header = MutableStateFlow<AnalyzeHeader?>(null)
+    val header = _header.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
     val analyses = dao.observeAll().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val workInfos = workManager.getWorkInfosForUniqueWorkFlow(AudioAnalysisWorker.UNIQUE_WORK).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun enqueue(uri: String) {
-        val fileName = Uri.parse(uri).lastPathSegment.orEmpty().substringAfterLast('/').ifBlank { "audio" }
-        val request = OneTimeWorkRequestBuilder<AudioAnalysisWorker>()
-            .setInputData(workDataOf(
-                AudioAnalysisWorker.KEY_URI to uri,
-                AudioAnalysisWorker.KEY_FILE_NAME to fileName,
-                AudioAnalysisWorker.KEY_FILE_INDEX to 1,
-                AudioAnalysisWorker.KEY_TOTAL_FILES to 1,
-            ))
-            .setBackoffCriteria(androidx.work.BackoffPolicy.EXPONENTIAL, 10, TimeUnit.SECONDS)
-            .build()
-        workManager.enqueueUniqueWork(AudioAnalysisWorker.UNIQUE_WORK, ExistingWorkPolicy.REPLACE, request)
+        viewModelScope.launch(Dispatchers.IO) {
+            val parsedUri = Uri.parse(uri)
+            val fileName = parsedUri.lastPathSegment.orEmpty().substringAfterLast('/').ifBlank { "audio" }
+            val tag = runCatching { LocalAudioTagReader(context).readAll(listOf(parsedUri)).tags.firstOrNull() }.getOrNull()
+            _header.value = tag.toAnalyzeHeader(fileName)
+            val request = OneTimeWorkRequestBuilder<AudioAnalysisWorker>()
+                .setInputData(workDataOf(
+                    AudioAnalysisWorker.KEY_URI to uri,
+                    AudioAnalysisWorker.KEY_FILE_NAME to fileName,
+                    AudioAnalysisWorker.KEY_FILE_INDEX to 1,
+                    AudioAnalysisWorker.KEY_TOTAL_FILES to 1,
+                ))
+                .setBackoffCriteria(androidx.work.BackoffPolicy.EXPONENTIAL, 10, TimeUnit.SECONDS)
+                .build()
+            workManager.enqueueUniqueWork(AudioAnalysisWorker.UNIQUE_WORK, ExistingWorkPolicy.REPLACE, request)
+        }
     }
 
     fun cancel() = workManager.cancelUniqueWork(AudioAnalysisWorker.UNIQUE_WORK)
@@ -141,6 +163,7 @@ class AudioAnalysisViewModel @Inject constructor(
 fun AudioAnalysisScreen(viewModel: AudioAnalysisViewModel = hiltViewModel()) {
     val analyses by viewModel.analyses.collectAsStateWithLifecycle()
     val workInfos by viewModel.workInfos.collectAsStateWithLifecycle()
+    val header by viewModel.header.collectAsStateWithLifecycle()
     var explain by rememberSaveable { mutableStateOf(false) }
     val context = LocalContext.current
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
@@ -151,21 +174,25 @@ fun AudioAnalysisScreen(viewModel: AudioAnalysisViewModel = hiltViewModel()) {
     val latest = analyses.firstOrNull()
     val analyzeState = workInfos.firstOrNull().toAnalyzeUiState()
     val snackbarHostState = remember { SnackbarHostState() }
+    val cancelledMessage = stringResource(R.string.audio_analysis_cancelled)
     var hadRunning by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(analyzeState) {
         if (analyzeState is AnalyzeUiState.Running) hadRunning = true
         if (hadRunning && analyzeState is AnalyzeUiState.Idle) {
-            snackbarHostState.showSnackbar("Đã huỷ phân tích")
+            snackbarHostState.showSnackbar(cancelledMessage)
             hadRunning = false
         }
     }
     Box(Modifier.fillMaxSize()) {
         Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp).navigationBarsPadding(),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(stringResource(R.string.analyze), style = MaterialTheme.typography.headlineSmall)
-            Text(stringResource(R.string.audio_quality_phase8_body), style = MaterialTheme.typography.bodyMedium)
+            header?.let { selectedHeader ->
+                Text(selectedHeader.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(listOfNotNull(selectedHeader.artist, selectedHeader.album, selectedHeader.format).joinToString(" · ").ifBlank { "—" }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            } ?: Text(stringResource(R.string.analyze_choose_file_short), style = MaterialTheme.typography.bodyMedium)
             Button(enabled = analyzeState !is AnalyzeUiState.Running, onClick = { picker.launch(arrayOf("audio/*")) }) {
                 Text(stringResource(R.string.audio_analysis_choose_file))
             }
@@ -181,6 +208,7 @@ fun AudioAnalysisScreen(viewModel: AudioAnalysisViewModel = hiltViewModel()) {
             }
             latest?.let { AnalysisCard(it, onExplain = { explain = true }) }
                 ?: Text(stringResource(R.string.audio_analysis_empty), style = MaterialTheme.typography.bodyLarge)
+            Text(stringResource(R.string.analyze_decode_note), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         SnackbarHost(snackbarHostState, Modifier.align(Alignment.BottomCenter))
     }
@@ -188,7 +216,7 @@ fun AudioAnalysisScreen(viewModel: AudioAnalysisViewModel = hiltViewModel()) {
         AlertDialog(
             onDismissRequest = { explain = false },
             title = { Text(stringResource(R.string.audio_analysis_explain)) },
-            text = { Text("Cutoff là nơi năng lượng phổ giảm mạnh; rolloff mô tả độ dốc vách cắt; dynamic range là crest factor; true peak và clipping mô tả biên độ cực đại. Verdict là heuristic, không phải chứng nhận nguồn phát hành.") },
+            text = { Text(stringResource(R.string.audio_analysis_explanation_body)) },
             confirmButton = { TextButton(onClick = { explain = false }) { Text(stringResource(R.string.close)) } },
         )
     }
@@ -198,9 +226,9 @@ fun AudioAnalysisScreen(viewModel: AudioAnalysisViewModel = hiltViewModel()) {
 private fun AnalyzeRunningCard(state: AnalyzeUiState.Running, onCancel: () -> Unit) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Đang phân tích (${state.currentIndex}/${state.totalFiles})", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.analyze_running, state.currentIndex, state.totalFiles), style = MaterialTheme.typography.titleMedium)
             Text(displayFileName(state.currentFileName), maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Text(state.step.labelVi, Modifier.animateContentSize())
+            Text(stringResource(state.step.labelRes), Modifier.animateContentSize())
             if (state.stepProgress in 0f..1f) {
                 LinearProgressIndicator(progress = { state.stepProgress }, Modifier.fillMaxWidth())
                 Text("${(state.stepProgress * 100).toInt()}%", style = MaterialTheme.typography.labelSmall)
@@ -212,6 +240,16 @@ private fun AnalyzeRunningCard(state: AnalyzeUiState.Running, onCancel: () -> Un
             }
         }
     }
+}
+
+private fun AudioTag?.toAnalyzeHeader(fileName: String): AnalyzeHeader {
+    val cleanFileName = fileName.substringBeforeLast('.', fileName).replace(Regex("^\\s*\\d{1,3}\\s*[-.]\\s*"), "").trim().ifBlank { "audio" }
+    return AnalyzeHeader(
+        title = this?.title?.trim().takeUnless { it.isNullOrBlank() } ?: cleanFileName,
+        artist = this?.artist?.trim()?.takeIf { it.isNotBlank() },
+        album = this?.album?.trim()?.takeIf { it.isNotBlank() },
+        format = fileName.substringAfterLast('.', "").uppercase().takeIf { it.isNotBlank() },
+    )
 }
 
 private fun displayFileName(value: String): String {
@@ -228,7 +266,7 @@ private fun AnalysisCard(analysis: AudioAnalysisEntity, onExplain: () -> Unit) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(R.string.audio_analysis_verdict), style = MaterialTheme.typography.titleLarge)
             Text(analysis.verdict, style = MaterialTheme.typography.headlineSmall, color = verdictColor(analysis.verdict))
-            Text("Confidence: ${analysis.confidence}%")
+            Text("${stringResource(R.string.audio_analysis_confidence)}: ${analysis.confidence}%")
             SpectrumChart(spectrum, analysis.cutoffHz, analysis.sampleRate)
             MetricRow(stringResource(R.string.audio_analysis_cutoff), analysis.cutoffHz?.let { "%.1f kHz".format(java.util.Locale.US, it / 1000.0) } ?: "—")
             MetricRow(stringResource(R.string.audio_analysis_slope), analysis.rolloffSlope?.let { "%.1f dB/kHz".format(java.util.Locale.US, it) } ?: "—")
