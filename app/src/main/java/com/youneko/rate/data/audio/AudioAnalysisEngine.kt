@@ -257,7 +257,7 @@ class AudioAnalysisEngine(private val context: Context) {
         var decoder: MediaCodec? = null
         try {
             onProgress(AudioAnalysisProgress(AudioAnalysisStep.READING_HEADER, 0f))
-            if (shouldStop()) throw kotlinx.coroutines.CancellationException("Analysis cancelled")
+            if (shouldStop()) throw kotlinx.coroutines.CancellationException("Analysis interrupted")
             extractor.setDataSource(context, uri, emptyMap())
             val trackIndex = (0 until extractor.trackCount).firstOrNull { index ->
                 extractor.getTrackFormat(index).getString(MediaFormat.KEY_MIME).orEmpty().startsWith("audio/")
@@ -273,7 +273,7 @@ class AudioAnalysisEngine(private val context: Context) {
             onProgress(AudioAnalysisProgress(AudioAnalysisStep.FFT, 0f))
             val baseMetrics = SpectralAnalyzer.analyze(pcm, sampleRate) { done, total ->
                 onProgress(AudioAnalysisProgress(AudioAnalysisStep.FFT, done.toFloat() / total.coerceAtLeast(1), done, total))
-                if (shouldStop()) throw kotlinx.coroutines.CancellationException("Analysis cancelled")
+                if (shouldStop()) throw kotlinx.coroutines.CancellationException("Analysis interrupted")
             }
             onProgress(AudioAnalysisProgress(AudioAnalysisStep.COMPUTING, 0f))
             val metrics = SpectralAnalyzer.verdict(
@@ -334,7 +334,7 @@ class AudioAnalysisEngine(private val context: Context) {
         val output = FloatArrayBuilder()
         val segmentStarts = longArrayOf(durationUs / 4, durationUs / 2, (durationUs * 3) / 4)
         for (segmentStart in segmentStarts) {
-            if (shouldStop()) throw kotlinx.coroutines.CancellationException("Analysis cancelled")
+            if (shouldStop()) throw kotlinx.coroutines.CancellationException("Analysis interrupted")
             extractor.seekTo(segmentStart, MediaExtractor.SEEK_TO_CLOSEST_SYNC)
             val segmentDecoder = MediaCodec.createDecoderByType(mime)
             val bufferInfo = MediaCodec.BufferInfo()
@@ -345,7 +345,7 @@ class AudioAnalysisEngine(private val context: Context) {
                 var inputDone = false
                 var outputDone = false
                 while (!outputDone) {
-                    if (shouldStop()) throw kotlinx.coroutines.CancellationException("Analysis cancelled")
+                    if (shouldStop()) throw kotlinx.coroutines.CancellationException("Analysis interrupted")
                     if (!inputDone) {
                         val inputIndex = segmentDecoder.dequeueInputBuffer(10_000)
                         if (inputIndex >= 0) {
