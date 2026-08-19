@@ -124,6 +124,8 @@ import kotlin.math.abs
 fun LibraryScreen(
     onOpenAlbum: (String) -> Unit,
     onAddAlbum: () -> Unit,
+    onOpenAdvancedSearch: () -> Unit = {},
+    onOpenCollections: () -> Unit = {},
     viewModel: LibraryViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -160,6 +162,10 @@ fun LibraryScreen(
         Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(selected = !onlineMode, onClick = { onlineMode = false }, label = { Text(stringResource(R.string.local_search)) })
             FilterChip(selected = onlineMode, onClick = { onlineMode = true; onlineViewModel.setQuery(state.query) }, label = { Text(stringResource(R.string.online_search)) })
+        }
+        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TextButton(onClick = onOpenAdvancedSearch) { Text(stringResource(R.string.advanced_search)) }
+            TextButton(onClick = onOpenCollections) { Text(stringResource(R.string.collections_title)) }
         }
         if (!onlineMode) {
             Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -487,6 +493,7 @@ private fun AlbumTypeMenu(value: String, onValue: (String) -> Unit) {
 fun AlbumDetailScreen(
     onBack: () -> Unit,
     onViewCredits: (albumId: String, trackId: String?, releaseMbid: String?) -> Unit = { _, _, _ -> },
+    onOpenArtist: (String) -> Unit = {},
     onAnalyzeTrack: (String) -> Unit = {},
     viewModel: AlbumDetailViewModel = hiltViewModel(),
 ) {
@@ -552,7 +559,7 @@ fun AlbumDetailScreen(
                     CoverArtImage(value.album.coverUri, Modifier.fillMaxSize())
                 }
                 Text(value.album.title, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(top = 12.dp))
-                Text(value.artist?.name.orEmpty(), style = MaterialTheme.typography.titleMedium)
+                TextButton(onClick = { value.artist?.id?.let(onOpenArtist) }, enabled = value.artist != null) { Text(value.artist?.name.orEmpty(), style = MaterialTheme.typography.titleMedium) }
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 8.dp)) {
                     Text(value.score?.let { "${it.effectiveScore.format2()}★" } ?: stringResource(R.string.not_rated), style = MaterialTheme.typography.displaySmall, color = MaterialTheme.colorScheme.primary)
                     Spacer(Modifier.width(12.dp))
@@ -778,7 +785,7 @@ class StandaloneViewModel @javax.inject.Inject constructor(
 ) : androidx.lifecycle.ViewModel()
 
 @Composable
-fun SettingsScreen(viewModel: ScoreSettingsViewModel = hiltViewModel()) {
+fun SettingsScreen(onOpenExport: () -> Unit = {}, viewModel: ScoreSettingsViewModel = hiltViewModel()) {
     val mode by viewModel.scoreMode.collectAsStateWithLifecycle()
     val ratingScale by viewModel.ratingScale.collectAsStateWithLifecycle()
     val offlineOnly by viewModel.offlineOnly.collectAsStateWithLifecycle()
@@ -911,6 +918,7 @@ fun SettingsScreen(viewModel: ScoreSettingsViewModel = hiltViewModel()) {
             onClick = { viewModel.setCreditsMergeMode(!creditsMergeMode) },
             label = { Text(stringResource(R.string.credits_view_merged)) },
         )
+        TextButton(onClick = onOpenExport) { Text(stringResource(R.string.export_open)) }
         TextButton(onClick = viewModel::clearMetadataCache) { Text(stringResource(R.string.metadata_cache_clear)) }
         Text(stringResource(R.string.settings_body), style = MaterialTheme.typography.bodyMedium)
     }

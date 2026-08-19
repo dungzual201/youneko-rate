@@ -257,3 +257,26 @@ data class LibrarySearchFtsEntity(
     val entityType: String,
     val searchableText: String,
 )
+
+@Entity(tableName = "collections")
+data class CollectionEntity(
+    @PrimaryKey val id: String,
+    val name: String,
+    val description: String? = null,
+    val createdAt: Long,
+)
+
+@Entity(
+    tableName = "collection_albums",
+    primaryKeys = ["collectionId", "albumId"],
+    foreignKeys = [
+        ForeignKey(entity = CollectionEntity::class, parentColumns = ["id"], childColumns = ["collectionId"], onDelete = ForeignKey.CASCADE),
+        ForeignKey(entity = AlbumEntity::class, parentColumns = ["id"], childColumns = ["albumId"], onDelete = ForeignKey.CASCADE),
+    ],
+    indices = [Index(value = ["albumId"]), Index(value = ["collectionId", "sortOrder"])],
+)
+data class CollectionAlbumEntity(
+    val collectionId: String,
+    val albumId: String,
+    val sortOrder: Int = 0,
+)

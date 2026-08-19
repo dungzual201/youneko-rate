@@ -9,12 +9,15 @@ import com.youneko.rate.data.local.dao.AlbumDao
 import com.youneko.rate.data.local.dao.ArtistDao
 import com.youneko.rate.data.local.dao.AudioAnalysisDao
 import com.youneko.rate.data.local.dao.CreditDao
+import com.youneko.rate.data.local.dao.CollectionDao
 import com.youneko.rate.data.local.dao.LibrarySearchFtsDao
 import com.youneko.rate.data.local.dao.ImportSessionDao
 import com.youneko.rate.data.local.dao.RemoteMetadataCacheDao
 import com.youneko.rate.data.local.dao.SearchHistoryDao
 import com.youneko.rate.data.local.dao.TrackDao
 import com.youneko.rate.data.local.entity.AlbumEntity
+import com.youneko.rate.data.local.entity.CollectionAlbumEntity
+import com.youneko.rate.data.local.entity.CollectionEntity
 import com.youneko.rate.data.local.entity.ArtistEntity
 import com.youneko.rate.data.local.entity.AudioAnalysisEntity
 import com.youneko.rate.data.local.entity.CreditEntity
@@ -43,8 +46,10 @@ import com.youneko.rate.data.local.entity.TrackEntity
         SearchHistoryEntity::class,
         LibrarySearchFtsEntity::class,
         ImportSessionEntity::class,
+        CollectionEntity::class,
+        CollectionAlbumEntity::class,
     ],
-    version = 13,
+    version = 14,
     exportSchema = true,
 )
 @TypeConverters(YounekoTypeConverters::class)
@@ -63,8 +68,18 @@ abstract class YounekoDatabase : RoomDatabase() {
     abstract fun searchHistoryDao(): SearchHistoryDao
     abstract fun librarySearchFtsDao(): LibrarySearchFtsDao
     abstract fun importSessionDao(): ImportSessionDao
+    abstract fun collectionDao(): CollectionDao
 
     companion object {
+        val MIGRATION_13_14: Migration = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS collections (id TEXT NOT NULL PRIMARY KEY, name TEXT NOT NULL, description TEXT, createdAt INTEGER NOT NULL)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS collection_albums (collectionId TEXT NOT NULL, albumId TEXT NOT NULL, sortOrder INTEGER NOT NULL, PRIMARY KEY(collectionId, albumId), FOREIGN KEY(collectionId) REFERENCES collections(id) ON UPDATE NO ACTION ON DELETE CASCADE, FOREIGN KEY(albumId) REFERENCES albums(id) ON UPDATE NO ACTION ON DELETE CASCADE)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_collection_albums_albumId ON collection_albums(albumId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_collection_albums_collectionId_sortOrder ON collection_albums(collectionId, sortOrder)")
+            }
+        }
+
         val MIGRATION_1_2: Migration = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("PRAGMA foreign_keys=OFF")

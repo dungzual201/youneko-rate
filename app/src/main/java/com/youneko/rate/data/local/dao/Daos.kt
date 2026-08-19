@@ -61,6 +61,9 @@ interface ArtistDao {
     @Query("SELECT * FROM artists WHERE name = :name COLLATE NOCASE LIMIT 1")
     suspend fun findByName(name: String): ArtistEntity?
 
+    @Query("SELECT * FROM artists ORDER BY name COLLATE NOCASE")
+    suspend fun findAll(): List<ArtistEntity>
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(artist: ArtistEntity)
 
@@ -99,6 +102,9 @@ interface TrackDao {
 
     @Query("SELECT * FROM tracks WHERE albumId = :albumId ORDER BY discNumber, trackNumber")
     suspend fun findForAlbum(albumId: String): List<TrackEntity>
+
+    @Query("SELECT * FROM tracks ORDER BY createdAt DESC")
+    suspend fun findAll(): List<TrackEntity>
 }
 
 data class StatsCountRow(val label: String, val count: Int)
@@ -145,6 +151,9 @@ interface ReviewRevisionDao {
 
     @Query("SELECT * FROM review_revisions WHERE albumId = :albumId AND ((:trackId IS NULL AND trackId IS NULL) OR trackId = :trackId) ORDER BY createdAt DESC LIMIT 5")
     fun observeRecent(albumId: String, trackId: String?): Flow<List<ReviewRevisionEntity>>
+
+    @Query("SELECT * FROM review_revisions ORDER BY createdAt DESC")
+    suspend fun findAll(): List<ReviewRevisionEntity>
 }
 
 @Dao
@@ -154,6 +163,9 @@ interface AlbumTagDao {
 
     @Query("SELECT * FROM album_tags WHERE albumId = :albumId ORDER BY name COLLATE NOCASE")
     fun observeForAlbum(albumId: String): Flow<List<AlbumTagEntity>>
+
+    @Query("SELECT * FROM album_tags ORDER BY albumId, name COLLATE NOCASE")
+    suspend fun findAll(): List<AlbumTagEntity>
 
     @Query("DELETE FROM album_tags WHERE id = :id")
     suspend fun delete(id: String)
@@ -169,6 +181,9 @@ interface ListeningLogDao {
 
     @Query("SELECT COUNT(*) FROM listening_logs WHERE albumId = :albumId")
     suspend fun countForAlbum(albumId: String): Int
+
+    @Query("SELECT * FROM listening_logs ORDER BY listenedAt DESC")
+    suspend fun findAll(): List<ListeningLogEntity>
 }
 
 @Dao
@@ -178,6 +193,9 @@ interface ExternalLinkDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(value: ExternalLinkEntity)
+
+    @Query("SELECT * FROM external_links ORDER BY createdAt DESC")
+    suspend fun findAll(): List<ExternalLinkEntity>
 
     @Query("DELETE FROM external_links WHERE ((:trackId IS NOT NULL AND trackId = :trackId) OR (:trackId IS NULL AND albumId = :albumId)) AND sourceId = :sourceId")
     suspend fun delete(albumId: String?, trackId: String?, sourceId: String)
@@ -214,6 +232,9 @@ interface CreditDao {
 
     @Query("DELETE FROM credits WHERE trackId IN (SELECT id FROM tracks WHERE albumId = :albumId)")
     suspend fun deleteTrackCreditsForAlbum(albumId: String)
+
+    @Query("SELECT * FROM credits ORDER BY albumId, trackId, sortOrder")
+    suspend fun findAll(): List<CreditEntity>
 }
 
 @Dao
@@ -226,6 +247,9 @@ interface AudioAnalysisDao {
 
     @Query("SELECT * FROM audio_analysis WHERE trackId = :trackId ORDER BY analyzedAt DESC LIMIT 1")
     fun observeLatestForTrack(trackId: String): Flow<AudioAnalysisEntity?>
+
+    @Query("SELECT * FROM audio_analysis ORDER BY analyzedAt DESC")
+    suspend fun findAll(): List<AudioAnalysisEntity>
 }
 
 @Dao
@@ -283,4 +307,25 @@ interface LibrarySearchFtsDao {
 
     @Query("DELETE FROM library_search_fts")
     suspend fun deleteAll()
+}
+
+@Dao
+interface CollectionDao {
+    @Query("SELECT * FROM collections ORDER BY createdAt DESC")
+    suspend fun findAllCollections(): List<com.youneko.rate.data.local.entity.CollectionEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertCollection(value: com.youneko.rate.data.local.entity.CollectionEntity)
+
+    @Query("DELETE FROM collections WHERE id = :id")
+    suspend fun deleteCollection(id: String)
+
+    @Query("SELECT * FROM collection_albums WHERE collectionId = :collectionId ORDER BY sortOrder, albumId")
+    suspend fun findAlbums(collectionId: String): List<com.youneko.rate.data.local.entity.CollectionAlbumEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAlbum(value: com.youneko.rate.data.local.entity.CollectionAlbumEntity)
+
+    @Query("DELETE FROM collection_albums WHERE collectionId = :collectionId AND albumId = :albumId")
+    suspend fun removeAlbum(collectionId: String, albumId: String)
 }

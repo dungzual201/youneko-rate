@@ -22,6 +22,9 @@
         <receiver
             android:name=".data.audio.AudioAnalysisCancelReceiver"
             android:exported="false" />
+        <receiver
+            android:name=".data.phase12.InProgressAlbumWidgetProvider"
+            android:exported="false" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
