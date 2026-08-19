@@ -52,7 +52,7 @@ import com.youneko.rate.data.local.entity.TrackEntity
         CollectionAlbumEntity::class,
         ScanRootEntity::class,
     ],
-    version = 15,
+    version = 16,
     exportSchema = true,
 )
 @TypeConverters(YounekoTypeConverters::class)
@@ -87,6 +87,47 @@ abstract class YounekoDatabase : RoomDatabase() {
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_tracks_mediaStoreId ON tracks(mediaStoreId)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_tracks_stableKey ON tracks(stableKey)")
                 db.execSQL("CREATE TABLE IF NOT EXISTS scan_roots (uri TEXT NOT NULL PRIMARY KEY, displayName TEXT, addedAt INTEGER NOT NULL, lastScannedAt INTEGER)")
+            }
+        }
+
+        val MIGRATION_15_16: Migration = object : Migration(15, 16) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                addColumnIfMissing(db, "tracks", "mediaStoreId", "INTEGER")
+                addColumnIfMissing(db, "tracks", "stableKey", "TEXT")
+                addColumnIfMissing(db, "tracks", "fileSizeBytes", "INTEGER")
+                addColumnIfMissing(db, "tracks", "fileHash64k", "TEXT")
+                addColumnIfMissing(db, "tracks", "isMissing", "INTEGER NOT NULL DEFAULT 0")
+                addColumnIfMissing(db, "tracks", "missingSince", "INTEGER")
+                addColumnIfMissing(db, "tracks", "mediaStoreModifiedSeconds", "INTEGER")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_tracks_mediaStoreId ON tracks(mediaStoreId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_tracks_stableKey ON tracks(stableKey)")
+
+                db.execSQL("CREATE TABLE IF NOT EXISTS scan_roots (uri TEXT NOT NULL PRIMARY KEY, displayName TEXT, addedAt INTEGER NOT NULL, lastScannedAt INTEGER)")
+                addColumnIfMissing(db, "scan_roots", "displayName", "TEXT")
+                addColumnIfMissing(db, "scan_roots", "addedAt", "INTEGER NOT NULL DEFAULT 0")
+                addColumnIfMissing(db, "scan_roots", "lastScannedAt", "INTEGER")
+            }
+        }
+
+        private fun addColumnIfMissing(
+            db: SupportSQLiteDatabase,
+            table: String,
+            column: String,
+            definition: String,
+        ) {
+            val hasColumn = db.query("PRAGMA table_info($table)").use { cursor ->
+                val nameIndex = cursor.getColumnIndex("name")
+                var found = false
+                while (cursor.moveToNext()) {
+                    if (nameIndex >= 0 && cursor.getString(nameIndex) == column) {
+                        found = true
+                        break
+                    }
+                }
+                found
+            }
+            if (!hasColumn) {
+                db.execSQL("ALTER TABLE $table ADD COLUMN $column $definition")
             }
         }
 
