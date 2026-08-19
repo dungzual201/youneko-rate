@@ -7,6 +7,11 @@ import java.text.Normalizer
 import java.util.Locale
 
 /** Metadata extracted from one local audio file; no audio decoding is performed here. */
+data class ArtworkCandidate(
+    val path: String,
+    val source: String,
+)
+
 data class AudioTag(
     val uri: String,
     val fileName: String,
@@ -20,6 +25,7 @@ data class AudioTag(
     val genre: String?,
     val durationMs: Long?,
     val embeddedCoverPath: String? = null,
+    val artwork: ArtworkCandidate? = null,
     val embeddedCredits: List<CreditCandidate> = emptyList(),
     val lyrics: Lyrics? = null,
 )
@@ -91,7 +97,7 @@ object ImportGrouping {
     private fun effectiveArtist(tag: AudioTag): String =
         tag.albumArtist?.trim()?.takeIf { it.isNotEmpty() }
             ?: tag.artist?.trim()?.takeIf { it.isNotEmpty() }
-            ?: "Nghệ sĩ chưa rõ"
+            ?: "Không rõ nghệ sĩ"
 
     private data class GroupKey(val artist: String, val album: String, val year: Int?)
 }

@@ -1,6 +1,8 @@
 package com.youneko.rate.data.importer
 
 import android.content.Context
+import android.graphics.BitmapFactory
+import android.util.Log
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.provider.OpenableColumns
@@ -8,15 +10,20 @@ import androidx.documentfile.provider.DocumentFile
 import org.jaudiotagger.audio.AudioFileIO
 import org.jaudiotagger.tag.FieldKey
 import com.youneko.rate.data.musicbrainz.CreditCandidate
+import com.youneko.rate.data.artwork.ArtworkStore
 import com.youneko.rate.data.lyrics.Lyrics
 import com.youneko.rate.data.lyrics.LyricsParser
+import com.youneko.rate.data.importer.ArtworkCandidate
 import java.io.File
 import java.util.Locale
 import java.util.UUID
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 
-class LocalAudioTagReader @Inject constructor(@ApplicationContext private val context: Context) {
+class LocalAudioTagReader @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val artworkStore: ArtworkStore,
+) {
     data class ReadResult(val tags: List<AudioTag>, val failures: List<ImportFailure>)
     data class ImportFailure(val fileName: String, val reason: String)
 
@@ -63,7 +70,8 @@ class LocalAudioTagReader @Inject constructor(@ApplicationContext private val co
             tagFailure = IllegalArgumentException("Không xác định được định dạng file")
         }
 
-        val fallback = readWithMediaMetadataRetriever(uri, fileName)
+                val fallback = readWithMediaMetadataRetriever(uri, fileName)
+
         tagResult?.let { return merge(it, fallback) }
         if (fallback != null) return fallback
         throw IllegalArgumentException(
@@ -81,6 +89,7 @@ class LocalAudioTagReader @Inject constructor(@ApplicationContext private val co
         val audioFile = AudioFileIO.read(temp)
         val tag = audioFile.tag
         val yearText = first(tag, FieldKey.YEAR) ?: runCatching { tag?.getFirst("DATE")?.trim() }.getOrNull()
+        val artwork = artworkCandidate(tag?.firstArtwork?.binaryData, "embedded") ?: siblingArtwork(uri)
         return AudioTag(
             uri = uri.toString(),
             fileName = fileName,
@@ -93,7 +102,8 @@ class LocalAudioTagReader @Inject constructor(@ApplicationContext private val co
             year = yearText?.take(4)?.toIntOrNull(),
             genre = first(tag, FieldKey.GENRE),
             durationMs = audioFile.audioHeader?.trackLength?.times(1000L),
-            embeddedCoverPath = persistCover(tag?.firstArtwork?.binaryData),
+            embeddedCoverPath = artwork?.path,
+            artwork = artwork,
             embeddedCredits = readEmbeddedCredits(tag),
             lyrics = readLyrics(tag, uri, fileName),
         )
@@ -158,12 +168,52 @@ class LocalAudioTagReader @Inject constructor(@ApplicationContext private val co
         }.filter { it.first.isNotEmpty() && it.second.isNotEmpty() }
     }
 
-    private fun persistCover(bytes: ByteArray?): String? {
+    private fun artworkCandidate(bytes: ByteArray?, source: String): ArtworkCandidate? {
         if (bytes == null || bytes.isEmpty()) return null
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        if (maxOf(bounds.outWidth, bounds.outHeight) < 300) return null
         val directory = File(context.cacheDir, "import_covers").apply { mkdirs() }
         val file = File(directory, "${UUID.randomUUID()}.img")
         file.outputStream().use { it.write(bytes) }
-        return file.absolutePath
+        return ArtworkCandidate(file.absolutePath, source)
+    }
+
+    private fun siblingArtwork(uri: Uri): ArtworkCandidate? {
+        val parent = DocumentFile.fromSingleUri(context, uri)?.parentFile ?: return null
+        val names = setOf("cover.jpg", "folder.jpg", "front.jpg", "album.jpg")
+        return parent.listFiles()
+            .filter { it.isFile && it.name?.lowercase(Locale.ROOT) in names }
+            .sortedByDescending { it.length() }
+            .firstNotNullOfOrNull { file ->
+                val bytes = runCatching { context.contentResolver.openInputStream(file.uri)?.use { it.readBytes() } }.getOrNull()
+                artworkCandidate(bytes, "sibling:${file.name}")
+            }
+    }
+
+    fun extractArtwork(uri: Uri, albumId: String, mediaStoreAlbumId: Long?): ArtworkStore.CachedArtwork? {
+        val candidates = buildList {
+            runCatching {
+                val retriever = MediaMetadataRetriever()
+                try {
+                    retriever.setDataSource(context, uri)
+                    artworkCandidate(retriever.embeddedPicture, "embedded")
+                } finally {
+                    retriever.release()
+                }
+            }.onFailure { Log.w("Artwork", "Artwork embedded read failed for $uri", it) }.getOrNull()?.let(::add)
+            siblingArtwork(uri)?.let(::add)
+            if (mediaStoreAlbumId != null) {
+                val albumArtUri = Uri.parse("content://media/external/audio/albumart/$mediaStoreAlbumId")
+                runCatching { context.contentResolver.openInputStream(albumArtUri)?.use { it.readBytes() } }
+                    .onFailure { Log.w("Artwork", "MediaStore albumart read failed for $uri", it) }
+                    .getOrNull()
+                    ?.let { artworkCandidate(it, "mediastore-albumart") }
+                    ?.let(::add)
+            }
+        }
+        val selected = candidates.firstOrNull() ?: return null
+        return artworkStore.persistAlbumArtwork(albumId, selected.path, selected.source)
     }
 
     private fun readWithMediaMetadataRetriever(uri: Uri, fileName: String): AudioTag? {
@@ -175,7 +225,14 @@ class LocalAudioTagReader @Inject constructor(@ApplicationContext private val co
             val album = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM)
             val duration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
             if (listOf(title, artist, album, duration).all { it == null }) null
-            else AudioTag(uri.toString(), fileName, artist, null, album, title, null, null, null, null, duration)
+            else {
+                val artwork = artworkCandidate(retriever.embeddedPicture, "embedded") ?: siblingArtwork(uri)
+                AudioTag(
+                    uri = uri.toString(), fileName = fileName, artist = artist, albumArtist = null,
+                    album = album, title = title, trackNumber = null, discNumber = null, year = null,
+                    genre = null, durationMs = duration, embeddedCoverPath = artwork?.path, artwork = artwork,
+                )
+            }
         } catch (_: Exception) {
             null
         } finally {
@@ -191,6 +248,8 @@ class LocalAudioTagReader @Inject constructor(@ApplicationContext private val co
         year = primary.year ?: fallback.year,
         durationMs = primary.durationMs ?: fallback.durationMs,
         lyrics = primary.lyrics ?: fallback.lyrics,
+        embeddedCoverPath = primary.embeddedCoverPath ?: fallback.embeddedCoverPath,
+        artwork = primary.artwork ?: fallback.artwork,
     )
 
     private fun readHeader(uri: Uri): ByteArray = context.contentResolver.openInputStream(uri)?.use { input ->

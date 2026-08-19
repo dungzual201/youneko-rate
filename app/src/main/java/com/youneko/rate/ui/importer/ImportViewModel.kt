@@ -10,6 +10,7 @@ import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.workDataOf
 import com.youneko.rate.data.importer.ImportGroup
+import com.youneko.rate.data.artwork.ArtworkStore
 import com.youneko.rate.data.importer.ImportSelection
 import com.youneko.rate.data.importer.ImportWorker
 import com.youneko.rate.data.importer.ImportDedupe
@@ -94,7 +95,7 @@ class ImportViewModel @Inject constructor(
         viewModelScope.launch {
             _state.value = _state.value.copy(isReading = true, error = null)
             val result = withContext(Dispatchers.IO) {
-                val reader = LocalAudioTagReader(context)
+                val reader = LocalAudioTagReader(context, ArtworkStore(context))
                 val audioUris = uris.flatMap { reader.collectAudioUris(it, isTree) }.distinct()
                 reader.readAll(audioUris)
             }

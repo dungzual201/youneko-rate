@@ -7,6 +7,7 @@ import androidx.work.Data
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import com.youneko.rate.data.AlbumDraft
+import com.youneko.rate.data.artwork.ArtworkStore
 import com.youneko.rate.data.AlbumRepository
 import com.youneko.rate.data.TrackDraft
 import com.youneko.rate.data.local.dao.ImportSessionDao
@@ -62,7 +63,7 @@ class ImportWorker(
                 return failure("Import session không có file được chọn")
             }
 
-            val reader = LocalAudioTagReader(applicationContext)
+            val reader = LocalAudioTagReader(applicationContext, ArtworkStore(applicationContext))
             val audioUris = sourceUris
                 .flatMap { reader.collectAudioUris(Uri.parse(it), session.sourceIsTree) }
                 .distinctBy(Uri::toString)

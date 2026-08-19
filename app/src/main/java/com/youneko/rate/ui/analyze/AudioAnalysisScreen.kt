@@ -63,6 +63,7 @@ import androidx.work.WorkManager
 import androidx.work.workDataOf
 import com.youneko.rate.R
 import com.youneko.rate.data.audio.AudioAnalysisWorker
+import com.youneko.rate.data.artwork.ArtworkStore
 import com.youneko.rate.data.local.dao.AudioAnalysisDao
 import com.youneko.rate.data.importer.AudioTag
 import com.youneko.rate.data.importer.LocalAudioTagReader
@@ -175,7 +176,7 @@ class AudioAnalysisViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) {
             val parsedUri = Uri.parse(uri)
             val fileName = parsedUri.lastPathSegment.orEmpty().substringAfterLast('/').ifBlank { "audio" }
-            val tag = runCatching { LocalAudioTagReader(context).readAll(listOf(parsedUri)).tags.firstOrNull() }.getOrNull()
+            val tag = runCatching { LocalAudioTagReader(context, ArtworkStore(context)).readAll(listOf(parsedUri)).tags.firstOrNull() }.getOrNull()
             _header.value = tag.toAnalyzeHeader(fileName)
             userRequestedCancel = false
             val request = OneTimeWorkRequestBuilder<AudioAnalysisWorker>()
