@@ -106,10 +106,16 @@ class MusicBrainzSearchViewModel @Inject constructor(
         }
     }
 
+    fun clearImportUi() {
+        _preview.value = null
+        _pendingImport.value = null
+        _importProgress.value = null
+        _importResult.value = null
+    }
+
     fun cancelImport() {
         importJob?.cancel()
         importJob = null
-        _importProgress.value = null
-        _importResult.value = null
+        clearImportUi()
     }
 }

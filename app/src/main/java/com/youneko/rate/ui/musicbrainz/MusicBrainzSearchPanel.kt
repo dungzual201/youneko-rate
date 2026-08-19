@@ -8,6 +8,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -23,7 +26,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -61,7 +66,11 @@ fun MusicBrainzSearchPanel(
     val importProgress by viewModel.importProgress.collectAsStateWithLifecycle()
     LaunchedEffect(importResult) {
         val result = importResult
-        if (result is Resource.Success) onImported(result.value)
+        if (result is Resource.Success) {
+            val albumId = result.value
+            viewModel.clearImportUi()
+            onImported(albumId)
+        }
     }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = modifier.fillMaxWidth()) {
         Text(stringResource(R.string.online_results), style = MaterialTheme.typography.titleMedium)
@@ -199,13 +208,16 @@ private fun MusicBrainzPreviewDialog(
     onImport: (MusicBrainzPreview) -> Unit,
     onSelectRelease: (String) -> Unit,
 ) {
+    LaunchedEffect(Unit) { android.util.Log.d("DLG", "enter MusicBrainzPreviewDialog ${hashCode()}") }
+    DisposableEffect(Unit) { onDispose { android.util.Log.d("DLG", "exit MusicBrainzPreviewDialog") } }
     AlertDialog(
         onDismissRequest = onDismiss,
+        properties = DialogProperties(dismissOnBackPress = true, dismissOnClickOutside = false),
         title = { Text(preview.title) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(Modifier.verticalScroll(rememberScrollState()).heightIn(max = 400.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(preview.artist)
-                Text(listOfNotNull(preview.year, preview.country, preview.label).joinToString(" · "))
+                Text(stringResource(R.string.online_preview_summary, preview.tracks.size, preview.year ?: "—", preview.label ?: preview.country ?: "—"))
                 if (preview.releaseOptions.size > 1) {
                     Text(stringResource(R.string.online_choose_release), style = MaterialTheme.typography.titleSmall)
                     preview.releaseOptions.forEach { option ->
@@ -216,7 +228,6 @@ private fun MusicBrainzPreviewDialog(
                 }
                 HorizontalDivider()
                 preview.tracks.forEach { track -> Text("${track.discNumber}.${track.trackNumber} ${track.title}") }
-                Text(stringResource(R.string.online_preview_read_only), style = MaterialTheme.typography.labelSmall)
             }
         },
         confirmButton = { Button(onClick = { onImport(preview) }) { Text(stringResource(R.string.import_save)) } },
