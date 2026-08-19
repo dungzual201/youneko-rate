@@ -52,6 +52,7 @@ import com.youneko.rate.ui.export.ExportScreen
 import com.youneko.rate.ui.phase12.AdvancedSearchScreen
 import com.youneko.rate.ui.phase12.CollectionsScreen
 import com.youneko.rate.ui.phase12.ArtistPageScreen
+import com.youneko.rate.ui.media.MediaAccessGate
 
 private data class AppDestination(
     val route: String,
@@ -86,7 +87,8 @@ fun YounekoNavHost() {
     val isImport = currentDestination?.route == "importTags"
     val isExport = currentDestination?.route == "export"
 
-    Scaffold(
+    MediaAccessGate(content = {
+        Scaffold(
         topBar = {
             if (!isDetail && !isCredits && !isEditor && !isImport && !isExport) {
                 TopAppBar(
@@ -208,12 +210,13 @@ fun YounekoNavHost() {
                     releaseUrl = releaseMbid?.let { "https://musicbrainz.org/release/$it" },
                 )
             }
+                }
         }
-    }
+    })
 }
-
 @Composable
 private fun AudioQualityPlaceholder() {
+
     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         Icon(Icons.Default.Pets, contentDescription = null, modifier = Modifier.padding(12.dp).size(64.dp), tint = MaterialTheme.colorScheme.primary)
         Text(stringResource(R.string.analyze), style = MaterialTheme.typography.headlineSmall)
