@@ -9,9 +9,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -35,6 +37,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -117,10 +120,10 @@ fun ImportScreen(
     if (pickerEntry != null && pickerGroup != null) {
         AlertDialog(
             onDismissRequest = { viewModel.closeCoverPicker(pickerGroup) },
-            title = { Text("Chọn ảnh bìa khác") },
+            title = { Text(stringResource(R.string.import_cover_picker_title)) },
             text = {
                 if (pickerEntry.value.isEmpty()) {
-                    Text("Không tìm thấy ảnh bìa từ iTunes, Deezer hoặc Cover Art Archive.")
+                    Text(stringResource(R.string.import_cover_none))
                 } else {
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(3),
@@ -137,7 +140,7 @@ fun ImportScreen(
                                     modifier = Modifier.fillMaxWidth(),
                                 )
                                 Text(candidate.sourceProvider, style = MaterialTheme.typography.labelSmall, maxLines = 2)
-                                Text("${candidate.widthHint ?: "—"} px · ${candidate.matchScore?.let { "%.2f".format(it) } ?: "—"}", style = MaterialTheme.typography.labelSmall)
+                                Text(stringResource(R.string.import_cover_size_score, candidate.widthHint ?: "—", candidate.matchScore?.let { "%.2f".format(it) } ?: "—"), style = MaterialTheme.typography.labelSmall)
                             }
                         }
                     }
@@ -145,8 +148,8 @@ fun ImportScreen(
             },
             confirmButton = {
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    TextButton(onClick = { manualCoverGroup = pickerGroup; manualCoverPicker.launch("image/*") }) { Text("Chọn ảnh từ thiết bị") }
-                    TextButton(onClick = { manualUrlGroup = pickerGroup; manualUrl = "" }) { Text("Nhập URL") }
+                    TextButton(onClick = { manualCoverGroup = pickerGroup; manualCoverPicker.launch("image/*") }) { Text(stringResource(R.string.import_cover_choose_device)) }
+                    TextButton(onClick = { manualUrlGroup = pickerGroup; manualUrl = "" }) { Text(stringResource(R.string.import_cover_enter_url)) }
                     TextButton(onClick = { viewModel.closeCoverPicker(pickerGroup) }) { Text(stringResource(R.string.cancel)) }
                 }
             },
@@ -191,8 +194,8 @@ fun ImportScreen(
     manualUrlGroup?.let { group ->
         AlertDialog(
             onDismissRequest = { manualUrlGroup = null },
-            title = { Text("Nhập URL ảnh bìa") },
-            text = { OutlinedTextField(manualUrl, { manualUrl = it }, label = { Text("URL") }, modifier = Modifier.fillMaxWidth(), maxLines = 2) },
+            title = { Text(stringResource(R.string.import_cover_url_title)) },
+            text = { OutlinedTextField(manualUrl, { manualUrl = it }, label = { Text(stringResource(R.string.import_cover_url_label)) }, modifier = Modifier.fillMaxWidth(), maxLines = 2) },
             confirmButton = { TextButton(onClick = { if (manualUrl.isNotBlank()) viewModel.setCover(group, manualUrl.trim(), "Manual"); manualUrlGroup = null }) { Text(stringResource(R.string.save)) } },
             dismissButton = { TextButton(onClick = { manualUrlGroup = null }) { Text(stringResource(R.string.cancel)) } },
         )
@@ -218,12 +221,14 @@ private fun ImportGroupCard(
                 Switch(checked = selection.mergeIfExisting, onCheckedChange = { viewModel.setMerge(group, it) })
             }
             OutlinedButton(onClick = onChooseCover) { Text(stringResource(R.string.import_choose_cover)) }
-            group.tracks.forEach { track ->
-                Row {
-                    Checkbox(checked = track.uri in state.selectedUris, onCheckedChange = { viewModel.toggleTrack(track.uri) })
-                    Text("${track.discNumber ?: 1}.${track.trackNumber ?: "?"} ${track.title}")
-                    Spacer(Modifier.width(4.dp))
-                    Text(track.durationMs?.let { "${it / 1000}s" }.orEmpty(), style = MaterialTheme.typography.bodySmall)
+            Column(Modifier.fillMaxWidth().heightIn(max = 400.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                group.tracks.forEach { track ->
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+                        Checkbox(checked = track.uri in state.selectedUris, onCheckedChange = { viewModel.toggleTrack(track.uri) })
+                        Text("${track.discNumber ?: 1}.${track.trackNumber ?: "?"} ${track.title}", modifier = Modifier.weight(1f), maxLines = 3)
+                        Spacer(Modifier.width(4.dp))
+                        Text(track.durationMs?.let { "${it / 1000}s" }.orEmpty(), style = MaterialTheme.typography.bodySmall)
+                    }
                 }
             }
         }
