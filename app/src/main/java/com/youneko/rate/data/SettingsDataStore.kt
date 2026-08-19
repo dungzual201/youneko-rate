@@ -97,7 +97,7 @@ class SettingsDataStore(private val context: Context) : SettingsStore {
     override val geniusEnabled: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.geniusEnabled] ?: false }
     override val geniusToken: Flow<String> = context.settingsDataStore.data.map { TokenCipher.decrypt(it[Keys.geniusToken].orEmpty()) }
     override val showCreditSources: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.showCreditSources] ?: false }
-    override val creditSourceOrder: Flow<String> = context.settingsDataStore.data.map { it[Keys.creditSourceOrder] ?: "FILE_TAG,MUSICBRAINZ,DISCOGS,GENIUS,DEEZER,ITUNES" }
+    override val creditSourceOrder: Flow<String> = context.settingsDataStore.data.map { it[Keys.creditSourceOrder] ?: "FILE_TAG,GENIUS,DISCOGS,MUSICBRAINZ,DEEZER,ITUNES" }
     override val activeCreditSources: Flow<String> = context.settingsDataStore.data.map { it[Keys.activeCreditSources] ?: "FILE_TAG,MUSICBRAINZ" }
     override val creditsMergeMode: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.creditsMergeMode] ?: false }
 
