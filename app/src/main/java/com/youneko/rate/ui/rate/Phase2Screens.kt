@@ -68,6 +68,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.PlainTooltip
@@ -82,6 +83,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -98,6 +100,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
@@ -110,12 +113,18 @@ import com.youneko.rate.R
 import com.youneko.rate.data.LibraryAlbum
 import com.youneko.rate.data.local.entity.AlbumEntity
 import com.youneko.rate.data.local.entity.TrackEntity
+import com.youneko.rate.data.importer.LocalAudioTagReader
+import com.youneko.rate.data.lyrics.Lyrics
+import com.youneko.rate.data.lyrics.LyricLine
 import com.youneko.rate.ui.artwork.CoverArtImage
 import com.youneko.rate.domain.usecase.ScoreMode
 import com.youneko.rate.domain.usecase.RatingScale
 import com.youneko.rate.ui.musicbrainz.MusicBrainzSearchPanel
 import com.youneko.rate.ui.musicbrainz.MusicBrainzSearchViewModel
+import com.youneko.rate.ui.media.MediaScanRootManager
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
@@ -689,6 +698,20 @@ private fun TrackRow(
     var review by rememberSaveable(track.id) { mutableStateOf(track.reviewText.orEmpty()) }
     var reviewExpanded by rememberSaveable(track.id) { mutableStateOf(false) }
     var actionsOpen by rememberSaveable(track.id) { mutableStateOf(false) }
+    var lyricsExpanded by rememberSaveable(track.id) { mutableStateOf(false) }
+    var lyricsShowAll by rememberSaveable(track.id) { mutableStateOf(false) }
+    var lyricsTimestamps by rememberSaveable(track.id) { mutableStateOf(false) }
+    var lyricsFullscreen by rememberSaveable(track.id) { mutableStateOf(false) }
+    val lyricsResult by produceState<Result<Lyrics?>?>(initialValue = null, key1 = track.sourceUri, key2 = lyricsExpanded) {
+        if (!lyricsExpanded) return@produceState
+        value = withContext(Dispatchers.IO) {
+            runCatching {
+                track.sourceUri?.let { source ->
+                    LocalAudioTagReader(context).readAll(listOf(Uri.parse(source))).tags.firstOrNull()?.lyrics
+                }
+            }
+        }
+    }
     val scope = rememberCoroutineScope()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     fun closeSheetThen(action: () -> Unit) {
@@ -724,12 +747,32 @@ private fun TrackRow(
                 Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.track_actions))
             }
         }
+        if (track.isMissing) {
+            Text(stringResource(R.string.track_missing), modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 3.dp), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+        }
         if (reviewExpanded) {
             Column(Modifier.padding(horizontal = 10.dp, vertical = 4.dp)) {
                 OutlinedTextField(review, { review = it.take(2000) }, Modifier.fillMaxWidth(), minLines = 2, maxLines = 6, label = { Text(stringResource(R.string.track_review)) })
                 Text(stringResource(R.string.characters, review.length), style = MaterialTheme.typography.labelSmall)
             }
         }
+        LyricsSection(
+            lyrics = lyricsResult?.getOrNull(),
+            expanded = lyricsExpanded,
+            showAll = lyricsShowAll,
+            timestamps = lyricsTimestamps,
+            onToggleExpanded = { lyricsExpanded = !lyricsExpanded },
+            onToggleShowAll = { lyricsShowAll = !lyricsShowAll },
+            onToggleTimestamps = { lyricsTimestamps = !lyricsTimestamps },
+            onFullscreen = { lyricsFullscreen = true },
+        )
+    }
+    if (lyricsFullscreen) {
+        LyricsFullscreenDialog(
+            lyrics = lyricsResult?.getOrNull(),
+            timestamps = lyricsTimestamps,
+            onDismiss = { lyricsFullscreen = false },
+        )
     }
     if (actionsOpen) {
         ModalBottomSheet(
@@ -754,6 +797,98 @@ private fun TrackRow(
             }
         }
     }
+}
+
+@Composable
+private fun LyricsSection(
+    lyrics: Lyrics?,
+    expanded: Boolean,
+    showAll: Boolean,
+    timestamps: Boolean,
+    onToggleExpanded: () -> Unit,
+    onToggleShowAll: () -> Unit,
+    onToggleTimestamps: () -> Unit,
+    onFullscreen: () -> Unit,
+) {
+    val context = LocalContext.current
+    val lyricsLabel = stringResource(R.string.lyrics_title)
+    Column(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(R.string.lyrics_title), style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.weight(1f))
+            TextButton(onClick = onToggleExpanded) { Text(stringResource(if (expanded) R.string.close else R.string.lyrics_show)) }
+        }
+        if (expanded) {
+            if (lyrics == null) {
+                Text(stringResource(R.string.lyrics_empty), style = MaterialTheme.typography.bodySmall)
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(R.string.lyrics_timestamps), style = MaterialTheme.typography.bodySmall)
+                    Switch(checked = timestamps, onCheckedChange = { onToggleTimestamps() })
+                    Spacer(Modifier.weight(1f))
+                    TextButton(onClick = onFullscreen) { Text(stringResource(R.string.lyrics_fullscreen)) }
+                    TextButton(onClick = {
+                        val text = lyrics.toCopyText()
+                        val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                        clipboard.setPrimaryClip(android.content.ClipData.newPlainText(lyricsLabel, text))
+                    }) { Text(stringResource(R.string.lyrics_copy)) }
+                }
+                LyricsLines(lyrics, timestamps, showAll)
+                if (lyrics.lineCount() > 4 && !showAll) TextButton(onClick = onToggleShowAll) { Text(stringResource(R.string.lyrics_show_all)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LyricsLines(lyrics: Lyrics, timestamps: Boolean, showAll: Boolean) {
+    val lines = when (lyrics) {
+        is Lyrics.Plain -> listOf(LyricLine(0L, text = lyrics.text))
+        is Lyrics.Timed -> lyrics.lines
+    }
+    val agents = lines.mapNotNull { it.agent }.distinct()
+    val visible = if (showAll) lines else lines.take(4)
+    SelectionContainer {
+        Column(Modifier.fillMaxWidth().heightIn(max = 360.dp).verticalScroll(rememberScrollState())) {
+            visible.forEach { line ->
+                val rendered = buildString {
+                    if (timestamps && line.startMs > 0) append("[").append(line.startMs / 60_000).append(":")
+                        .append(((line.startMs % 60_000) / 1_000).toString().padStart(2, '0')).append("] ")
+                    if (agents.size >= 2 && !line.agent.isNullOrBlank()) append("[").append(line.agent).append("] ")
+                    if (line.isBackground) append("(").append(line.text).append(")") else append(line.text)
+                    line.translation?.takeIf { it.isNotBlank() }?.let { append("\n").append(it) }
+                }
+                Text(rendered, modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp), color = if (line.isBackground) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface)
+            }
+        }
+    }
+}
+
+@Composable
+private fun LyricsFullscreenDialog(lyrics: Lyrics?, timestamps: Boolean, onDismiss: () -> Unit) {
+    if (lyrics == null) return
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(Modifier.fillMaxSize().padding(16.dp), color = MaterialTheme.colorScheme.surface) {
+            Column(Modifier.fillMaxSize().padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(R.string.lyrics_title), style = MaterialTheme.typography.headlineSmall)
+                    Spacer(Modifier.weight(1f))
+                    TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) }
+                }
+                LyricsLines(lyrics, timestamps, showAll = true)
+            }
+        }
+    }
+}
+
+private fun Lyrics.lineCount(): Int = when (this) {
+    is Lyrics.Plain -> if (text.isBlank()) 0 else text.lines().size
+    is Lyrics.Timed -> lines.size
+}
+
+private fun Lyrics.toCopyText(): String = when (this) {
+    is Lyrics.Plain -> text
+    is Lyrics.Timed -> lines.joinToString("\n") { buildString { append(it.text); it.translation?.let { translation -> append("\n").append(translation) } } }
 }
 
 @Composable
@@ -841,6 +976,7 @@ fun SettingsScreen(onOpenExport: () -> Unit = {}, viewModel: ScoreSettingsViewMo
         )
         Text(stringResource(R.string.dynamic_color_body), style = MaterialTheme.typography.bodySmall)
         Text(stringResource(R.string.data_sources), style = MaterialTheme.typography.titleLarge)
+        MediaScanRootManager()
         FilterChip(
             selected = offlineOnly,
             onClick = { viewModel.setOfflineOnly(!offlineOnly) },
