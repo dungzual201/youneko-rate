@@ -1,5 +1,6 @@
 package com.youneko.rate.data.local.entity
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Fts4
 import androidx.room.ForeignKey
@@ -69,7 +70,10 @@ data class AlbumEntity(
             onDelete = ForeignKey.CASCADE,
         ),
     ],
-    indices = [Index(value = ["albumId"]), Index(value = ["recordingMbid"], unique = false)],
+    indices = [
+        Index(value = ["albumId"]),
+        Index(value = ["recordingMbid"], unique = false),
+    ],
 )
 data class TrackEntity(
     @PrimaryKey val id: String,
@@ -95,6 +99,7 @@ data class TrackEntity(
     val stableKey: String? = null,
     val fileSizeBytes: Long? = null,
     val fileHash64k: String? = null,
+    @ColumnInfo(defaultValue = "0")
     val isMissing: Boolean = false,
     val missingSince: Long? = null,
     val mediaStoreModifiedSeconds: Long? = null,
