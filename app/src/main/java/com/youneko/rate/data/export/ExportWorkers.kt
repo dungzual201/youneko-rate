@@ -2,8 +2,11 @@ package com.youneko.rate.data.export
 
 import android.content.Context
 import android.net.Uri
+import androidx.documentfile.provider.DocumentFile
+import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.ForegroundInfo
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
@@ -14,9 +17,7 @@ import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 import java.io.File
 import java.util.concurrent.TimeUnit
-import java.util.zip.ZipEntry
-import java.util.zip.ZipInputStream
-import java.util.zip.ZipOutputStream
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
@@ -26,79 +27,100 @@ const val EXPORT_FORMAT_JSON = "json"
 const val EXPORT_FORMAT_CSV = "csv"
 const val BACKUP_INPUT_URI = "backup_input_uri"
 const val BACKUP_OUTPUT_URI = "backup_output_uri"
-const val BACKUP_MANIFEST = "manifest.json"
-const val BACKUP_LIBRARY = "library.json"
-const val BACKUP_SETTINGS = "settings.json"
+const val BACKUP_RESTORE_MODE = "backup_restore_mode"
+const val BACKUP_RESTORE_REPLACE = "replace"
+const val BACKUP_RESTORE_MERGE = "merge"
+const val AUTO_BACKUP_TREE_URI = "auto_backup_tree_uri"
+
+private val exportJson = Json { prettyPrint = true; encodeDefaults = true; ignoreUnknownKeys = true }
 
 @EntryPoint
 @InstallIn(SingletonComponent::class)
 interface ExportWorkerEntryPoint {
     fun database(): com.youneko.rate.data.local.YounekoDatabase
+    fun settings(): com.youneko.rate.data.SettingsStore
+    fun scanner(): com.youneko.rate.data.scan.MediaStoreScanner
 }
-
-private val exportJson = Json { prettyPrint = true; encodeDefaults = true; ignoreUnknownKeys = true }
 
 class ExportWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result = runCatching {
         val database = entryPoint().database()
         val snapshot = database.exportSnapshot()
         val outputUri = inputData.getString(EXPORT_OUTPUT_URI)?.let(Uri::parse)
-            ?: return Result.failure(workDataOf("error" to "Missing output URI"))
+            ?: return Result.failure(workDataOf("error" to "Thiếu URI xuất dữ liệu"))
         val format = inputData.getString(EXPORT_FORMAT) ?: EXPORT_FORMAT_JSON
-        val content = if (format == EXPORT_FORMAT_CSV) snapshot.toCsv() else exportJson.encodeToString(snapshot)
-        applicationContext.contentResolver.openOutputStream(outputUri)?.use { it.write(content.toByteArray(Charsets.UTF_8)) }
-            ?: return Result.failure(workDataOf("error" to "Cannot open output URI"))
+        val content = if (format == EXPORT_FORMAT_CSV) {
+            byteArrayOf(0xEF.toByte(), 0xBB.toByte(), 0xBF.toByte()) + snapshot.toReadableCsv().toByteArray(Charsets.UTF_8)
+        } else {
+            exportJson.encodeToString(snapshot).toByteArray(Charsets.UTF_8)
+        }
+        applicationContext.contentResolver.openOutputStream(outputUri)?.use { it.write(content) }
+            ?: return Result.failure(workDataOf("error" to "Không thể mở nơi lưu"))
         Result.success(workDataOf("format" to format, "count" to snapshot.albums.size))
-    }.getOrElse { Result.failure(workDataOf("error" to (it.message ?: "Export failed"))) }
+    }.getOrElse { Result.failure(workDataOf("error" to (it.message ?: "Xuất dữ liệu thất bại"))) }
 
     private fun entryPoint() = EntryPointAccessors.fromApplication(applicationContext, ExportWorkerEntryPoint::class.java)
 }
 
 open class BackupWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
-    override suspend fun doWork(): Result = runCatching {
-        val outputUri = inputData.getString(BACKUP_OUTPUT_URI)?.let(Uri::parse)
-        val target = outputUri?.let { applicationContext.contentResolver.openOutputStream(it) }
-            ?: run {
-                val dir = File(applicationContext.filesDir, "backups").apply { mkdirs() }
-                File(dir, "backup-${System.currentTimeMillis()}.$BACKUP_EXTENSION").outputStream()
-            }
-        target.use { output ->
-            ZipOutputStream(output).use { zip -> writeArchive(zip) }
-        }
-        pruneBackups()
-        Result.success()
-    }.getOrElse { Result.failure(workDataOf("error" to (it.message ?: "Backup failed"))) }
+    override suspend fun getForegroundInfo(): ForegroundInfo = backupForegroundInfo(applicationContext, "Đang sao lưu dữ liệu…")
 
-    private suspend fun writeArchive(zip: ZipOutputStream) {
-        val database = entryPoint().database()
-        val snapshot = database.exportSnapshot()
-        zip.writeText(BACKUP_MANIFEST, exportJson.encodeToString(BackupManifest(CURRENT_BACKUP_SCHEMA, System.currentTimeMillis())))
-        zip.writeText(BACKUP_LIBRARY, exportJson.encodeToString(snapshot))
-        zip.writeText(BACKUP_SETTINGS, exportJson.encodeToString(SafeSettingsSnapshot()))
-        val dbFile = applicationContext.getDatabasePath("youneko_rate.db")
-        listOf(dbFile, File(dbFile.path + "-wal"), File(dbFile.path + "-shm")).filter(File::exists).forEach { file ->
-            zip.putNextEntry(ZipEntry("database/${file.name}"))
-            file.inputStream().use { it.copyTo(zip) }
-            zip.closeEntry()
-        }
-        snapshot.albums.forEach { album ->
-            val uri = album.coverUri ?: return@forEach
-            val input = runCatching { applicationContext.contentResolver.openInputStream(Uri.parse(uri)) }.getOrNull() ?: return@forEach
-            zip.putNextEntry(ZipEntry("covers/${album.id}.bin"))
-            input.use { it.copyTo(zip) }
-            zip.closeEntry()
+    override suspend fun doWork(): Result {
+        val autoTreeUri = inputData.getString(AUTO_BACKUP_TREE_URI)?.let(Uri::parse)
+        val outputUri = inputData.getString(BACKUP_OUTPUT_URI)?.let(Uri::parse)
+            ?: autoTreeUri?.let { DocumentFile.fromTreeUri(applicationContext, it)?.createFile("application/octet-stream", "YounekoRate_${timestamp()}.$BACKUP_EXTENSION")?.uri }
+        val localFile = if (outputUri == null) {
+            File(applicationContext.filesDir, "backups/YounekoRate_${timestamp()}.$BACKUP_EXTENSION").apply { parentFile?.mkdirs() }
+        } else null
+        return try {
+            val output = outputUri?.let { applicationContext.contentResolver.openOutputStream(it) }
+                ?: localFile!!.outputStream()
+                ?: return Result.failure(workDataOf("error" to "Không thể mở nơi lưu"))
+            output.use { stream ->
+                writeBackupArchive(stream)
+            }
+            if (autoTreeUri != null) pruneTreeBackups(autoTreeUri) else pruneBackups()
+            Result.success(workDataOf("message" to "Đã sao lưu dữ liệu"))
+        } catch (cancelled: CancellationException) {
+            localFile?.delete()
+            outputUri?.let { runCatching { applicationContext.contentResolver.delete(it, null, null) } }
+            throw cancelled
+        } catch (error: Throwable) {
+            localFile?.delete()
+            outputUri?.let { runCatching { applicationContext.contentResolver.delete(it, null, null) } }
+            Result.failure(workDataOf("error" to (error.message ?: "Sao lưu thất bại")))
         }
     }
 
-    private fun ZipOutputStream.writeText(name: String, text: String) {
-        putNextEntry(ZipEntry(name)); write(text.toByteArray(Charsets.UTF_8)); closeEntry()
+    private suspend fun writeBackupArchive(output: java.io.OutputStream) {
+        val entry = entryPoint()
+        writeBackupArchive(
+            context = applicationContext,
+            database = entry.database(),
+            settings = entry.settings(),
+            output = output,
+            includeCovers = inputData.getBoolean("include_covers", true),
+            includeReadableExports = inputData.getBoolean("include_exports", true),
+            isCancelled = { isStopped },
+            onProgress = { progress ->
+                setProgressAsync(workDataOf("step" to progress.step, "done" to progress.done, "total" to progress.total))
+            },
+        )
+    }
+
+    private fun pruneTreeBackups(treeUri: Uri) {
+        DocumentFile.fromTreeUri(applicationContext, treeUri)?.listFiles()
+            ?.filter { it.name?.endsWith(".$BACKUP_EXTENSION") == true }
+            ?.sortedByDescending { it.lastModified() }
+            ?.drop(5)
+            ?.forEach { it.delete() }
     }
 
     private fun pruneBackups() {
         val dir = File(applicationContext.filesDir, "backups")
         dir.listFiles { file -> file.extension == BACKUP_EXTENSION }
             ?.sortedByDescending(File::lastModified)
-            ?.drop(3)
+            ?.drop(5)
             ?.forEach(File::delete)
     }
 
@@ -108,60 +130,48 @@ open class BackupWorker(appContext: Context, params: WorkerParameters) : Corouti
 class AutoBackupWorker(appContext: Context, params: WorkerParameters) : BackupWorker(appContext, params)
 
 class RestoreWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
-    override suspend fun doWork(): Result = runCatching {
+    override suspend fun doWork(): Result = try {
         val uri = inputData.getString(BACKUP_INPUT_URI)?.let(Uri::parse)
-            ?: return Result.failure(workDataOf("error" to "Missing backup URI"))
-        val staging = File(applicationContext.cacheDir, "restore-staging-${System.currentTimeMillis()}").apply { mkdirs() }
-        applicationContext.contentResolver.openInputStream(uri)?.use { input ->
-            ZipInputStream(input).use { zip ->
-                var entry = zip.nextEntry
-                var schema: Int? = null
-                while (entry != null) {
-                    val target = File(staging, entry.name).canonicalFile
-                    require(target.path.startsWith(staging.canonicalPath + File.separator)) { "Unsafe backup entry" }
-                    if (!entry.isDirectory) {
-                        target.parentFile?.mkdirs()
-                        target.outputStream().use { zip.copyTo(it) }
-                        if (entry.name == BACKUP_MANIFEST) schema = exportJson.decodeFromString<BackupManifest>(target.readText()).schemaVersion
-                    }
-                    zip.closeEntry(); entry = zip.nextEntry
-                }
-                require(schema != null && schema!! <= CURRENT_BACKUP_SCHEMA) { "Incompatible backup schema: $schema" }
-            }
-        } ?: return Result.failure(workDataOf("error" to "Cannot open backup URI"))
-        Result.success(workDataOf("staging" to staging.path))
-    }.getOrElse { Result.failure(workDataOf("error" to (it.message ?: "Restore failed"))) }
+            ?: return Result.failure(workDataOf("error" to "Thiếu file sao lưu"))
+        val mode = if (inputData.getString(BACKUP_RESTORE_MODE) == BACKUP_RESTORE_MERGE) RestoreMode.MERGE else RestoreMode.REPLACE
+        val entry = entryPoint()
+        val result = restoreBackup(applicationContext, entry.database(), entry.settings(), entry.scanner(), uri, mode)
+        Result.success(workDataOf("message" to result.message, "matched" to (result.report?.matchedTracks ?: 0), "total" to (result.report?.totalTracks ?: 0)))
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (error: Throwable) {
+        Result.failure(workDataOf("error" to (error.message ?: "Khôi phục thất bại")))
+    }
+
+    private fun entryPoint() = EntryPointAccessors.fromApplication(applicationContext, ExportWorkerEntryPoint::class.java)
 }
 
-fun scheduleWeeklyAutoBackup(context: Context) {
+fun scheduleWeeklyAutoBackup(context: Context, treeUri: Uri? = null) {
+    val data = treeUri?.let { workDataOf(AUTO_BACKUP_TREE_URI to it.toString()) } ?: androidx.work.Data.EMPTY
     val request = PeriodicWorkRequestBuilder<AutoBackupWorker>(7, TimeUnit.DAYS)
-        .setConstraints(androidx.work.Constraints.Builder().setRequiresBatteryNotLow(true).build())
+        .setInputData(data)
+        .setConstraints(Constraints.Builder().setRequiresBatteryNotLow(true).setRequiresDeviceIdle(true).build())
         .build()
     WorkManager.getInstance(context).enqueueUniquePeriodicWork("youneko-weekly-backup", ExistingPeriodicWorkPolicy.UPDATE, request)
 }
 
-@kotlinx.serialization.Serializable
-data class BackupManifest(val schemaVersion: Int, val createdAt: Long, val format: String = BACKUP_EXTENSION)
+private fun timestamp(): String = java.text.SimpleDateFormat("yyyy-MM-dd_HHmm", java.util.Locale.US).format(java.util.Date())
 
-@kotlinx.serialization.Serializable
-data class SafeSettingsSnapshot(
-    val note: String = "Provider credentials are intentionally excluded from backups.",
-)
+private fun backupForegroundInfo(context: Context, title: String): ForegroundInfo =
+    ForegroundInfo(2202, androidx.core.app.NotificationCompat.Builder(context, "background_tasks")
+        .setSmallIcon(android.R.drawable.stat_sys_upload)
+        .setContentTitle("Youneko Rate!")
+        .setContentText(title)
+        .setOngoing(true)
+        .build())
 
-private fun LibrarySnapshot.toCsv(): String = buildString {
-    appendLine("album_id,album_title,artist_id,release_year,album_score,track_id,track_title,track_score,track_review,credit_person,credit_role,credit_source")
-    val albumById = albums.associateBy { it.id }
-    val tracksByAlbum = tracks.groupBy { it.albumId }
-    val creditsByScope = credits.groupBy { it.albumId to it.trackId }
-    albums.forEach { album ->
-        val albumTracks = tracksByAlbum[album.id].orEmpty().ifEmpty { listOf(null) }
-        albumTracks.forEach { track ->
-            val credits = creditsByScope[album.id to track?.id].orEmpty().ifEmpty { listOf(null) }
-            credits.forEach { credit ->
-                appendLine(listOf(album.id, album.title, album.artistId, album.releaseYear, album.manualScoreOverride, track?.id, track?.title, track?.stars, track?.reviewText, credit?.personName, credit?.role, credit?.sourceProvider).joinToString(",") { csv(it?.toString().orEmpty()) })
-            }
-        }
+private fun LibrarySnapshot.toReadableCsv(): String = buildString {
+    appendLine("album,artist,track,trackNumber,stars,albumScore,tags,listenedDate,reviewExcerpt")
+    val artistsById = artists.associateBy { it.id }
+    val albumsById = albums.associateBy { it.id }
+    tracks.forEach { track ->
+        val album = track.albumId?.let(albumsById::get)
+        val artist = album?.artistId?.let(artistsById::get)?.name.orEmpty()
+        appendLine(listOf(album?.title.orEmpty(), artist, track.title, track.trackNumber, track.stars, album?.manualScoreOverride, album?.genreTags?.joinToString("|"), track.listenedDate, track.reviewText.orEmpty().take(160)).joinToString(",") { "\"${it?.toString().orEmpty().replace("\"", "\"\"")}\"" })
     }
 }
-
-private fun csv(value: String): String = "\"${value.replace("\"", "\"\"")}\""
