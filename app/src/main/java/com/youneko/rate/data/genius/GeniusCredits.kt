@@ -1,5 +1,6 @@
 package com.youneko.rate.data.genius
 
+import android.util.Log
 import com.youneko.rate.data.SettingsStore
 import com.youneko.rate.data.credits.SourceResult
 import com.youneko.rate.data.local.dao.RemoteMetadataCacheDao
@@ -55,10 +56,10 @@ class GeniusCreditsService @Inject constructor(
 
     suspend fun loadSource(trackId: String, title: String, artist: String, enabledSourcesHash: String = "default", forceRefresh: Boolean = false, manualSongId: Long? = null): SourceResult {
         if (settings.offlineOnly.first()) return SourceResult.Offline
-        if (!settings.geniusEnabled.first()) return SourceResult.Empty
+        if (!settings.geniusEnabled.first()) return SourceResult.Empty()
         if (settings.geniusToken.first().trim().isBlank()) return SourceResult.NeedsToken
         return when (val result = load(trackId, title, artist, enabledSourcesHash, forceRefresh, manualSongId)) {
-            is Resource.Success -> if (result.value.credits.isEmpty()) SourceResult.Empty else SourceResult.Success(result.value.credits)
+            is Resource.Success -> if (result.value.credits.isEmpty()) SourceResult.Empty() else SourceResult.Success(result.value.credits)
             is Resource.Error -> when (result.kind) {
                 NetworkError.RATE_LIMITED -> SourceResult.RateLimited(60)
                 NetworkError.NO_RESULTS -> SourceResult.NoMatch
@@ -80,11 +81,25 @@ class GeniusCreditsService @Inject constructor(
         }
         runCatching {
             val authorization = "Bearer $token"
+            val queries = listOf(
+                "$artist $title",
+                "$artist ${title.lowercase()}",
+                "$artist ${removeDiacritics(title)}",
+                "${removeDiacritics(artist)} ${removeDiacritics(title)}",
+                title,
+            ).distinct()
+            val searchedResults = mutableListOf<GeniusSearchResult>()
+            for (query in queries) {
+                searchedResults += request { api.search(query, authorization) }.response.hits.map { it.result }
+            }
             val candidate = manualSongId?.let { GeniusSearchResult(id = it, title = title, artistNames = artist) }
-                ?: request { api.search("$artist $title", authorization) }.response.hits
-                    .map { it.result }
+                ?: searchedResults.asSequence()
+                    .distinctBy { it.id }
                     .firstOrNull { match(title, artist, it.title, it.artistNames) }
-                ?: return@runCatching GeniusCreditResult(emptyList())
+                ?: run {
+                    Log.d("GeniusCredits", "NoMatch title=$title artist=$artist queries=${queries.joinToString(" | ")}")
+                    return@runCatching GeniusCreditResult(emptyList())
+                }
             val song = request { api.song(candidate.id, authorization = authorization).response.song }
             val sourceUrl = song.url ?: candidate.url ?: "https://genius.com/songs/${candidate.id}"
             val credits = buildList {
@@ -137,31 +152,43 @@ class GeniusCreditsService @Inject constructor(
     }
 
     private fun match(title: String, artist: String, candidateTitle: String, candidateArtist: String): Boolean =
-        similarity(title, candidateTitle) >= 0.85 && similarity(artist, candidateArtist) >= 0.80
+        jaroWinkler(normalize(title), normalize(candidateTitle)) >= 0.85 && jaroWinkler(normalize(artist), normalize(candidateArtist)) >= 0.75
 
-    private fun similarity(a: String, b: String): Double {
-        val left = normalize(a)
-        val right = normalize(b)
+    private fun jaroWinkler(left: String, right: String): Double {
         if (left == right) return 1.0
-        val max = maxOf(left.length, right.length).coerceAtLeast(1)
-        val distance = Array(left.length + 1) { it }
-        for (i in 1..left.length) {
-            var previous = distance[0]
-            distance[0] = i
-            for (j in 1..right.length) {
-                val current = distance[j]
-                distance[j] = minOf(distance[j] + 1, distance[j - 1] + 1, previous + if (left[i - 1] == right[j - 1]) 0 else 1)
-                previous = current
+        if (left.isEmpty() || right.isEmpty()) return 0.0
+        val distance = (maxOf(left.length, right.length) / 2 - 1).coerceAtLeast(0)
+        val leftMatches = BooleanArray(left.length)
+        val rightMatches = BooleanArray(right.length)
+        var matches = 0
+        for (i in left.indices) {
+            for (j in (i - distance).coerceAtLeast(0)..(i + distance).coerceAtMost(right.lastIndex)) {
+                if (!rightMatches[j] && left[i] == right[j]) {
+                    leftMatches[i] = true
+                    rightMatches[j] = true
+                    matches++
+                    break
+                }
             }
         }
-        return 1.0 - distance[right.length].toDouble() / max
+        if (matches == 0) return 0.0
+        val leftSequence = left.indices.filter { leftMatches[it] }.map { left[it] }
+        val rightSequence = right.indices.filter { rightMatches[it] }.map { right[it] }
+        val transpositions = leftSequence.zip(rightSequence).count { it.first != it.second } / 2.0
+        val jaro = (matches.toDouble() / left.length + matches.toDouble() / right.length + (matches - transpositions) / matches) / 3.0
+        val prefix = left.zip(right).take(4).takeWhile { it.first == it.second }.count()
+        return jaro + prefix * 0.1 * (1.0 - jaro)
     }
 
-    private fun normalize(value: String): String = java.text.Normalizer.normalize(value.lowercase(), java.text.Normalizer.Form.NFD)
+    private fun normalize(value: String): String = java.text.Normalizer.normalize(removeDiacritics(value).lowercase(), java.text.Normalizer.Form.NFD)
         .replace("\\p{M}+".toRegex(), "")
         .replace(Regex("\\(.*?\\)|\\[.*?]"), "")
-        .replace(Regex("\\b(feat|ft|with|prod|remastered|version|deluxe)\\b.*"), "")
+        .replace(Regex("\\b(feat|ft|with|prod|remastered|version|deluxe|official|audio|mv|lyrics|bản mở rộng)\\b.*"), "")
         .replace(Regex("[^a-z0-9]"), "")
+
+    private fun removeDiacritics(value: String): String = value
+        .replace('đ', 'd')
+        .replace('Đ', 'D')
 
     private fun mapError(error: Throwable): NetworkError = when {
         error is UnknownHostException || error is java.io.IOException -> NetworkError.NO_CONNECTION
@@ -170,4 +197,28 @@ class GeniusCreditsService @Inject constructor(
         error is kotlinx.serialization.SerializationException -> NetworkError.PARSE_ERROR
         else -> NetworkError.UNKNOWN
     }
+}
+
+internal fun geniusMatchForTest(title: String, artist: String, candidateTitle: String, candidateArtist: String): Boolean {
+    fun normalizeForTest(value: String): String = java.text.Normalizer.normalize(value.replace('đ', 'd').replace('Đ', 'D').lowercase(), java.text.Normalizer.Form.NFD)
+        .replace("\\p{M}+".toRegex(), "")
+        .replace(Regex("\\(.*?\\)|\\[.*?]"), "")
+        .replace(Regex("[^a-z0-9]"), "")
+    fun jaroWinkler(left: String, right: String): Double {
+        if (left == right) return 1.0
+        if (left.isEmpty() || right.isEmpty()) return 0.0
+        val distance = (maxOf(left.length, right.length) / 2 - 1).coerceAtLeast(0)
+        val lm = BooleanArray(left.length); val rm = BooleanArray(right.length); var matches = 0
+        for (i in left.indices) for (j in (i - distance).coerceAtLeast(0)..(i + distance).coerceAtMost(right.lastIndex)) {
+            if (!rm[j] && left[i] == right[j]) { lm[i] = true; rm[j] = true; matches++; break }
+        }
+        if (matches == 0) return 0.0
+        val ls = left.indices.filter { lm[it] }.map { left[it] }
+        val rs = right.indices.filter { rm[it] }.map { right[it] }
+        val transpositions = ls.zip(rs).count { it.first != it.second } / 2.0
+        val jaro = (matches.toDouble() / left.length + matches.toDouble() / right.length + (matches - transpositions) / matches) / 3.0
+        val prefix = left.zip(right).take(4).takeWhile { it.first == it.second }.count()
+        return jaro + prefix * 0.1 * (1.0 - jaro)
+    }
+    return jaroWinkler(normalizeForTest(title), normalizeForTest(candidateTitle)) >= 0.85 && jaroWinkler(normalizeForTest(artist), normalizeForTest(candidateArtist)) >= 0.75
 }
