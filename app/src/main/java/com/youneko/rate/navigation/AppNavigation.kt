@@ -1,5 +1,6 @@
 package com.youneko.rate.navigation
 
+import android.util.Log
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -46,6 +47,10 @@ import com.youneko.rate.ui.rate.SettingsScreen
 import com.youneko.rate.ui.analyze.AudioAnalysisScreen
 import com.youneko.rate.ui.credits.CreditsScreen
 import com.youneko.rate.ui.stats.StatsScreen
+import com.youneko.rate.ui.export.ExportScreen
+import com.youneko.rate.ui.phase12.AdvancedSearchScreen
+import com.youneko.rate.ui.phase12.CollectionsScreen
+import com.youneko.rate.ui.phase12.ArtistPageScreen
 
 private data class AppDestination(
     val route: String,
@@ -71,10 +76,11 @@ fun YounekoNavHost() {
     val isCredits = currentDestination?.route?.startsWith("credits/") == true
     val isEditor = currentDestination?.route == "addAlbum"
     val isImport = currentDestination?.route == "importTags"
+    val isExport = currentDestination?.route == "export"
 
     Scaffold(
         topBar = {
-            if (!isDetail && !isCredits && !isEditor && !isImport) {
+            if (!isDetail && !isCredits && !isEditor && !isImport && !isExport) {
                 TopAppBar(
                     title = { Text(if (isSettings) stringResource(R.string.settings) else stringResource(R.string.app_name)) },
                     actions = {
@@ -86,7 +92,7 @@ fun YounekoNavHost() {
             }
         },
         bottomBar = {
-            if (!isSettings && !isDetail && !isCredits && !isEditor && !isImport) {
+            if (!isSettings && !isDetail && !isCredits && !isEditor && !isImport && !isExport) {
                 NavigationBar {
                     destinations.forEach { destination ->
                         val selected = currentDestination?.hierarchy?.any { it.route == destination.route } == true
@@ -112,25 +118,45 @@ fun YounekoNavHost() {
                 LibraryScreen(
                     onOpenAlbum = { navController.navigate("album/$it") },
                     onAddAlbum = { navController.navigate("addAlbum") },
+                    onOpenAdvancedSearch = { navController.navigate("advancedSearch") },
+                    onOpenCollections = { navController.navigate("collections") },
                 )
             }
             composable("rate") {
                 RateScreen(
                     onAddAlbum = { navController.navigate("addAlbum") },
-                    onImportTags = { navController.navigate("importTags") { launchSingleTop = true } },
+                    onImportTags = {
+                        navController.navigate("importTags") {
+                            popUpTo("rate") { inclusive = false }
+                            launchSingleTop = true
+                        }
+                    },
                     onOpenAlbum = { navController.navigate("album/$it") },
                 )
             }
             composable("analyze") { AudioAnalysisScreen() }
             composable("stats") { StatsScreen() }
-            composable("settings") { SettingsScreen() }
-            composable("importTags") { ImportScreen(onDone = { navController.popBackStack("rate", inclusive = false) }) }
+            composable("settings") { SettingsScreen(onOpenExport = { navController.navigate("export") }) }
+            composable("export") { ExportScreen(onBack = { navController.popBackStack() }) }
+            composable("advancedSearch") { AdvancedSearchScreen(onBack = { navController.popBackStack() }) }
+            composable("collections") { CollectionsScreen(onBack = { navController.popBackStack() }) }
+            composable("importTags") {
+                ImportScreen(onDone = {
+                    Log.d("ImportNavigation", "before success route=${backStackEntry?.destination?.route}")
+                    navController.navigate("rate") {
+                        popUpTo("importTags") { inclusive = true }
+                        launchSingleTop = true
+                    }
+                    Log.d("ImportNavigation", "after success route=${navController.currentDestination?.route}")
+                })
+            }
             composable("addAlbum") {
                 AlbumEditorScreen(onSaved = { navController.navigate("album/$it") { popUpTo("library") } }, onCancel = { navController.popBackStack() })
             }
             composable("album/{albumId}", arguments = listOf(navArgument("albumId") { type = NavType.StringType })) {
                 AlbumDetailScreen(
                     onBack = { navController.popBackStack() },
+                    onOpenArtist = { navController.navigate("artist/$it") },
                     onAnalyzeTrack = { navController.navigate("analyze") },
                     onViewCredits = { albumId, trackId, releaseMbid ->
                         val releasePart = releaseMbid?.let { "&releaseMbid=$it" }.orEmpty()
@@ -141,6 +167,9 @@ fun YounekoNavHost() {
                         }
                     },
                 )
+            }
+            composable("artist/{artistId}", arguments = listOf(navArgument("artistId") { type = NavType.StringType })) { entry ->
+                ArtistPageScreen(artistId = checkNotNull(entry.arguments?.getString("artistId")), onBack = { navController.popBackStack() })
             }
             composable(
                 route = "credits/album/{albumId}?releaseMbid={releaseMbid}",

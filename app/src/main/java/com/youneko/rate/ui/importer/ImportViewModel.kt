@@ -2,6 +2,7 @@ package com.youneko.rate.ui.importer
 
 import android.content.Context
 import android.net.Uri
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.work.OneTimeWorkRequestBuilder
@@ -64,15 +65,22 @@ class ImportViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val importSessionDao: ImportSessionDao,
     private val coverArtService: CoverArtService,
+    private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
-    private val _state = MutableStateFlow(ImportUiState())
+    private val restoredWorkId = savedStateHandle.get<String>(KEY_WORK_ID)?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+    private val _state = MutableStateFlow(ImportUiState(workId = restoredWorkId, dialogVisible = savedStateHandle[KEY_DIALOG_VISIBLE] ?: false))
     val state: StateFlow<ImportUiState> = _state.asStateFlow()
     private val eventsChannel = Channel<ImportEvent>(Channel.BUFFERED)
     val events = eventsChannel.receiveAsFlow()
     private var terminalEventSent = false
+    private var suppressTerminalEvents = false
     private var lastEnqueueAt = 0L
     private val workManager = WorkManager.getInstance(context)
     private val json = Json { ignoreUnknownKeys = true }
+
+    init {
+        restoredWorkId?.let { observeWork(it) }
+    }
 
     fun readSelection(uri: Uri, isTree: Boolean) = readSelections(listOf(uri), isTree)
 
@@ -172,6 +180,7 @@ class ImportViewModel @Inject constructor(
         if (now - lastEnqueueAt < 500L || current.dialogVisible || current.workState == WorkInfo.State.RUNNING || current.workState == WorkInfo.State.ENQUEUED || current.selectedUris.isEmpty() || current.selections.isEmpty() || current.sourceUris.isEmpty()) return
         lastEnqueueAt = now
         terminalEventSent = false
+        suppressTerminalEvents = false
         viewModelScope.launch {
             val sessionId = UUID.randomUUID().toString()
             importSessionDao.upsert(
@@ -188,6 +197,8 @@ class ImportViewModel @Inject constructor(
                 .setInputData(workDataOf(ImportWorker.KEY_SESSION_ID to sessionId))
                 .build()
             workManager.enqueue(request)
+            savedStateHandle[KEY_WORK_ID] = request.id.toString()
+            savedStateHandle[KEY_DIALOG_VISIBLE] = true
             _state.value = _state.value.copy(workId = request.id, workState = WorkInfo.State.ENQUEUED, dialogVisible = true)
             observeWork(request.id)
         }
@@ -198,12 +209,18 @@ class ImportViewModel @Inject constructor(
     }
 
     fun dismissDialog() {
+        if (_state.value.workId != null) suppressTerminalEvents = true
+        savedStateHandle.remove<String>(KEY_WORK_ID)
+        savedStateHandle[KEY_DIALOG_VISIBLE] = false
         _state.value = _state.value.copy(dialogVisible = false, isReading = false, workId = null, workState = null, progressCurrent = 0, progressTotal = 0)
     }
 
     fun resetImportState() {
+        savedStateHandle.remove<String>(KEY_WORK_ID)
+        savedStateHandle.remove<Boolean>(KEY_DIALOG_VISIBLE)
         _state.value = ImportUiState()
         terminalEventSent = false
+        suppressTerminalEvents = false
     }
 
     private fun observeWork(id: UUID) {
@@ -213,7 +230,9 @@ class ImportViewModel @Inject constructor(
                 val progress = info.progress
                 if (!terminalEventSent && info.state.isFinished) {
                     terminalEventSent = true
-                    if (info.state == WorkInfo.State.SUCCEEDED) eventsChannel.trySend(ImportEvent.Success) else if (info.state == WorkInfo.State.CANCELLED) eventsChannel.trySend(ImportEvent.Cancelled)
+                    if (!suppressTerminalEvents) {
+                        if (info.state == WorkInfo.State.SUCCEEDED) eventsChannel.trySend(ImportEvent.Success) else if (info.state == WorkInfo.State.CANCELLED) eventsChannel.trySend(ImportEvent.Cancelled)
+                    }
                 }
                 _state.value = _state.value.copy(
                     workState = info.state,
@@ -225,5 +244,10 @@ class ImportViewModel @Inject constructor(
                 )
             }
         }
+    }
+
+    private companion object {
+        const val KEY_WORK_ID = "import_work_id"
+        const val KEY_DIALOG_VISIBLE = "import_dialog_visible"
     }
 }
