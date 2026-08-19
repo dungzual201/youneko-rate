@@ -19,6 +19,9 @@ class NoPlaybackAndNavigationInvariantTest {
             "Audio" + "Track",
             "preview" + "_url",
             "Play" + " preview",
+            "preview" + "Url",
+            "MANAGE_EXTERNAL_STORAGE",
+            "lyrics" + "Web",
         ).forEach { banned -> assertFalse("Found banned playback token: $banned", source.contains(banned)) }
     }
 }
