@@ -1,10 +1,13 @@
 package com.youneko.rate.data.lyrics
 
+import android.util.Log
 import android.util.Xml
 import org.xmlpull.v1.XmlPullParser
 import java.io.StringReader
 import java.util.Locale
 import kotlin.math.roundToLong
+
+private const val LYRICS_TAG = "LYRICS"
 
 object LyricsParser {
     fun sniff(raw: String): LyricsFormat {
@@ -16,10 +19,15 @@ object LyricsParser {
         }
     }
 
-    fun parse(raw: String, fileName: String? = null): Lyrics = when (sniff(raw)) {
-        LyricsFormat.TTML -> parseTtmlSafely(raw, fileName)
-        LyricsFormat.LRC -> parseLrc(raw)
-        LyricsFormat.PLAIN -> Lyrics.Plain(raw.trim())
+    fun parse(raw: String, fileName: String? = null): Lyrics {
+        val format = sniff(raw)
+        val rawHead = raw.take(500).replace("\n", "\\n").replace("\r", "\\r")
+        Log.i(LYRICS_TAG, "LYRICS: format=$format rawHead=$rawHead file=${fileName ?: "unknown"}")
+        return when (format) {
+            LyricsFormat.TTML -> parseTtmlSafely(raw, fileName)
+            LyricsFormat.LRC -> parseLrc(raw)
+            LyricsFormat.PLAIN -> Lyrics.Plain(sanitizeReadableText(raw.trim(), "plain"))
+        }
     }
 
     fun parseTtml(raw: String): Lyrics.Timed {
@@ -27,9 +35,9 @@ object LyricsParser {
         parser.setFeature(XmlPullParser.FEATURE_PROCESS_DOCDECL, false)
         parser.setInput(StringReader(raw))
         val lines = mutableListOf<LyricLine>()
-        var event = parser.eventType
+        val spanContexts = ArrayDeque<SpanContext>()
         var current: MutableTtmlLine? = null
-        val spanRoles = ArrayDeque<SpanContext>()
+        var event = parser.eventType
         while (event != XmlPullParser.END_DOCUMENT) {
             when (event) {
                 XmlPullParser.START_TAG -> {
@@ -37,12 +45,20 @@ object LyricsParser {
                         "p" -> current = MutableTtmlLine(
                             startMs = parseTime(attribute(parser, "begin")),
                             endMs = attribute(parser, "end")?.let(::parseTime),
-                            agent = attribute(parser, "agent"),
+                            agent = attribute(parser, "agent")?.cleanAgent(),
                         ).also { it.background = attribute(parser, "role") == "x-bg" }
                         "span" -> if (current != null) {
                             val role = attribute(parser, "role")
-                            spanRoles.addLast(SpanContext(role))
-                            if (role == "x-bg") current.background = true
+                            val agent = attribute(parser, "agent")?.cleanAgent()
+                            if (agent != null) current?.agent = agent
+                            spanContexts.addLast(
+                                SpanContext(
+                                    role = role,
+                                    startMs = attribute(parser, "begin")?.let(::parseTime),
+                                    endMs = attribute(parser, "end")?.let(::parseTime),
+                                ),
+                            )
+                            if (role == "x-bg") current?.background = true
                         }
                         "br" -> current?.appendMain("\n")
                     }
@@ -50,17 +66,21 @@ object LyricsParser {
                 XmlPullParser.TEXT, XmlPullParser.ENTITY_REF -> {
                     current?.let { line ->
                         val text = parser.text.orEmpty()
-                        val role = spanRoles.lastOrNull()?.role
-                        if (role == "x-translation") line.appendTranslation(text) else line.appendMain(text)
+                        val span = spanContexts.lastOrNull()
+                        if (span?.role == "x-translation") {
+                            line.appendTranslation(text)
+                        } else {
+                            line.appendMain(text, span?.startMs, span?.endMs)
+                        }
                     }
                 }
                 XmlPullParser.END_TAG -> {
                     when (parser.name.lowercase(Locale.ROOT)) {
-                        "span" -> if (spanRoles.isNotEmpty()) spanRoles.removeLast()
+                        "span" -> if (spanContexts.isNotEmpty()) spanContexts.removeLast()
                         "p" -> current?.let { line ->
                             lines += line.toImmutable()
                             current = null
-                            spanRoles.clear()
+                            spanContexts.clear()
                         }
                     }
                 }
@@ -81,22 +101,34 @@ object LyricsParser {
                 val second = match.groupValues[2].toLongOrNull() ?: 0L
                 val fraction = match.groupValues[3].toLongOrNull() ?: 0L
                 val ms = if (match.groupValues[3].length <= 2) fraction * 10L else fraction
-                LyricLine((minute * 60 + second) * 1000 + ms, text = text)
+                LyricLine((minute * 60 + second) * 1000 + ms, text = sanitizeReadableText(text, "lrc"))
             }
         }.filter { it.text.isNotBlank() }.sortedBy { it.startMs }.toList()
         return Lyrics.Timed(lines.withEndTimes())
     }
 
     private fun parseTtmlSafely(raw: String, fileName: String?): Lyrics = runCatching { parseTtml(raw) }.getOrElse { error ->
-        android.util.Log.w("LyricsParser", "TTML parse failed for ${fileName ?: "unknown file"}", error)
+        Log.w(LYRICS_TAG, "TTML parse failed for ${fileName ?: "unknown file"}", error)
         Lyrics.Plain(stripMarkup(raw))
     }
 
-    private fun stripMarkup(raw: String): String = raw
-        .replace(Regex("<[^>]*>"), "")
-        .replace("<", "")
-        .replace(">", "")
-        .trim()
+    private fun stripMarkup(raw: String): String = sanitizeReadableText(
+        raw.replace(Regex("<[^>]*>"), "").trim(),
+        "fallback",
+    )
+
+    private fun sanitizeReadableText(text: String, source: String): String {
+        val cleaned = text
+            .replace(Regex("<\\s*\\d{1,2}:\\d{2}(?:[.:]\\d{1,3})?\\s*>"), "")
+            .replace(Regex("<[^>]*>"), "")
+            .replace(Regex("^\\s*v\\d+:\\s*", RegexOption.IGNORE_CASE), "")
+            .replace("<", "")
+            .replace(">", "")
+        if (cleaned != text || Regex("<\\s*\\d{1,2}:\\d{2}").containsMatchIn(text)) {
+            Log.w(LYRICS_TAG, "LYRICS: leftover marker in line=$source")
+        }
+        return cleaned
+    }
 
     private fun attribute(parser: XmlPullParser, localName: String): String? = (0 until parser.attributeCount)
         .mapNotNull { index ->
@@ -131,21 +163,48 @@ object LyricsParser {
         }.getOrDefault(0L)
     }
 
-    private data class SpanContext(val role: String?)
+    private data class SpanContext(
+        val role: String?,
+        val startMs: Long?,
+        val endMs: Long?,
+    )
 
     private class MutableTtmlLine(
         val startMs: Long,
         val endMs: Long?,
-        val agent: String?,
+        var agent: String?,
     ) {
         private val main = StringBuilder()
         private val translation = StringBuilder()
+        private val wordTimings = mutableListOf<WordTiming>()
         var background: Boolean = false
 
-        fun appendMain(text: String) { main.append(text) }
-        fun appendTranslation(text: String) { translation.append(text) }
-        fun toImmutable() = LyricLine(startMs, endMs, main.toString(), agent, background, translation.toString().trim().ifBlank { null })
+        fun appendMain(text: String, wordStartMs: Long? = null, wordEndMs: Long? = null) {
+            val readable = sanitizeReadableText(text, "ttml")
+            main.append(readable)
+            if (wordStartMs != null) {
+                val word = readable.trim()
+                if (word.isNotBlank()) wordTimings += WordTiming(wordStartMs, wordEndMs, word)
+            }
+        }
+
+        fun appendTranslation(text: String) { translation.append(sanitizeReadableText(text, "translation")) }
+
+        fun toImmutable(): LyricLine {
+            val text = main.toString().replace(Regex("[ \\t\\r\\n]+"), " ").trim()
+            return LyricLine(
+                startMs = startMs,
+                endMs = endMs,
+                text = sanitizeReadableText(text, "ttml-final"),
+                words = wordTimings.toList(),
+                agent = agent,
+                isBackground = background,
+                translation = translation.toString().trim().ifBlank { null },
+            )
+        }
     }
+
+    private fun String.cleanAgent(): String = substringAfterLast(':').trim().removePrefix("v1:").removePrefix("v2:").trim()
 
     private fun List<LyricLine>.withEndTimes(): List<LyricLine> = mapIndexed { index, line ->
         line.copy(endMs = line.endMs ?: getOrNull(index + 1)?.startMs)
