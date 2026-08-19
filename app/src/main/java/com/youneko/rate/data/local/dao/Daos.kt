@@ -13,6 +13,9 @@ import com.youneko.rate.data.local.entity.ExternalLinkEntity
 import com.youneko.rate.data.local.entity.LibrarySearchFtsEntity
 import com.youneko.rate.data.local.entity.ImportSessionEntity
 import com.youneko.rate.data.local.entity.RemoteMetadataCacheEntity
+import com.youneko.rate.data.local.entity.ReviewRevisionEntity
+import com.youneko.rate.data.local.entity.AlbumTagEntity
+import com.youneko.rate.data.local.entity.ListeningLogEntity
 import com.youneko.rate.data.local.entity.SearchHistoryEntity
 import com.youneko.rate.data.local.entity.TrackEntity
 import kotlinx.coroutines.flow.Flow
@@ -96,6 +99,76 @@ interface TrackDao {
 
     @Query("SELECT * FROM tracks WHERE albumId = :albumId ORDER BY discNumber, trackNumber")
     suspend fun findForAlbum(albumId: String): List<TrackEntity>
+}
+
+data class StatsCountRow(val label: String, val count: Int)
+data class StatsAverageRow(val value: Double?)
+data class StatsValueRow(val label: String, val value: Double?)
+
+@Dao
+interface StatsDao {
+    @Query("SELECT COUNT(DISTINCT albumId) FROM tracks WHERE stars IS NOT NULL")
+    suspend fun ratedAlbumCount(): Int
+
+    @Query("SELECT AVG(stars) AS value FROM tracks WHERE stars IS NOT NULL")
+    suspend fun averageTrackScore(): StatsAverageRow
+
+    @Query("SELECT albums.title FROM albums JOIN tracks ON tracks.albumId = albums.id WHERE tracks.stars IS NOT NULL GROUP BY albums.id ORDER BY AVG(tracks.stars) DESC, albums.title COLLATE NOCASE LIMIT 1")
+    suspend fun topRatedAlbum(): String?
+
+    @Query("SELECT CAST(ROUND(stars) AS INTEGER) AS label, COUNT(*) AS count FROM tracks WHERE stars IS NOT NULL GROUP BY CAST(ROUND(stars) AS INTEGER) ORDER BY label")
+    suspend fun scoreHistogram(): List<StatsCountRow>
+
+    @Query("SELECT artists.name AS label, COUNT(*) AS count FROM albums JOIN artists ON artists.id = albums.artistId JOIN tracks ON tracks.albumId = albums.id WHERE tracks.stars IS NOT NULL GROUP BY artists.name ORDER BY count DESC, label COLLATE NOCASE LIMIT 10")
+    suspend fun topArtists(): List<StatsCountRow>
+
+    @Query("SELECT COALESCE(albums.label, '—') AS label, COUNT(*) AS count FROM albums JOIN tracks ON tracks.albumId = albums.id WHERE tracks.stars IS NOT NULL GROUP BY albums.label ORDER BY count DESC, label COLLATE NOCASE LIMIT 10")
+    suspend fun topLabels(): List<StatsCountRow>
+
+    @Query("SELECT credits.personName AS label, COUNT(*) AS count FROM credits JOIN tracks ON tracks.id = credits.trackId WHERE tracks.stars IS NOT NULL AND (LOWER(credits.role) LIKE '%producer%' OR LOWER(credits.role) LIKE '%mix%') GROUP BY credits.personName ORDER BY count DESC, label COLLATE NOCASE LIMIT 10")
+    suspend fun topProducersAndMixers(): List<StatsCountRow>
+
+    @Query("SELECT verdict AS label, COUNT(*) AS count FROM audio_analysis GROUP BY verdict ORDER BY count DESC")
+    suspend fun qualityDistribution(): List<StatsCountRow>
+
+    @Query("SELECT COALESCE(substr(listenedDate, 1, 4), '—') AS label, AVG(stars) AS value FROM tracks WHERE stars IS NOT NULL GROUP BY substr(listenedDate, 1, 4) ORDER BY label")
+    suspend fun averageByYear(): List<StatsValueRow>
+
+    @Query("SELECT COALESCE(substr(listenedDate, 1, 7), '—') AS label, AVG(stars) AS value FROM tracks WHERE stars IS NOT NULL GROUP BY substr(listenedDate, 1, 7) ORDER BY label")
+    suspend fun averageByMonth(): List<StatsValueRow>
+}
+
+@Dao
+interface ReviewRevisionDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(value: ReviewRevisionEntity)
+
+    @Query("SELECT * FROM review_revisions WHERE albumId = :albumId AND ((:trackId IS NULL AND trackId IS NULL) OR trackId = :trackId) ORDER BY createdAt DESC LIMIT 5")
+    fun observeRecent(albumId: String, trackId: String?): Flow<List<ReviewRevisionEntity>>
+}
+
+@Dao
+interface AlbumTagDao {
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insert(value: AlbumTagEntity)
+
+    @Query("SELECT * FROM album_tags WHERE albumId = :albumId ORDER BY name COLLATE NOCASE")
+    fun observeForAlbum(albumId: String): Flow<List<AlbumTagEntity>>
+
+    @Query("DELETE FROM album_tags WHERE id = :id")
+    suspend fun delete(id: String)
+}
+
+@Dao
+interface ListeningLogDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(value: ListeningLogEntity)
+
+    @Query("SELECT * FROM listening_logs WHERE albumId = :albumId ORDER BY listenedAt DESC")
+    fun observeForAlbum(albumId: String): Flow<List<ListeningLogEntity>>
+
+    @Query("SELECT COUNT(*) FROM listening_logs WHERE albumId = :albumId")
+    suspend fun countForAlbum(albumId: String): Int
 }
 
 @Dao

@@ -188,6 +188,41 @@ data class ExternalLinkEntity(
     val createdAt: Long,
 )
 
+@Entity(
+    tableName = "review_revisions",
+    indices = [Index(value = ["albumId", "trackId", "createdAt"])],
+)
+data class ReviewRevisionEntity(
+    @PrimaryKey val id: String,
+    val albumId: String,
+    val trackId: String? = null,
+    val body: String,
+    val createdAt: Long,
+)
+
+@Entity(
+    tableName = "album_tags",
+    indices = [Index(value = ["albumId", "name"], unique = true)],
+)
+data class AlbumTagEntity(
+    @PrimaryKey val id: String,
+    val albumId: String,
+    val name: String,
+    val createdAt: Long,
+)
+
+@Entity(
+    tableName = "listening_logs",
+    indices = [Index(value = ["albumId", "listenedAt"]), Index(value = ["trackId", "listenedAt"])],
+)
+data class ListeningLogEntity(
+    @PrimaryKey val id: String,
+    val albumId: String,
+    val trackId: String? = null,
+    val listenedAt: String,
+    val note: String? = null,
+)
+
 @Entity(tableName = "remote_metadata_cache")
 data class RemoteMetadataCacheEntity(
     @PrimaryKey val key: String,

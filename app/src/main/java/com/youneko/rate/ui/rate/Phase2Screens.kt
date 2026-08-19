@@ -10,6 +10,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
@@ -297,10 +298,13 @@ private fun ScoreLine(item: LibraryAlbum) {
     }
 }
 
+private enum class RateFilter { ALL, UNRATED, RATED, TOP }
+
 @Composable
 fun RateScreen(onAddAlbum: () -> Unit, onImportTags: () -> Unit, onOpenAlbum: (String) -> Unit, viewModel: LibraryViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var showStandalone by rememberSaveable { mutableStateOf(false) }
+    var filter by rememberSaveable { mutableStateOf(RateFilter.ALL) }
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = onAddAlbum, modifier = Modifier.weight(1f)) {
@@ -319,8 +323,19 @@ fun RateScreen(onAddAlbum: () -> Unit, onImportTags: () -> Unit, onOpenAlbum: (S
         }
         Spacer(Modifier.height(20.dp))
         Text(stringResource(R.string.albums_in_progress), style = MaterialTheme.typography.headlineSmall)
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(selected = filter == RateFilter.ALL, onClick = { filter = RateFilter.ALL }, label = { Text(stringResource(R.string.rate_filter_all)) })
+            FilterChip(selected = filter == RateFilter.UNRATED, onClick = { filter = RateFilter.UNRATED }, label = { Text(stringResource(R.string.rate_filter_unrated)) })
+            FilterChip(selected = filter == RateFilter.RATED, onClick = { filter = RateFilter.RATED }, label = { Text(stringResource(R.string.rate_filter_rated)) })
+            FilterChip(selected = filter == RateFilter.TOP, onClick = { filter = RateFilter.TOP }, label = { Text(stringResource(R.string.rate_filter_top)) })
+        }
         Spacer(Modifier.height(8.dp))
-        val rateItems = state.albums
+        val rateItems = when (filter) {
+            RateFilter.ALL -> state.albums
+            RateFilter.UNRATED -> state.albums.filter { it.score?.ratedCount ?: 0 < it.tracks.size }
+            RateFilter.RATED -> state.albums.filter { it.tracks.isNotEmpty() && it.score?.ratedCount == it.tracks.size }
+            RateFilter.TOP -> state.albums.sortedByDescending { it.score?.effectiveScore ?: -1.0 }
+        }
         if (rateItems.isEmpty()) {
             EmptyLibrary(onAddAlbum, hasQuery = false)
         } else {
@@ -488,10 +503,15 @@ fun AlbumDetailScreen(
     var fileInfoTrackId by rememberSaveable { mutableStateOf<String?>(null) }
     var showFullCover by rememberSaveable { mutableStateOf(false) }
     var manualScoreText by rememberSaveable { mutableStateOf("") }
+    var tagDraft by rememberSaveable { mutableStateOf("") }
+    var listeningNote by rememberSaveable { mutableStateOf("") }
     var menuExpanded by rememberSaveable { mutableStateOf(false) }
     val snackbarHost = remember { SnackbarHostState() }
     val refreshResult by viewModel.refreshResult.collectAsStateWithLifecycle()
     val ratingScale by viewModel.ratingScale.collectAsStateWithLifecycle()
+    val tags by viewModel.tags.collectAsStateWithLifecycle()
+    val listeningLogs by viewModel.listeningLogs.collectAsStateWithLifecycle()
+    val reviewRevisions by viewModel.reviewRevisions.collectAsStateWithLifecycle()
     Scaffold(snackbarHost = { SnackbarHost(snackbarHost) }) { padding ->
         when (state) {
             AlbumDetailUiState.Loading -> Column(Modifier.fillMaxSize().padding(padding), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) { Text(stringResource(R.string.error_generic)) }
@@ -551,8 +571,21 @@ fun AlbumDetailScreen(
                 }
                 ReviewEditor(
                     label = stringResource(R.string.album_review), initial = value.album.reviewText.orEmpty(), max = 4000,
-                    onChanged = { viewModel.updateAlbum(value.album.copy(reviewText = it)) },
+                    onChanged = { viewModel.updateAlbum(value.album.copy(reviewText = it)); viewModel.saveReviewRevision(it) },
                 )
+                if (reviewRevisions.isNotEmpty()) Text(stringResource(R.string.review_history, reviewRevisions.size), style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.custom_tags), style = MaterialTheme.typography.titleMedium)
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(tagDraft, { tagDraft = it.take(40) }, Modifier.weight(1f), label = { Text(stringResource(R.string.add_tag)) }, singleLine = true)
+                    TextButton(onClick = { viewModel.addTag(tagDraft); tagDraft = "" }, enabled = tagDraft.isNotBlank() && tags.size < 10) { Text(stringResource(R.string.add)) }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) { tags.forEach { tag -> AssistChip(onClick = { viewModel.removeTag(tag.id) }, label = { Text(tag.name) }) } }
+                Text(stringResource(R.string.listening_log), style = MaterialTheme.typography.titleMedium)
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(listeningNote, { listeningNote = it.take(160) }, Modifier.weight(1f), label = { Text(stringResource(R.string.listening_note)) }, singleLine = true)
+                    TextButton(onClick = { viewModel.logListening(listeningNote); listeningNote = "" }) { Text(stringResource(R.string.log_listening)) }
+                }
+                if (listeningLogs.isNotEmpty()) Text(stringResource(R.string.listening_count, listeningLogs.size), style = MaterialTheme.typography.bodySmall)
                 HorizontalDivider(Modifier.padding(vertical = 12.dp))
                 Text(stringResource(R.string.tracklist), style = MaterialTheme.typography.titleLarge)
                 if (value.tracks.isEmpty()) Text(stringResource(R.string.empty_tracks), modifier = Modifier.padding(vertical = 24.dp))
@@ -721,7 +754,7 @@ private fun ReviewEditor(label: String, initial: String, max: Int, onChanged: (S
     var expanded by rememberSaveable(label) { mutableStateOf(initial.isNotBlank()) }
     var text by rememberSaveable(label) { mutableStateOf(initial) }
     LaunchedEffect(text) {
-        delay(800)
+        delay(3_000)
         if (text != initial) onChanged(text)
     }
     Column {

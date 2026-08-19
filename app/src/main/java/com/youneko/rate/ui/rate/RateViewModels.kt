@@ -14,12 +14,20 @@ import com.youneko.rate.data.musicbrainz.CoverArtService
 import com.youneko.rate.data.musicbrainz.Resource
 import com.youneko.rate.data.TrackDraft
 import com.youneko.rate.data.local.dao.RemoteMetadataCacheDao
+import com.youneko.rate.data.local.dao.ReviewRevisionDao
+import com.youneko.rate.data.local.dao.AlbumTagDao
+import com.youneko.rate.data.local.dao.ListeningLogDao
+import com.youneko.rate.data.local.entity.ReviewRevisionEntity
+import com.youneko.rate.data.local.entity.AlbumTagEntity
+import com.youneko.rate.data.local.entity.ListeningLogEntity
 import com.youneko.rate.data.local.entity.AlbumEntity
 import com.youneko.rate.data.local.entity.TrackEntity
 import com.youneko.rate.domain.usecase.ScoreMode
 import com.youneko.rate.domain.usecase.RatingScale
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import java.time.LocalDate
+import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.FlowPreview
@@ -120,6 +128,9 @@ class AlbumDetailViewModel @Inject constructor(
     private val settings: SettingsStore,
     private val musicBrainzImportService: AlbumMetadataRefreshService,
     private val coverArtService: CoverArtService? = null,
+    private val reviewRevisionDao: ReviewRevisionDao,
+    private val albumTagDao: AlbumTagDao,
+    private val listeningLogDao: ListeningLogDao,
 ) : ViewModel() {
     private val albumId: String = checkNotNull(savedStateHandle["albumId"])
     private val eventsChannel = Channel<AlbumDetailEvent>(Channel.BUFFERED)
@@ -129,6 +140,9 @@ class AlbumDetailViewModel @Inject constructor(
     private val scoreMode = settings.scoreMode.map { if (it == "WEIGHTED_BY_DURATION") ScoreMode.WEIGHTED_BY_DURATION else ScoreMode.SIMPLE }
     val ratingScale: StateFlow<RatingScale> = settings.ratingScale.map(RatingScale::parse).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RatingScale.FIVE_STARS)
     private val albumData = scoreMode.flatMapLatest { repository.observeAlbum(albumId, it) }
+    val tags = albumTagDao.observeForAlbum(albumId).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val listeningLogs = listeningLogDao.observeForAlbum(albumId).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val reviewRevisions = reviewRevisionDao.observeRecent(albumId, null).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val releaseUrl: StateFlow<String?> = albumData
         .map { value -> value?.album?.mbid?.let { "https://musicbrainz.org/release/$it" } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
@@ -152,6 +166,19 @@ class AlbumDetailViewModel @Inject constructor(
     fun currentAlbum(): AlbumEntity? = (state.value as? AlbumDetailUiState.Content)?.album?.album
     fun updateTrack(track: TrackEntity) = viewModelScope.launch(Dispatchers.IO) { repository.updateTrack(track) }
     fun updateAlbum(album: AlbumEntity) = viewModelScope.launch(Dispatchers.IO) { repository.updateAlbum(album) }
+    fun saveReviewRevision(body: String) = viewModelScope.launch(Dispatchers.IO) {
+        if (body.isBlank()) return@launch
+        reviewRevisionDao.insert(ReviewRevisionEntity(UUID.randomUUID().toString(), albumId, null, body, System.currentTimeMillis()))
+    }
+    fun addTag(raw: String) = viewModelScope.launch(Dispatchers.IO) {
+        val tag = raw.trim().take(40)
+        if (tag.isBlank() || tags.value.size >= 10 || tags.value.any { it.name.equals(tag, ignoreCase = true) }) return@launch
+        albumTagDao.insert(AlbumTagEntity(UUID.randomUUID().toString(), albumId, tag, System.currentTimeMillis()))
+    }
+    fun removeTag(id: String) = viewModelScope.launch(Dispatchers.IO) { albumTagDao.delete(id) }
+    fun logListening(note: String? = null, trackId: String? = null) = viewModelScope.launch(Dispatchers.IO) {
+        listeningLogDao.insert(ListeningLogEntity(UUID.randomUUID().toString(), albumId, trackId, LocalDate.now().toString(), note?.trim()?.takeIf { it.isNotBlank() }))
+    }
     private val _refreshResult = MutableStateFlow<Resource<Unit>?>(null)
     val refreshResult: StateFlow<Resource<Unit>?> = _refreshResult.asStateFlow()
     fun refreshMetadata() {

@@ -21,6 +21,9 @@ import com.youneko.rate.data.local.entity.CreditEntity
 import com.youneko.rate.data.local.entity.ExternalLinkEntity
 import com.youneko.rate.data.local.entity.LibrarySearchFtsEntity
 import com.youneko.rate.data.local.entity.ImportSessionEntity
+import com.youneko.rate.data.local.entity.ReviewRevisionEntity
+import com.youneko.rate.data.local.entity.AlbumTagEntity
+import com.youneko.rate.data.local.entity.ListeningLogEntity
 import com.youneko.rate.data.local.entity.RemoteMetadataCacheEntity
 import com.youneko.rate.data.local.entity.SearchHistoryEntity
 import com.youneko.rate.data.local.entity.TrackEntity
@@ -32,13 +35,16 @@ import com.youneko.rate.data.local.entity.TrackEntity
         TrackEntity::class,
         CreditEntity::class,
         ExternalLinkEntity::class,
+        ReviewRevisionEntity::class,
+        AlbumTagEntity::class,
+        ListeningLogEntity::class,
         AudioAnalysisEntity::class,
         RemoteMetadataCacheEntity::class,
         SearchHistoryEntity::class,
         LibrarySearchFtsEntity::class,
         ImportSessionEntity::class,
     ],
-    version = 11,
+    version = 13,
     exportSchema = true,
 )
 @TypeConverters(YounekoTypeConverters::class)
@@ -48,6 +54,10 @@ abstract class YounekoDatabase : RoomDatabase() {
     abstract fun trackDao(): TrackDao
     abstract fun creditDao(): CreditDao
     abstract fun externalLinkDao(): com.youneko.rate.data.local.dao.ExternalLinkDao
+    abstract fun reviewRevisionDao(): com.youneko.rate.data.local.dao.ReviewRevisionDao
+    abstract fun albumTagDao(): com.youneko.rate.data.local.dao.AlbumTagDao
+    abstract fun listeningLogDao(): com.youneko.rate.data.local.dao.ListeningLogDao
+    abstract fun statsDao(): com.youneko.rate.data.local.dao.StatsDao
     abstract fun audioAnalysisDao(): AudioAnalysisDao
     abstract fun remoteMetadataCacheDao(): RemoteMetadataCacheDao
     abstract fun searchHistoryDao(): SearchHistoryDao
@@ -209,6 +219,24 @@ abstract class YounekoDatabase : RoomDatabase() {
                 db.execSQL("CREATE TABLE IF NOT EXISTS external_links (id TEXT NOT NULL PRIMARY KEY, albumId TEXT, trackId TEXT, sourceId TEXT NOT NULL, externalId TEXT NOT NULL, sourceUrl TEXT NOT NULL, createdAt INTEGER NOT NULL)")
                 db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_external_links_trackId_sourceId ON external_links(trackId, sourceId)")
                 db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_external_links_albumId_sourceId ON external_links(albumId, sourceId)")
+            }
+        }
+
+        val MIGRATION_11_12: Migration = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DELETE FROM credits")
+            }
+        }
+
+        val MIGRATION_12_13: Migration = object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS review_revisions (id TEXT NOT NULL PRIMARY KEY, albumId TEXT NOT NULL, trackId TEXT, body TEXT NOT NULL, createdAt INTEGER NOT NULL)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_review_revisions_albumId_trackId_createdAt ON review_revisions(albumId, trackId, createdAt)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS album_tags (id TEXT NOT NULL PRIMARY KEY, albumId TEXT NOT NULL, name TEXT NOT NULL, createdAt INTEGER NOT NULL)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_album_tags_albumId_name ON album_tags(albumId, name)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS listening_logs (id TEXT NOT NULL PRIMARY KEY, albumId TEXT NOT NULL, trackId TEXT, listenedAt TEXT NOT NULL, note TEXT)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_listening_logs_albumId_listenedAt ON listening_logs(albumId, listenedAt)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_listening_logs_trackId_listenedAt ON listening_logs(trackId, listenedAt)")
             }
         }
     }

@@ -9,6 +9,10 @@ import com.youneko.rate.data.local.dao.ArtistDao
 import com.youneko.rate.data.local.dao.AudioAnalysisDao
 import com.youneko.rate.data.local.dao.CreditDao
 import com.youneko.rate.data.local.dao.ExternalLinkDao
+import com.youneko.rate.data.local.dao.ReviewRevisionDao
+import com.youneko.rate.data.local.dao.AlbumTagDao
+import com.youneko.rate.data.local.dao.ListeningLogDao
+import com.youneko.rate.data.local.dao.StatsDao
 import com.youneko.rate.data.local.dao.LibrarySearchFtsDao
 import com.youneko.rate.data.local.dao.ImportSessionDao
 import com.youneko.rate.data.local.dao.RemoteMetadataCacheDao
@@ -44,7 +48,7 @@ object AppModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): YounekoDatabase =
         Room.databaseBuilder(context, YounekoDatabase::class.java, "youneko_rate.db")
-            .addMigrations(YounekoDatabase.MIGRATION_1_2, YounekoDatabase.MIGRATION_2_3, YounekoDatabase.MIGRATION_3_4, YounekoDatabase.MIGRATION_4_5, YounekoDatabase.MIGRATION_5_6, YounekoDatabase.MIGRATION_6_7, YounekoDatabase.MIGRATION_7_8, YounekoDatabase.MIGRATION_8_9, YounekoDatabase.MIGRATION_9_10, YounekoDatabase.MIGRATION_10_11)
+            .addMigrations(YounekoDatabase.MIGRATION_1_2, YounekoDatabase.MIGRATION_2_3, YounekoDatabase.MIGRATION_3_4, YounekoDatabase.MIGRATION_4_5, YounekoDatabase.MIGRATION_5_6, YounekoDatabase.MIGRATION_6_7, YounekoDatabase.MIGRATION_7_8, YounekoDatabase.MIGRATION_8_9, YounekoDatabase.MIGRATION_9_10, YounekoDatabase.MIGRATION_10_11, YounekoDatabase.MIGRATION_11_12, YounekoDatabase.MIGRATION_12_13)
             .build()
 
     @Provides
@@ -89,6 +93,18 @@ object AppModule {
 
     @Provides
     fun provideExternalLinkDao(database: YounekoDatabase): ExternalLinkDao = database.externalLinkDao()
+
+    @Provides
+    fun provideReviewRevisionDao(database: YounekoDatabase): ReviewRevisionDao = database.reviewRevisionDao()
+
+    @Provides
+    fun provideAlbumTagDao(database: YounekoDatabase): AlbumTagDao = database.albumTagDao()
+
+    @Provides
+    fun provideListeningLogDao(database: YounekoDatabase): ListeningLogDao = database.listeningLogDao()
+
+    @Provides
+    fun provideStatsDao(database: YounekoDatabase): StatsDao = database.statsDao()
 
     @Provides
     fun provideAudioAnalysisDao(database: YounekoDatabase): AudioAnalysisDao = database.audioAnalysisDao()
