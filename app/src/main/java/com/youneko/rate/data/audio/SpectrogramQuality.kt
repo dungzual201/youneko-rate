@@ -48,7 +48,7 @@ object SpectrogramQuality {
         val cutoffBin = selected?.cutoffBin
         val threshold = selected?.threshold ?: baseThreshold.toFloat()
         val frequency = cutoffBin?.let { SpectralAnalyzer.binToFrequencyHz(it, sampleRate, SPECTROGRAM_FFT_SIZE) }
-        val cliff = cutoffBin?.let { cliffDb(smoothed, it, sampleRate) }
+        val cliff = cutoffBin?.let { cliffDbForBin(smoothed, it, sampleRate) }
         val quiet = cutoffBin?.let { quietAboveFraction(activeFrames, it, threshold) } ?: 0.0
         val noiseFloor = median(smoothed.takeLast((smoothed.size * 0.05).roundToInt().coerceAtLeast(1)))
         val confidence = when {
@@ -108,6 +108,12 @@ object SpectrogramQuality {
             }
         }
         return verdicted.copy(reasons = (verdicted.reasons + warnings).distinct())
+    }
+
+    fun cliffDb(spectrumDb: FloatArray, cutoffHz: Double, sampleRate: Int): Double? {
+        if (spectrumDb.isEmpty() || sampleRate <= 0) return null
+        val cutoffBin = (cutoffHz / sampleRate * SPECTROGRAM_FFT_SIZE).roundToInt().coerceIn(0, spectrumDb.lastIndex)
+        return cliffDbForBin(spectrumDb, cutoffBin, sampleRate)
     }
 
     fun nearLossyCutoff(cutoffHz: Double): Boolean {
@@ -170,7 +176,7 @@ object SpectrogramQuality {
         return quiet.toDouble() / activeFrames.size.toDouble()
     }
 
-    private fun cliffDb(spectrumDb: FloatArray, cutoffBin: Int, sampleRate: Int): Double? {
+    private fun cliffDbForBin(spectrumDb: FloatArray, cutoffBin: Int, sampleRate: Int): Double? {
         val span = (800.0 / sampleRate * SPECTROGRAM_FFT_SIZE).roundToInt().coerceAtLeast(1)
         val leftStart = (cutoffBin - span).coerceAtLeast(0)
         val rightEnd = (cutoffBin + span).coerceAtMost(spectrumDb.lastIndex)
