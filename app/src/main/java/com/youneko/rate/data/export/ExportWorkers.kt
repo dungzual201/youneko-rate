@@ -12,6 +12,7 @@ import androidx.work.ForegroundInfo
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import com.youneko.rate.data.AutoBackupStore
 import androidx.work.workDataOf
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
@@ -21,6 +22,7 @@ import java.io.File
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.first
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
@@ -73,6 +75,7 @@ open class BackupWorker(appContext: Context, params: WorkerParameters) : Corouti
     override suspend fun getForegroundInfo(): ForegroundInfo = backupForegroundInfo(applicationContext, "Đang sao lưu dữ liệu…", id, 0, 1)
 
     override suspend fun doWork(): Result {
+        if (this is AutoBackupWorker && !AutoBackupStore(applicationContext).enabled.first()) return Result.success()
         val autoTreeUri = inputData.getString(AUTO_BACKUP_TREE_URI)?.let(Uri::parse)
         val outputUri = inputData.getString(BACKUP_OUTPUT_URI)?.let(Uri::parse)
             ?: autoTreeUri?.let { DocumentFile.fromTreeUri(applicationContext, it)?.createFile("application/octet-stream", "YounekoRate_${timestamp()}.$BACKUP_EXTENSION")?.uri }
@@ -87,6 +90,7 @@ open class BackupWorker(appContext: Context, params: WorkerParameters) : Corouti
                 writeBackupArchive(stream)
             }
             if (autoTreeUri != null) pruneTreeBackups(autoTreeUri) else pruneBackups()
+            AutoBackupStore(applicationContext).setLastBackupAt(System.currentTimeMillis())
             Result.success(workDataOf("message" to "Đã sao lưu dữ liệu"))
         } catch (cancelled: CancellationException) {
             localFile?.delete()
@@ -155,6 +159,10 @@ class RestoreWorker(appContext: Context, params: WorkerParameters) : CoroutineWo
     }
 
     private fun entryPoint() = EntryPointAccessors.fromApplication(applicationContext, ExportWorkerEntryPoint::class.java)
+}
+
+fun cancelWeeklyAutoBackup(context: Context) {
+    WorkManager.getInstance(context).cancelUniqueWork("youneko-weekly-backup")
 }
 
 fun scheduleWeeklyAutoBackup(context: Context, treeUri: Uri? = null) {

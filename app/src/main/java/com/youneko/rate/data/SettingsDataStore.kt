@@ -124,13 +124,16 @@ class AutoBackupStore(private val context: Context) {
     private object Keys {
         val enabled = booleanPreferencesKey("auto_backup_enabled")
         val treeUri = stringPreferencesKey("auto_backup_tree_uri")
+        val lastBackupAt = longPreferencesKey("last_backup_at")
     }
 
     val enabled: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.enabled] ?: false }
-    val treeUri: Flow<String?> = context.settingsDataStore.data.map { it[Keys.treeUri] }
-
+        val treeUri: Flow<String?> = context.settingsDataStore.data.map { it[Keys.treeUri] }
+    val lastBackupAt: Flow<Long?> = context.settingsDataStore.data.map { it[Keys.lastBackupAt] }
     suspend fun setFolder(uri: String) { context.settingsDataStore.edit { it[Keys.treeUri] = uri } }
     suspend fun setEnabled(value: Boolean) { context.settingsDataStore.edit { it[Keys.enabled] = value } }
+    suspend fun setLastBackupAt(value: Long) { context.settingsDataStore.edit { it[Keys.lastBackupAt] = value } }
+
 }
 
 class SettingsDataStore(private val context: Context) : SettingsStore {

@@ -66,6 +66,7 @@ import com.youneko.rate.data.export.ShareAlbum
 import com.youneko.rate.data.export.ShareCardRenderer
 import com.youneko.rate.data.export.validateBackup
 import com.youneko.rate.data.export.scheduleWeeklyAutoBackup
+import com.youneko.rate.data.export.cancelWeeklyAutoBackup
 import com.youneko.rate.data.export.exportSnapshot
 import com.youneko.rate.data.local.YounekoDatabase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -104,6 +105,7 @@ fun ExportScreen(onBack: () -> Unit, viewModel: ExportViewModel = hiltViewModel(
     val autoStore = remember { AutoBackupStore(context.applicationContext) }
     val autoEnabled by autoStore.enabled.collectAsStateWithLifecycle(initialValue = false)
     val autoTree by autoStore.treeUri.collectAsStateWithLifecycle(initialValue = null)
+    val lastBackupAt by autoStore.lastBackupAt.collectAsStateWithLifecycle(initialValue = null)
     var pendingExportFormat by rememberSaveable { mutableStateOf(EXPORT_FORMAT_JSON) }
     var includeCovers by rememberSaveable { mutableStateOf(true) }
     var includeExports by rememberSaveable { mutableStateOf(true) }
@@ -148,10 +150,11 @@ fun ExportScreen(onBack: () -> Unit, viewModel: ExportViewModel = hiltViewModel(
         Button(onClick = { pendingExportFormat = EXPORT_FORMAT_CSV; createExport.launch("youneko-rate-ratings.csv") }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.backup_export_csv)) }
         Button(onClick = { pendingExportFormat = EXPORT_FORMAT_JSON; createExport.launch("youneko-rate-credits.json") }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.backup_export_json)) }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Switch(checked = autoEnabled, onCheckedChange = { enabled -> if (enabled) selectAutoFolder.launch(null) else scope.launch { autoStore.setEnabled(false) } })
+            Switch(checked = autoEnabled, onCheckedChange = { enabled -> if (enabled) selectAutoFolder.launch(null) else scope.launch { autoStore.setEnabled(false); cancelWeeklyAutoBackup(context) } })
             Column { Text(stringResource(R.string.backup_auto)); Text(stringResource(if (autoEnabled) R.string.backup_auto_enabled else R.string.backup_auto_disabled), style = MaterialTheme.typography.bodySmall) }
         }
         TextButton(onClick = { selectAutoFolder.launch(null) }) { Text(stringResource(R.string.backup_auto_folder)) }
+        lastBackupAt?.let { Text(stringResource(R.string.backup_latest, SimpleDateFormat("yyyy-MM-dd HH:mm", LocalLocale.current.platformLocale).format(Date(it))), style = MaterialTheme.typography.bodySmall) }
         Spacer(Modifier.height(8.dp))
         snapshot?.let { data ->
             Button(onClick = { shareCard(context, data, portrait = false) }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.export_share_card)) }
