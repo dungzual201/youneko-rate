@@ -168,15 +168,18 @@ class StreamingSpectrogramAccumulator(
 
     fun samplesSeen(): Long = sampleCount
 
-    fun finish(): SpectrogramColumn? {
-        if (ringSize == 0 || columnCount >= columnsTarget) return null
-        while (ringSize < fftSize) {
-            ring[(ringStart + ringSize) % fftSize] = 0f
-            ringSize++
+    fun finish(): List<SpectrogramColumn> {
+        if (columnCount >= columnsTarget) return emptyList()
+        val columns = ArrayList<SpectrogramColumn>(columnsTarget - columnCount)
+        while (columnCount < columnsTarget) {
+            while (ringSize < fftSize) {
+                ring[(ringStart + ringSize) % fftSize] = 0f
+                ringSize++
+            }
+            columns += processFrame()
+            consumeHop()
         }
-        val column = processFrame()
-        consumeHop()
-        return column
+        return columns
     }
 
     fun result(): SpectrogramResult = SpectrogramResult(

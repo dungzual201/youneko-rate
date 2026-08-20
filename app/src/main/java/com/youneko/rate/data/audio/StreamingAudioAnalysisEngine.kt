@@ -118,7 +118,7 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
                     }
                 }
             }
-            accumulator.finish()?.let { column ->
+            accumulator.finish().forEach { column ->
                 emit(SpectrogramEvent.Column(column, columnProgress(column.index, metadata.columns)))
             }
             val decodeMs = (System.nanoTime() - decodeStartNanos) / 1_000_000L

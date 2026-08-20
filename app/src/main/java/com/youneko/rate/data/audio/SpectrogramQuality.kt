@@ -58,6 +58,7 @@ object SpectrogramQuality {
             rolloffSlope = estimate.slopeDbPerKHz ?: base.rolloffSlope,
             confidence = max(base.confidence, estimate.confidence),
         )
+        val verdicted = SpectralAnalyzer.verdict(format, metrics)
         val warnings = buildList {
             val cutoff = metrics.cutoffHz
             val slope = metrics.rolloffSlope
@@ -74,7 +75,10 @@ object SpectrogramQuality {
                 add("Cutoff phổ trung bình %.1f kHz, độ tin cậy %d%% (ngưỡng: nền nhiễu + 10 dB).".format(java.util.Locale.US, cutoff / 1_000.0, estimate.confidence))
             }
         }
-        return metrics.copy(reasons = (metrics.reasons + warnings).distinct())
+        return verdicted.copy(
+            confidence = max(verdicted.confidence, estimate.confidence),
+            reasons = (verdicted.reasons + warnings).distinct(),
+        )
     }
 
     fun nearLossyCutoff(cutoffHz: Double): Boolean {
