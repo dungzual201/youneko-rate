@@ -278,7 +278,7 @@ fun AudioAnalysisScreen(viewModel: AudioAnalysisViewModel = hiltViewModel()) {
             header?.let { selectedHeader ->
                 Text(selectedHeader.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(
-                    listOfNotNull(selectedHeader.artist, selectedHeader.album?.takeUnless { it.equals(selectedHeader.title, ignoreCase = true) }, selectedHeader.format).joinToString(" · ").ifBlank { "—" },
+                    listOfNotNull(selectedHeader.artist, selectedHeader.album?.takeUnless { it.equals(selectedHeader.title, ignoreCase = true) }, selectedHeader.format).joinToString(" · ").ifBlank { stringResource(R.string.audio_analysis_not_applicable) },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 3,
@@ -614,7 +614,7 @@ private fun SpectrumChart(values: List<Float>, cutoffHz: Double?, sampleRate: In
                 drawLine(primary, Offset(markerX, top), Offset(markerX, bottom), strokeWidth = 2f)
                 drawIntoCanvas { canvas ->
                     val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = primary.toArgb(); textSize = 26f; isFakeBoldText = true }
-                    canvas.nativeCanvas.drawText("%.1f kHz".format(java.util.Locale.US, cutoff / 1000.0), (markerX + 4f).coerceAtMost(right - 90f), top - 3f, paint)
+                    canvas.nativeCanvas.drawText("%.1f kHz".format(java.util.Locale.getDefault(), cutoff / 1000.0), (markerX + 4f).coerceAtMost(right - 90f), top - 3f, paint)
                 }
             }
         }
