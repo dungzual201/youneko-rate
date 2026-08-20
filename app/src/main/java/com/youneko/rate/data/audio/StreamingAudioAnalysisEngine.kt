@@ -230,6 +230,7 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
             bitrate = metadata.bitrate,
             bitrateNote = metadata.bitrateNote,
             theoreticalBitrate = metadata.theoreticalBitrate,
+            codecGroup = CodecDetector.classifyMime(metadata.sourceMime).takeIf { it != CodecGroup.UNKNOWN } ?: if (metadata.codec == "WAV (PCM)") CodecGroup.LOSSLESS else null,
             durationMs = metadata.durationMs,
         )
         val metrics = SpectrogramQuality.enrich(format, SpectralAnalyzer.verdict(format, base), spectrumDb, activeFrames = result.activeFrameSpectra)

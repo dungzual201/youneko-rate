@@ -38,6 +38,7 @@ data class AudioDecodedFormat(
     val codecDetectionSource: String? = null,
     val bitrateNote: String? = null,
     val theoreticalBitrate: Long? = null,
+    val codecGroup: CodecGroup? = null,
 )
 
 enum class AudioAnalysisStep { READING_HEADER, DECODING, FFT, COMPUTING, SAVING }
@@ -149,49 +150,61 @@ object SpectralAnalyzer {
 
     fun verdict(format: AudioDecodedFormat, metrics: AudioQualityMetrics): AudioQualityMetrics {
         val cutoff = metrics.cutoffHz
-        val codec = format.codec.orEmpty().lowercase()
-        val lossless = listOf("flac", "alac", "audio/raw", "pcm", "wav", "aiff", "wavpack", "ape", "dsd").any(codec::contains)
-        val nyquist = format.sampleRate / 2.0
+        val durationMs = format.durationMs ?: 0L
+        val tooLittleData = durationMs < 20_000L || metrics.analyzedFrames < 50
+        val sourceMime = format.sourceMime ?: format.codec
+        val group = format.codecGroup ?: CodecDetector.classifyMime(sourceMime)
+        val codecLabel = format.codec ?: sourceMime ?: "codec không rõ"
+        val sampleLabel = format.sampleRate.takeIf { it > 0 }?.let { "%.1f kHz".format(java.util.Locale.US, it / 1000.0).replace('.', ',') } ?: "tần số lấy mẫu không xác định"
+        val bitLabel = format.bitDepth?.let { "$it-bit" } ?: if (group == CodecGroup.LOSSY) "độ sâu bit không áp dụng" else "độ sâu bit không xác định"
+        val kbps = format.bitrate?.div(1000L)
+        val bitrateLabel = kbps?.let { "$it kbps" } ?: "bitrate không xác định"
+        val bitrateNote = format.bitrateNote?.let { " ($it)" }.orEmpty()
+        val theoretical = format.theoreticalBitrate?.div(1000L)?.let { ", lý thuyết $it kbps" }.orEmpty()
+        val formatVerdict = when (group) {
+            CodecGroup.LOSSLESS -> "LOSSLESS — $codecLabel $sampleLabel / $bitLabel$theoretical"
+            CodecGroup.LOSSY -> {
+                val quality = when {
+                    kbps != null && kbps < 160L -> "LOSSY CHẤT LƯỢNG THẤP"
+                    kbps != null && kbps >= 256L -> "LOSSY CHẤT LƯỢNG CAO"
+                    else -> "LOSSY CHẤT LƯỢNG KHÁ"
+                }
+                "$quality — $codecLabel $bitrateLabel$bitrateNote"
+            }
+            CodecGroup.UNKNOWN -> "KHÔNG XÁC ĐỊNH ĐƯỢC ĐỊNH DẠNG NGUỒN — ${format.sourceMime ?: codecLabel}"
+        }
         val confidence = when {
             cutoff == null -> 0
-            metrics.analyzedFrames < 3 -> 45
-            metrics.cliffDb != null && metrics.cliffDb!! >= 40.0 -> 88
-            cutoff >= nyquist * 0.90 -> 86
-            else -> 68
+            metrics.analyzedFrames < 50 -> 40
+            tooLittleData -> 40
+            metrics.cliffDb != null && metrics.cliffDb >= 40.0 -> 88
+            metrics.quietAboveFraction != null && metrics.quietAboveFraction >= 0.90 -> 82
+            else -> 64
         }
-        if (cutoff == null || confidence < 70) {
-            return metrics.copy(
-                verdict = "CHƯA ĐỦ DỮ LIỆU ĐỂ KẾT LUẬN",
-                confidence = confidence,
-                reasons = listOf("Chưa đủ dữ liệu để kết luận: cần thêm khung âm thanh hoạt động hoặc vách phổ ổn định."),
-            )
+        val transcodeVerdict = when {
+            tooLittleData -> "CHƯA ĐỦ DỮ LIỆU ĐỂ XÉT DẤU HIỆU TRANSCODE"
+            cutoff == null -> "KHÔNG ĐO ĐƯỢC TẦN SỐ CẮT RÕ RÀNG"
+            group == CodecGroup.UNKNOWN -> "KHÔNG XÁC ĐỊNH ĐƯỢC DẤU HIỆU TRANSCODE"
+            metrics.cliffDb != null && metrics.cliffDb >= 40.0 && SpectrogramQuality.nearLossyCutoff(cutoff) && (metrics.quietAboveFraction ?: 0.0) >= 0.90 -> "CÓ DẤU HIỆU NGUỒN LOSSY"
+            group == CodecGroup.LOSSLESS && format.sampleRate >= 88_200 && cutoff >= 24_000.0 -> "HI-RES THỰC"
+            group == CodecGroup.LOSSLESS && format.sampleRate >= 88_200 && cutoff < 22_050.0 -> "NGHI NGỜ UPSAMPLE"
+            group == CodecGroup.LOSSLESS && cutoff < 18_000.0 && (metrics.cliffDb ?: 0.0) < 10.0 -> "LOSSLESS — DẢI CAO HẠN CHẾ (CÓ THỂ DO BẢN THU/MASTER)"
+            group == CodecGroup.LOSSLESS && ((metrics.energyAboveCutoffRatio ?: 0.0) > 0.01 || (metrics.quietAboveFraction ?: 0.0) < 0.90) -> "KHÔNG ĐO ĐƯỢC TẦN SỐ CẮT RÕ RÀNG"
+            else -> "PHỔ ĐẦY ĐỦ, KHÔNG THẤY DẤU HIỆU TRANSCODE"
         }
-        if (!lossless) {
-            val kbps = format.bitrate?.div(1000L)
-            val low = (kbps != null && kbps < 128L) || cutoff < 16_000.0
-            val quality = when {
-                low -> "LOSSY CHẤT LƯỢNG THẤP"
-                kbps != null && kbps >= 256L -> "LOSSY CHẤT LƯỢNG CAO"
-                else -> "LOSSY CHẤT LƯỢNG KHÁ"
-            }
-            val label = if (kbps == null) "$quality — ${format.codec ?: "codec lossy"}" else "$quality — ${format.codec} ${kbps} kbps"
-            return metrics.copy(verdict = label, confidence = confidence, reasons = listOf("Codec lossy đúng định dạng; nhãn dựa trên bitrate và cutoff, không coi bản thân codec lossy là lỗi."))
+        val reasons = buildList {
+            add("Tầng 1 lấy định dạng từ MIME track đầu vào và magic bytes; không dùng audio/raw đầu ra của decoder.")
+            if (format.bitrateNote != null) add("Bitrate được ${format.bitrateNote} từ dung lượng file và thời lượng.")
+            if (transcodeVerdict == "CÓ DẤU HIỆU NGUỒN LOSSY") add("Đồng thời đạt cliff ≥ 40 dB, cutoff gần mốc lossy và quiet above cutoff ≥ 90%.")
+            if (tooLittleData) add("Chỉ dùng nhãn chưa đủ dữ liệu vì thời lượng dưới 20 giây hoặc có dưới 50 khung hoạt động.")
         }
-        val suspicious = metrics.cliffDb != null && metrics.cliffDb >= 40.0 && SpectrogramQuality.nearLossyCutoff(cutoff) && (metrics.quietAboveFraction ?: 0.0) >= 0.90
-        val verdict = when {
-            suspicious -> "CÓ DẤU HIỆU NGUỒN LOSSY"
-            format.sampleRate >= 88_200 && cutoff >= 24_000.0 -> "HI-RES THỰC"
-            format.sampleRate >= 88_200 && cutoff < 22_050.0 -> "NGHI NGỜ UPSAMPLE"
-            cutoff >= 20_000.0 || cutoff >= nyquist * 0.90 -> "LOSSLESS — PHỔ ĐẦY ĐỦ"
-            else -> "CHƯA ĐỦ DỮ LIỆU ĐỂ KẾT LUẬN"
-        }
-        val reason = when {
-            suspicious -> "Có vách dốc %.1f dB gần %.1f kHz và phía trên vách im lặng %.0f%% số khung.".format(java.util.Locale.US, metrics.cliffDb, cutoff / 1000.0, (metrics.quietAboveFraction ?: 0.0) * 100.0)
-            format.sampleRate >= 88_200 && cutoff >= 24_000.0 -> "Codec lossless và có năng lượng thực trên 24 kHz."
-            format.sampleRate >= 88_200 -> "Tần số lấy mẫu hi-res nhưng cutoff chưa đủ để xác nhận phổ thực."
-            else -> "Codec lossless và cutoff được đo bằng phổ phân vị 95 trên các khung không im lặng."
-        }
-        return metrics.copy(verdict = verdict, confidence = confidence, reasons = listOf(reason))
+        return metrics.copy(
+            verdict = "$formatVerdict\n$transcodeVerdict",
+            confidence = confidence,
+            formatVerdict = formatVerdict,
+            transcodeVerdict = transcodeVerdict,
+            reasons = reasons,
+        )
     }
 
     private fun magnitudeSpectrum(samples: DoubleArray): DoubleArray {
@@ -299,6 +312,7 @@ class AudioAnalysisEngine(private val context: Context) {
                     codecDetectionSource = codecInfo.detectionSource,
                     bitrateNote = codecInfo.bitrateNote,
                     theoreticalBitrate = codecInfo.theoreticalBitrate,
+                    codecGroup = codecInfo.group,
                 ),
                 baseMetrics,
             )
