@@ -13,6 +13,7 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import com.youneko.rate.R
+import android.util.Log
 import com.youneko.rate.data.local.dao.AudioAnalysisDao
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.EntryPoint
@@ -75,10 +76,24 @@ class AudioAnalysisWorker(
         } catch (cancelled: CancellationException) {
             Result.failure(workDataOf(KEY_CANCELLED to true, KEY_ERROR to (cancelled.message ?: "Đã huỷ phân tích")))
         } catch (error: Throwable) {
-            if (runAttemptCount < 2 && !isStopped) Result.retry()
-            else Result.failure(workDataOf(KEY_ERROR to error.message.orEmpty(), KEY_FILE_NAME to fileName))
+            val message = classifyAnalyzeError(error)
+            Log.e("ANALYZE", "ANALYZE: uri=$uri mime=? codec=? sampleRate=? ch=? pcmEnc=? err=$message", error)
+            if (runAttemptCount < 2 && !isStopped && !error.isPermanentAnalyzeError()) Result.retry()
+            else Result.failure(workDataOf(KEY_ERROR to message, KEY_FILE_NAME to fileName))
         }
     }
+
+    private fun classifyAnalyzeError(error: Throwable): String = when (error) {
+        is AnalyzeInputException.AccessDenied -> "Không có quyền truy cập tệp"
+        is AnalyzeInputException.NoDecoder -> "Thiết bị không có bộ giải mã cho định dạng ${error.mime}"
+        is AnalyzeInputException.UnsupportedFormat -> "Không hỗ trợ định dạng ${error.mime}"
+        is OutOfMemoryError -> "Hết bộ nhớ khi phân tích tệp dài"
+        is SecurityException -> "Không có quyền truy cập tệp"
+        is IllegalArgumentException, is IllegalStateException -> "Tệp bị hỏng hoặc không đọc được"
+        else -> "Không phân tích được (${error::class.simpleName ?: "lỗi không xác định"})"
+    }.removePrefix(": ").ifBlank { "Tệp bị hỏng hoặc không đọc được" }
+
+    private fun Throwable.isPermanentAnalyzeError(): Boolean = this is AnalyzeInputException || this is SecurityException || this is OutOfMemoryError
 
     private suspend fun publish(progress: AudioAnalysisProgress, fileName: String, index: Int, total: Int) {
         if (isStopped) throw CancellationException("Đã huỷ phân tích")
