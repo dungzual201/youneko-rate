@@ -4,6 +4,7 @@ import android.content.Context
 import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
+import android.util.Log
 import android.net.Uri
 import com.youneko.rate.data.local.entity.AudioAnalysisEntity
 import java.io.ByteArrayOutputStream

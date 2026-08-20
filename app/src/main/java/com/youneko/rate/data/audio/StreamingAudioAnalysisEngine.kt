@@ -35,22 +35,27 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
         val extractor = MediaExtractor()
         var decoder: MediaCodec? = null
         var sourcePfd: android.os.ParcelFileDescriptor? = null
+        var headerMetadata: SpectrogramMetadata? = null
         try {
+            Log.i("ANALYZE", "M4A_M1 openFd uri=$uri")
             val openedPfd = context.contentResolver.openFileDescriptor(uri, "r")
                 ?: throw AnalyzeInputException.AccessDenied
             sourcePfd = openedPfd
+            Log.i("ANALYZE", "M4A_M2 openFd_ok")
             extractor.setDataSource(openedPfd.fileDescriptor)
-            val trackIndex = (0 until extractor.trackCount).firstOrNull { index ->
-                extractor.getTrackFormat(index).getString(MediaFormat.KEY_MIME).orEmpty().startsWith("audio/")
-            } ?: error("Không tìm thấy track audio")
+            Log.i("ANALYZE", "M4A_M3 setDataSource_ok")
+            val trackFormats = (0 until extractor.trackCount).map { index ->
+                index to extractor.getTrackFormat(index).getString(MediaFormat.KEY_MIME).orEmpty()
+            }
+            Log.i("ANALYZE", "M4A_M4 tracks=${trackFormats.joinToString { (index, trackMime) -> "$index:$trackMime" }}")
+            val trackIndex = trackFormats.firstOrNull { it.second.startsWith("audio/") }?.first
+                ?: error("Không tìm thấy track audio")
             extractor.selectTrack(trackIndex)
             val sourceFormat = extractor.getTrackFormat(trackIndex)
             val mime = sourceFormat.getString(MediaFormat.KEY_MIME) ?: throw AnalyzeInputException.UnsupportedFormat("audio/không rõ")
-            copyCodecConfigBuffers(sourceFormat)
+            Log.i("ANALYZE", "M4A_M5 selectedTrack=$trackIndex trackMime=$mime")
             val sampleRate = sourceFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE)
             val channels = sourceFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
-            val codecName = MediaCodecList(MediaCodecList.REGULAR_CODECS).findDecoderForFormat(sourceFormat)
-                ?: throw AnalyzeInputException.NoDecoder(mime)
             val durationUs = sourceFormat.getLong(MediaFormat.KEY_DURATION).coerceAtLeast(1L)
             val durationMs = durationUs / 1_000L
             val totalFrames = (durationUs * sampleRate / 1_000_000L).coerceAtLeast(1L)
@@ -59,7 +64,7 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
                 durationMs = durationMs, sourceFormatBitDepth = bitDepth(sourceFormat),
                 trackBitrate = sourceFormat.getLongOrNull(MediaFormat.KEY_BIT_RATE),
             )
-            Log.i("ANALYZE", "CODEC: trackCount=? idx=? trackMime=${codecInfo.sourceMime ?: "?"} magic=${codecInfo.headerHex.take(11)} chosen=${codecInfo.resolved.canonical} group=${codecInfo.resolved.group} detectedBy=${codecInfo.resolved.detectedBy} bitrate=${codecInfo.bitrate ?: "?"}")
+            Log.i("ANALYZE", "CODEC: trackCount=${extractor.trackCount} idx=$trackIndex trackMime=$mime magic=${codecInfo.headerHex} chosen=${codecInfo.resolved.canonical} group=${codecInfo.resolved.group} detectedBy=${codecInfo.resolved.detectedBy}")
             val metadata = SpectrogramMetadata(
                 hopFrames = SpectrogramMath.hopFrames(totalFrames, durationMs),
                 sampleRate = sampleRate,
@@ -67,6 +72,7 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
                 codec = codecInfo.codecLabel,
                 sourceMime = codecInfo.sourceMime,
                 codecDetectionSource = codecInfo.detectionSource.name,
+                rawHeaderHex = codecInfo.headerHex,
                 channels = channels,
                 bitDepth = codecInfo.bitDepth,
                 bitrate = codecInfo.bitrate,
@@ -77,7 +83,15 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
                 columns = SpectrogramMath.targetColumns(durationMs),
                 stableKey = stableKey,
             )
+            headerMetadata = metadata
             emit(SpectrogramEvent.Header(metadata))
+            copyCodecConfigBuffers(sourceFormat)
+            if (mime == "audio/mp4a-latm" || mime.contains("aac")) ensureAacCsd(sourceFormat, sampleRate, channels)
+            if (codecInfo.resolved.canonical == "ALAC") ensureAlacMagicCookie(sourceFormat)
+            Log.i("ANALYZE", "M4A_M6 csd0=${sourceFormat.containsKey("csd-0")} csd1=${sourceFormat.containsKey("csd-1")}")
+            val codecName = MediaCodecList(MediaCodecList.REGULAR_CODECS).findDecoderForFormat(sourceFormat)
+            Log.i("ANALYZE", "M4A_M7 findDecoderForFormat=$codecName")
+            if (codecName == null) throw AnalyzeInputException.NoDecoder(mime)
             val accumulator = StreamingSpectrogramAccumulator(
                 sampleRate = sampleRate,
                 totalFrames = totalFrames,
@@ -86,6 +100,7 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
                 codec = codecInfo.codecLabel,
                 sourceMime = codecInfo.sourceMime,
                 codecDetectionSource = codecInfo.detectionSource.name,
+                rawHeaderHex = codecInfo.headerHex,
                 channels = channels,
                 bitDepth = codecInfo.bitDepth,
                 bitrate = codecInfo.bitrate,
@@ -93,6 +108,7 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
                 theoreticalBitrate = codecInfo.theoreticalBitrate,
             )
             decoder = MediaCodec.createByCodecName(codecName)
+            Log.i("ANALYZE", "M4A_M8 configure_start codec=$codecName")
             decoder.configure(sourceFormat, null, null, 0)
             decoder.start()
             val info = MediaCodec.BufferInfo()
@@ -103,6 +119,7 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
             var outputChannels = channels
             var outputPcmEncoding = pcmEncoding(sourceFormat)
             var lastProgressFrames = 0L
+            var firstOutputLogged = false
             val decodeStartNanos = System.nanoTime()
             while (!outputDone) {
                 if (shouldStop()) throw CancellationException("Đã huỷ phân tích")
@@ -133,6 +150,10 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
                         Log.i("ANALYZE", "format_changed uri=$uri mime=$mime sampleRate=$outputSampleRate ch=$outputChannels pcmEnc=${outputPcmEncoding ?: "unknown"}")
                     }
                     else -> if (outputIndex >= 0) {
+                        if (!firstOutputLogged) {
+                            firstOutputLogged = true
+                            Log.i("ANALYZE", "M4A_M9 output_first index=$outputIndex size=${info.size} flags=${info.flags}")
+                        }
                         decoder.getOutputBuffer(outputIndex)?.let { buffer ->
                             if (info.size > 0) {
                                 appendPcmMono(buffer, info.offset, info.size, outputChannels, outputFormat, accumulator) { column ->
@@ -162,11 +183,17 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
                 codec = codecInfo.codecLabel,
                 sourceMime = codecInfo.sourceMime,
                 codecDetectionSource = codecInfo.detectionSource.name,
+                rawHeaderHex = codecInfo.headerHex,
                 bitrate = codecInfo.bitrate,
                 bitrateNote = codecInfo.bitrateNote,
                 theoreticalBitrate = codecInfo.theoreticalBitrate,
             )
             emit(SpectrogramEvent.Completed(decodedResult.copy(metadata = decodedMetadata, decodeMs = decodeMs)))
+        } catch (cancel: CancellationException) {
+            throw cancel
+        } catch (failure: Throwable) {
+            Log.e("ANALYZE", "M4A_DECODE_FAILED stage=decode headerPreserved=${headerMetadata != null}", failure)
+            headerMetadata?.let { emit(SpectrogramEvent.Completed(emptySpectrogramResult(it))) }
         } finally {
             runCatching { decoder?.stop() }
             decoder?.release()
@@ -231,7 +258,7 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
             bitrateNote = metadata.bitrateNote,
             theoreticalBitrate = metadata.theoreticalBitrate,
             codecGroup = CodecDetector.groupForCanonical(metadata.codec),
-            rawHeaderHex = null,
+            rawHeaderHex = metadata.rawHeaderHex,
             durationMs = metadata.durationMs,
         )
         val metrics = SpectrogramQuality.enrich(format, SpectralAnalyzer.verdict(format, base), spectrumDb, activeFrames = result.activeFrameSpectra)
@@ -271,7 +298,7 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
             formatVerdict = metrics.formatVerdict,
             transcodeVerdict = metrics.transcodeVerdict,
             energyAboveCutoffRatio = metrics.energyAboveCutoffRatio,
-            rawHeaderHex = null,
+            rawHeaderHex = metadata.rawHeaderHex,
             cutoffRetries = metrics.cutoffRetries,
         )
         val renderStartNanos = System.nanoTime()
@@ -399,3 +426,40 @@ sealed class AnalyzeInputException(message: String) : Exception(message) {
     data class NoDecoder(val mime: String) : AnalyzeInputException("Thiết bị không có bộ giải mã cho định dạng $mime")
     data class UnsupportedFormat(val mime: String) : AnalyzeInputException("Không hỗ trợ định dạng $mime")
 }
+
+private fun ensureAacCsd(format: MediaFormat, sampleRate: Int, channels: Int) {
+    val existing = runCatching { format.getByteBuffer("csd-0")?.remaining() ?: 0 }.getOrDefault(0)
+    if (existing > 0) return
+    val frequencyIndex = intArrayOf(96_000, 88_200, 64_000, 48_000, 44_100, 32_000, 24_000, 22_050, 16_000, 12_000, 11_025, 8_000, 7_350)
+        .withIndex().minByOrNull { kotlin.math.abs(it.value - sampleRate) }?.index ?: 4
+    val channelConfig = channels.coerceIn(1, 6)
+    val objectType = 2 // AAC-LC
+    val config = byteArrayOf(
+        ((objectType shl 3) or (frequencyIndex shr 1)).toByte(),
+        (((frequencyIndex and 1) shl 7) or (channelConfig shl 3)).toByte(),
+    )
+    format.setByteBuffer("csd-0", ByteBuffer.wrap(config))
+    Log.i("ANALYZE", "M4A_AAC_CSD synthesized sampleRate=$sampleRate channels=$channels")
+}
+
+private fun ensureAlacMagicCookie(format: MediaFormat) {
+    if (runCatching { format.getByteBuffer("csd-0")?.remaining() ?: 0 }.getOrDefault(0) > 0) return
+    val sourceKey = listOf("magic-cookie", "alac-specific-config", "codec-specific-data").firstOrNull { key ->
+        runCatching { format.getByteBuffer(key)?.remaining() ?: 0 }.getOrDefault(0) > 0
+    } ?: return
+    val source = format.getByteBuffer(sourceKey)?.duplicate() ?: return
+    val copy = ByteBuffer.allocate(source.remaining()).apply { put(source); flip() }
+    format.setByteBuffer("csd-0", copy)
+    Log.i("ANALYZE", "M4A_ALAC_COOKIE copiedFrom=$sourceKey")
+}
+
+private fun emptySpectrogramResult(metadata: SpectrogramMetadata): SpectrogramResult = SpectrogramResult(
+    metadata = metadata,
+    dbMatrix = ByteArray(metadata.columns * metadata.rows),
+    averageMagnitude = DoubleArray(SPECTROGRAM_FFT_SIZE / 2 + 1),
+    frameCount = 0,
+    sampleCount = 0L,
+    sumSquares = 0.0,
+    peak = 0.0,
+    clippedSamples = 0L,
+)
