@@ -35,6 +35,7 @@ suspend fun YounekoDatabase.backupCounts(): BackupCounts {
         manualCredits = credits.count { it.sourceProvider.split(',').any { value -> value.trim().equals("manual", true) } },
         credits = credits.size,
         covers = albums.count { !it.coverUri.isNullOrBlank() },
+        reviews = tracks.count { !it.reviewText.isNullOrBlank() } + albums.count { !it.reviewText.isNullOrBlank() },
     )
 }
 
@@ -62,7 +63,7 @@ suspend fun writeBackupArchive(
     isCancelled: () -> Boolean = { false },
     onProgress: (BackupProgress) -> Unit = {},
 ): ArchiveResult {
-    onProgress(BackupProgress("Đang chuẩn bị dữ liệu…"))
+    onProgress(BackupProgress("Đang chốt cơ sở dữ liệu…"))
     val tempDb = checkpointAndCopyDatabase(context, database)
     try {
         verifyDatabaseCopy(tempDb)
@@ -75,22 +76,24 @@ suspend fun writeBackupArchive(
             if (openLocalInput(context, uri)?.use { true } == true) album.id to uri else null
         } else emptyList()
         val manifest = BackupManifest(
-            createdAt = System.currentTimeMillis(),
+            createdAt = java.time.Instant.now().toString(),
             app = currentBackupAppInfo(),
             dbSchemaVersion = CURRENT_DATABASE_SCHEMA_VERSION,
             device = currentBackupDeviceInfo(),
             counts = counts.copy(covers = covers.size),
             includesCovers = includeCovers,
+            sha256 = sha,
             checksum = mapOf(BACKUP_DATABASE_ENTRY to "sha256:$sha"),
         )
         verifyCountsAgainstManifest(tempDb, manifest.counts)
         ZipOutputStream(output).use { zip ->
             writeEntry(zip, BACKUP_MANIFEST, backupJson.encodeToString(manifest).toByteArray(Charsets.UTF_8))
             check(!isCancelled()) { "Đã huỷ" }
+            onProgress(BackupProgress("Đang ghi tệp database…", 0, 1))
             zip.putNextEntry(ZipEntry(BACKUP_DATABASE_ENTRY))
             tempDb.inputStream().use { input -> copyWithProgress(input, zip, isCancelled) }
             zip.closeEntry()
-            onProgress(BackupProgress("Đang ghi file…", 1, 1))
+            onProgress(BackupProgress("Đang ghi tệp…", 1, 1))
             covers.forEachIndexed { index, (albumId, uri) ->
                 check(!isCancelled()) { "Đã huỷ" }
                 val input = openLocalInput(context, uri) ?: return@forEachIndexed

@@ -2,6 +2,7 @@ package com.youneko.rate.data.export
 
 import android.os.Build
 import com.youneko.rate.BuildConfig
+import java.time.Instant
 import kotlinx.serialization.Serializable
 
 const val CURRENT_BACKUP_FORMAT_VERSION = 1
@@ -15,15 +16,16 @@ const val BACKUP_EXTENSION = "younekorate"
 
 @Serializable
 data class BackupManifest(
-    val format: String = "younekorate-backup",
+    val format: String = "younekorate",
     val formatVersion: Int = CURRENT_BACKUP_FORMAT_VERSION,
-    val createdAt: Long,
+    val createdAt: String = Instant.now().toString(),
     val app: BackupAppInfo,
     val dbSchemaVersion: Int,
     val device: BackupDeviceInfo,
     val counts: BackupCounts,
     val includesCovers: Boolean,
-    val checksum: Map<String, String>,
+    val sha256: String = "",
+    val checksum: Map<String, String> = emptyMap(),
 )
 
 @Serializable
@@ -41,6 +43,7 @@ data class BackupCounts(
     val manualCredits: Int,
     val credits: Int,
     val covers: Int,
+    val reviews: Int = 0,
 )
 
 @Serializable
