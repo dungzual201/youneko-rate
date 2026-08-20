@@ -171,9 +171,9 @@ object CodecDetector {
             val type = bytes[offset].toInt() and 0x7f
             val length = u24(bytes, offset + 1)
             if (type == 0 && length >= 34 && offset + 4 + 34 <= bytes.size) {
-                val b10 = bytes[offset + 4 + 10].toInt() and 0xff
-                val b11 = bytes[offset + 4 + 11].toInt() and 0xff
-                return (((b10 and 0x01) shl 4) or (b11 ushr 4)) + 1
+                val b12 = bytes[offset + 4 + 12].toInt() and 0xff
+                val b13 = bytes[offset + 4 + 13].toInt() and 0xff
+                return (((b12 and 0x01) shl 4) or (b13 ushr 4)) + 1
             }
             offset += 4 + length
             if (last) break

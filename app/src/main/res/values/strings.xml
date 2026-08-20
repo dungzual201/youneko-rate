@@ -34,7 +34,16 @@
     <string name="audio_analysis_peak">True peak</string>
     <string name="audio_analysis_clipping">Clipping</string>
     <string name="audio_analysis_raw_metrics">Raw measurements</string>
-    <string name="audio_analysis_codec">Codec</string>
+    <string name="audio_analysis_codec">Source format</string>
+    <string name="audio_analysis_source_mime">Input source MIME</string>
+    <string name="audio_analysis_detection_source">Codec detection source</string>
+    <string name="audio_analysis_bitrate_note">Bitrate note</string>
+    <string name="audio_analysis_theoretical_bitrate">Theoretical bitrate</string>
+    <string name="audio_analysis_energy_above">Energy above cutoff</string>
+    <string name="audio_analysis_cutoff_retries">Cutoff retries</string>
+    <string name="audio_analysis_format_tier">Format verdict</string>
+    <string name="audio_analysis_not_applicable">Not applicable</string>
+    <string name="audio_analysis_transcode_tier">Transcode verdict</string>
     <string name="audio_analysis_sample_rate">Sample rate</string>
     <string name="audio_analysis_bit_depth">Bit depth</string>
     <string name="audio_analysis_bitrate">Bitrate</string>

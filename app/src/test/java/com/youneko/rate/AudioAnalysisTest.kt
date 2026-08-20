@@ -93,19 +93,20 @@ class AudioAnalysisTest {
         val metrics = SpectralAnalyzer.analyze(FloatArray(4096) { if (it % 2 == 0) 0.2f else -0.2f }, 48_000)
             .copy(cutoffHz = 18_200.0, rolloffSlope = 0.0)
         val result = SpectralAnalyzer.verdict(AudioDecodedFormat("mp3", "audio/mpeg", 48_000, 2, null, 192, 1_000), metrics)
-        assertEquals("CHƯA ĐỦ DỮ LIỆU ĐỂ KẾT LUẬN", result.verdict)
+        assertTrue(result.formatVerdict?.contains("LOSSY") == true)
+        assertTrue(result.transcodeVerdict?.contains("CHƯA ĐỦ DỮ LIỆU") == true)
         assertTrue(result.confidence < 70)
-        assertTrue(result.reasons.any { it.contains("Chưa đủ dữ liệu", ignoreCase = true) })
+        assertTrue(result.reasons.any { it.contains("chưa đủ dữ liệu", ignoreCase = true) })
     }
 
     @Test
     fun losslessWithThreeConditionsNearLossyCutoffIsSuspicious() {
         val base = SpectralAnalyzer.analyze(FloatArray(4096) { 0.1f }, 48_000)
-        val metrics = base.copy(cutoffHz = 20_000.0, rolloffSlope = -180.0, cliffDb = 45.0, quietAboveFraction = 0.95, analyzedFrames = 10)
+        val metrics = base.copy(cutoffHz = 20_000.0, rolloffSlope = -180.0, cliffDb = 45.0, quietAboveFraction = 0.95, analyzedFrames = 50)
         val result = SpectralAnalyzer.verdict(
-            AudioDecodedFormat("wav", "audio/flac", 48_000, 2, 24, null, 1_000),
+            AudioDecodedFormat("wav", "audio/flac", 48_000, 2, 24, null, 30_000),
             metrics,
         )
-        assertEquals("CÓ DẤU HIỆU NGUỒN LOSSY", result.verdict)
+        assertEquals("CÓ DẤU HIỆU NGUỒN LOSSY", result.transcodeVerdict)
     }
 }

@@ -94,10 +94,10 @@ object SpectrogramQuality {
         )
         val verdicted = SpectralAnalyzer.verdict(format, metrics)
         val warnings = buildList {
-            if (verdicted.verdict == "CÓ DẤU HIỆU NGUỒN LOSSY") {
+            if (verdicted.transcodeVerdict == "CÓ DẤU HIỆU NGUỒN LOSSY") {
                 add("Có vách phổ dốc và vùng cao im lặng; đây là dấu hiệu nghi ngờ nguồn lossy, không phải kết luận tuyệt đối.")
             }
-            if (verdicted.verdict == "NGHI NGỜ UPSAMPLE") {
+            if (verdicted.transcodeVerdict == "NGHI NGỜ UPSAMPLE") {
                 add("Tần số lấy mẫu cao nhưng không có năng lượng đáng kể trên 22.05 kHz.")
             }
             if (format.bitDepth == 24 && lsbNonZeroRatio != null && lsbNonZeroRatio < 0.01) {

@@ -328,7 +328,16 @@ private fun AnalysisCard(analysis: AudioAnalysisEntity, cached: CachedSpectrogra
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(R.string.audio_analysis_verdict), style = MaterialTheme.typography.titleLarge)
-            Text(analysis.verdict, style = MaterialTheme.typography.headlineSmall, color = verdictColor(analysis.verdict))
+            Text(
+                analysis.formatVerdict ?: analysis.verdict.substringBefore('\n'),
+                style = MaterialTheme.typography.headlineSmall,
+                color = verdictColor(analysis.verdict),
+            )
+            Text(
+                analysis.transcodeVerdict ?: analysis.verdict.substringAfter('\n', ""),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             Text("${stringResource(R.string.audio_analysis_confidence)}: ${analysis.confidence}%")
             AnalysisRawMetricsCard(analysis)
             SpectrogramPanel(cached, context)
@@ -360,13 +369,19 @@ private fun AnalysisRawMetricsCard(analysis: AudioAnalysisEntity) {
         Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(stringResource(R.string.audio_analysis_raw_metrics), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             MetricRow(stringResource(R.string.audio_analysis_codec), analysis.codec ?: "—")
+            MetricRow(stringResource(R.string.audio_analysis_source_mime), analysis.sourceMime ?: "—")
+            MetricRow(stringResource(R.string.audio_analysis_detection_source), analysis.codecDetectionSource ?: "—")
             MetricRow(stringResource(R.string.audio_analysis_sample_rate), analysis.sampleRate?.let { "$it Hz" } ?: "—")
-            MetricRow(stringResource(R.string.audio_analysis_bit_depth), analysis.bitDepth?.let { "$it-bit" } ?: "—")
+            MetricRow(stringResource(R.string.audio_analysis_bit_depth), analysis.bitDepth?.let { "$it-bit" } ?: stringResource(R.string.audio_analysis_not_applicable))
             MetricRow(stringResource(R.string.audio_analysis_bitrate), analysis.bitrate?.let { "$it bps" } ?: "—")
+            analysis.bitrateNote?.let { MetricRow(stringResource(R.string.audio_analysis_bitrate_note), it) }
+            MetricRow(stringResource(R.string.audio_analysis_theoretical_bitrate), analysis.theoreticalBitrate?.let { "$it bps" } ?: stringResource(R.string.audio_analysis_not_applicable))
             MetricRow(stringResource(R.string.audio_analysis_cutoff), analysis.cutoffHz?.let { "%.1f Hz".format(java.util.Locale.US, it) } ?: "—")
             MetricRow(stringResource(R.string.audio_analysis_cliff), analysis.cliffDb?.let { "%.1f dB".format(java.util.Locale.US, it) } ?: "—")
             MetricRow(stringResource(R.string.audio_analysis_noise_floor), analysis.noiseFloorDb?.let { "%.1f dB".format(java.util.Locale.US, it) } ?: "—")
             MetricRow(stringResource(R.string.audio_analysis_quiet_above), analysis.quietAboveFraction?.let { "%.1f%%".format(java.util.Locale.US, it * 100.0) } ?: "—")
+            MetricRow(stringResource(R.string.audio_analysis_energy_above), analysis.energyAboveCutoffRatio?.let { "%.2f%%".format(java.util.Locale.US, it * 100.0) } ?: "—")
+            MetricRow(stringResource(R.string.audio_analysis_cutoff_retries), analysis.cutoffRetries.toString())
             MetricRow(stringResource(R.string.audio_analysis_analyzed_frames), analysis.analyzedFrames.toString())
         }
     }
