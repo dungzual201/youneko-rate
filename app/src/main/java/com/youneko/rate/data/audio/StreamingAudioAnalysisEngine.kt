@@ -149,15 +149,13 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
         val uri = Uri.parse(uriString)
         val sampleRate = metadata.sampleRate
         val averageDb = result.averageDb()
-        val cutoffBin = findCutoffBin(averageDb, sampleRate)
-        val cutoffHz = cutoffBin?.let { SpectralAnalyzer.binToFrequencyHz(it, sampleRate) }
-        val slope = cutoffBin?.let { localSlope(averageDb, it, sampleRate) }
+        val cutoff = SpectrogramQuality.estimateCutoff(averageDb, sampleRate)
         val rms = sqrt((result.sumSquares / result.sampleCount.coerceAtLeast(1L)).coerceAtLeast(1e-12))
         val truePeak = 20.0 * log10(result.peak.coerceAtLeast(1e-12))
         val clipping = result.clippedSamples * 100.0 / result.sampleCount.coerceAtLeast(1L)
         val base = AudioQualityMetrics(
-            cutoffHz = cutoffHz,
-            rolloffSlope = slope,
+            cutoffHz = cutoff.frequencyHz,
+            rolloffSlope = cutoff.slopeDbPerKHz,
             dynamicRangeDb = 20.0 * log10((result.peak / rms).coerceAtLeast(1e-12)),
             truePeakDbtp = truePeak,
             clippingPercent = clipping,
@@ -175,7 +173,7 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
             bitrate = metadata.bitrate,
             durationMs = metadata.durationMs,
         )
-        val metrics = SpectralAnalyzer.verdict(format, base)
+        val metrics = SpectrogramQuality.enrich(format, SpectralAnalyzer.verdict(format, base), averageDb)
         return AudioAnalysisEntity(
             id = "$uriString:${System.currentTimeMillis()}",
             trackId = trackId,
@@ -245,6 +243,7 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
     private fun columnProgress(index: Int, columns: Int): Float =
         ((index + 1).toFloat() / columns.coerceAtLeast(1)).coerceIn(0f, 1f)
 
+    /* Legacy helpers remain below for compatibility with older callers; new streaming analysis uses SpectrogramQuality. */
     private fun findCutoffBin(spectrumDb: FloatArray, sampleRate: Int): Int? {
         if (spectrumDb.isEmpty()) return null
         val tailStart = (spectrumDb.size * 0.95).toInt().coerceAtMost(spectrumDb.lastIndex)
