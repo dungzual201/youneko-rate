@@ -111,7 +111,7 @@ class AudioAnalysisWorker(
 
     private fun createForegroundInfo(fileName: String, index: Int, total: Int, progress: Float): ForegroundInfo {
         val manager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        manager.createNotificationChannel(NotificationChannel(CHANNEL_ID, "Audio analysis", NotificationManager.IMPORTANCE_LOW))
+        manager.createNotificationChannel(NotificationChannel(CHANNEL_ID, applicationContext.getString(R.string.audio_analysis_notification_channel), NotificationManager.IMPORTANCE_LOW))
         val cancelIntent = Intent(applicationContext, AudioAnalysisCancelReceiver::class.java).setAction(ACTION_CANCEL)
         val cancelPendingIntent = PendingIntent.getBroadcast(
             applicationContext,
@@ -121,7 +121,7 @@ class AudioAnalysisWorker(
         )
         val notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_cat_cover)
-            .setContentTitle("Đang phân tích $index/$total")
+            .setContentTitle(applicationContext.getString(R.string.audio_analysis_notification_title, index, total))
             .setContentText(fileName)
             .setOngoing(true)
             .setOnlyAlertOnce(true)

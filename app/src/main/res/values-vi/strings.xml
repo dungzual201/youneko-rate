@@ -77,6 +77,8 @@
     <string name="audio_analysis_quiet_above">Tỷ lệ im lặng phía trên</string>
     <string name="audio_analysis_analyzed_frames">Số khung đã phân tích</string>
     <string name="audio_analysis_cancel">Huỷ phân tích</string>
+    <string name="audio_analysis_notification_channel">Phân tích audio</string>
+    <string name="audio_analysis_notification_title">Đang phân tích %1$d/%2$d</string>
     <string name="audio_analysis_cancelled">Đã huỷ phân tích.</string>
     <string name="spectrogram_title">Phổ toàn bài (kiểu Spek)</string>
     <string name="spectrogram_waiting">Đang dựng phổ toàn bài…</string>

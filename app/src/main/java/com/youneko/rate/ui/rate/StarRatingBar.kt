@@ -108,7 +108,7 @@ fun StarRatingBar(
             }
         }
         Text(
-            text = value?.let { String.format(Locale.US, "%.1f", it) } ?: "—",
+            text = value?.let { String.format(Locale.getDefault(), "%.1f", it) } ?: "—",
             modifier = Modifier.padding(start = 4.dp),
         )
     }

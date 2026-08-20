@@ -994,7 +994,7 @@ private fun ReviewEditor(label: String, initial: String, max: Int, onChanged: (S
     }
 }
 
-private fun Double.format2(): String = "%.2f".format(java.util.Locale.US, this)
+private fun Double.format2(): String = "%.2f".format(java.util.Locale.getDefault(), this)
 
 @dagger.hilt.android.lifecycle.HiltViewModel
 class StandaloneViewModel @javax.inject.Inject constructor(

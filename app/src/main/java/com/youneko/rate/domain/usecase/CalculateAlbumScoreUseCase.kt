@@ -47,7 +47,7 @@ class CalculateAlbumScoreUseCase {
         val rounded = BigDecimal.valueOf(average).setScale(2, RoundingMode.HALF_UP).toDouble()
         return AlbumScoreResult(
             average = rounded,
-            displayAverage = "%.2f".format(java.util.Locale.US, rounded),
+            displayAverage = "%.2f".format(java.util.Locale.getDefault(), rounded),
             ratedCount = rated.size,
             totalCount = tracks.size,
             usedEqualWeightsFallback = missingDuration,
