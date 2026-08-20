@@ -8,6 +8,7 @@ import com.youneko.rate.ui.YounekoRadius
 import com.youneko.rate.ui.ThemeMode
 import com.youneko.rate.ui.rememberReducedMotion
 import com.youneko.rate.ui.younekoSpring
+import com.youneko.rate.ui.stableAlbumKey
 
 import android.content.Intent
 import androidx.compose.animation.animateContentSize
@@ -212,7 +213,7 @@ fun LibraryScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    items(state.albums, key = { it.album.id }) { item -> AlbumCard(item, onOpenAlbum) }
+                    items(state.albums, key = { stableAlbumKey(it.album.id) }) { item -> AlbumCard(item, onOpenAlbum) }
                 }
             } else {
                 LazyColumn(
@@ -220,7 +221,7 @@ fun LibraryScreen(
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    items(state.albums, key = { it.album.id }) { item -> AlbumListRow(item, onOpenAlbum) }
+                    items(state.albums, key = { stableAlbumKey(it.album.id) }) { item -> AlbumListRow(item, onOpenAlbum) }
                 }
             }
         } else {
@@ -374,7 +375,7 @@ fun RateScreen(onAddAlbum: () -> Unit, onImportTags: () -> Unit, onOpenAlbum: (S
             EmptyLibrary(onAddAlbum, hasQuery = false)
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(rateItems, key = { it.album.id }) { item -> AlbumListRow(item, onOpenAlbum) }
+                items(rateItems, key = { stableAlbumKey(it.album.id) }) { item -> AlbumListRow(item, onOpenAlbum) }
             }
         }
     }
