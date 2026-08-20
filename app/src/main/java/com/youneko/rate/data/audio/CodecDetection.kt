@@ -86,7 +86,7 @@ object CodecDetector {
     fun classifyMime(mime: String?): CodecGroup {
         val value = mime.orEmpty().lowercase()
         return when {
-            value in LOSSLESS_MIMES || value.startsWith("audio/g711") -> if (value.startsWith("audio/g711")) CodecGroup.LOSSY else CodecGroup.LOSSLESS
+            value in LOSSLESS_MIMES -> CodecGroup.LOSSLESS
             value in LOSSY_MIMES || value.startsWith("audio/amr") || value.startsWith("audio/g711") -> CodecGroup.LOSSY
             else -> CodecGroup.UNKNOWN
         }
@@ -133,7 +133,8 @@ object CodecDetector {
         mime.contains("mp4a") || mime.contains("aac") -> "AAC"
         mime.contains("vorbis") -> "Vorbis"
         mime.contains("opus") -> "Opus"
-        mime.contains("wav") || mime == "audio/raw" -> "WAV (PCM)"
+        mime.contains("wav") -> "WAV (PCM)"
+        mime == "audio/raw" -> "Không xác định được định dạng nguồn (audio/raw)"
         mime.contains("aiff") -> "AIFF"
         mime.contains("wavpack") -> "WavPack"
         mime.contains("ape") -> "APE"
@@ -208,7 +209,7 @@ object CodecDetector {
     private fun u24(bytes: ByteArray, offset: Int): Int = ((bytes[offset].toInt() and 0xff) shl 16) or ((bytes[offset + 1].toInt() and 0xff) shl 8) or (bytes[offset + 2].toInt() and 0xff)
 
     private val LOSSLESS_MIMES = setOf(
-        "audio/flac", "audio/x-flac", "audio/alac", "audio/raw", "audio/x-wav", "audio/wav", "audio/vnd.wave", "audio/x-aiff", "audio/wavpack", "audio/x-ape", "audio/dsd", "audio/x-tta",
+        "audio/flac", "audio/x-flac", "audio/alac", "audio/x-wav", "audio/wav", "audio/vnd.wave", "audio/x-aiff", "audio/wavpack", "audio/x-ape", "audio/dsd", "audio/x-tta",
     )
     private val LOSSY_MIMES = setOf(
         "audio/mpeg", "audio/mp4a-latm", "audio/aac", "audio/aac-adts", "audio/vorbis", "audio/opus", "audio/x-ms-wma", "audio/ac3", "audio/eac3",
