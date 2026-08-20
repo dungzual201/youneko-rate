@@ -39,6 +39,7 @@ data class AudioDecodedFormat(
     val bitrateNote: String? = null,
     val theoreticalBitrate: Long? = null,
     val codecGroup: CodecGroup? = null,
+    val rawHeaderHex: String? = null,
 )
 
 enum class AudioAnalysisStep { READING_HEADER, DECODING, FFT, COMPUTING, SAVING }
@@ -152,9 +153,8 @@ object SpectralAnalyzer {
         val cutoff = metrics.cutoffHz
         val durationMs = format.durationMs ?: 0L
         val tooLittleData = durationMs < 20_000L || metrics.analyzedFrames < 50
-        val sourceMime = format.sourceMime ?: format.codec
-        val group = format.codecGroup ?: CodecDetector.classifyMime(sourceMime)
-        val codecLabel = format.codec ?: sourceMime ?: "codec không rõ"
+        val group = format.codecGroup ?: CodecDetector.groupForCanonical(format.codec)
+        val codecLabel = format.codec ?: "UNKNOWN"
         val sampleLabel = format.sampleRate.takeIf { it > 0 }?.let { "%.1f kHz".format(java.util.Locale.US, it / 1000.0).replace('.', ',') } ?: "tần số lấy mẫu không xác định"
         val bitLabel = format.bitDepth?.let { "$it-bit" } ?: if (group == CodecGroup.LOSSY) "độ sâu bit không áp dụng" else "độ sâu bit không xác định"
         val kbps = format.bitrate?.div(1000L)
@@ -171,7 +171,7 @@ object SpectralAnalyzer {
                 }
                 "$quality — $codecLabel $bitrateLabel$bitrateNote"
             }
-            CodecGroup.UNKNOWN -> "KHÔNG XÁC ĐỊNH ĐƯỢC ĐỊNH DẠNG NGUỒN — ${format.sourceMime ?: codecLabel}"
+            CodecGroup.UNKNOWN -> "KHÔNG XÁC ĐỊNH ĐƯỢC ĐỊNH DẠNG NGUỒN — $codecLabel"
         }
         val confidence = when {
             cutoff == null -> 0
@@ -283,6 +283,7 @@ class AudioAnalysisEngine(private val context: Context) {
             extractor.selectTrack(trackIndex)
             val sourceFormat = extractor.getTrackFormat(trackIndex)
             val mime = sourceFormat.getString(MediaFormat.KEY_MIME) ?: error("Thiếu MIME audio")
+            Log.i("ANALYZE", "CODEC: trackCount=${extractor.trackCount} idx=$trackIndex trackMime=$mime selectedBeforeCodec=true")
             val sampleRate = sourceFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE)
             val channels = sourceFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
             val durationUs = sourceFormat.getLong(MediaFormat.KEY_DURATION)
@@ -309,10 +310,11 @@ class AudioAnalysisEngine(private val context: Context) {
                     bitrate = codecInfo.bitrate,
                     durationMs = durationUs / 1_000L,
                     sourceMime = codecInfo.sourceMime,
-                    codecDetectionSource = codecInfo.detectionSource,
+                    codecDetectionSource = codecInfo.detectionSource.name,
                     bitrateNote = codecInfo.bitrateNote,
                     theoreticalBitrate = codecInfo.theoreticalBitrate,
                     codecGroup = codecInfo.group,
+                    rawHeaderHex = codecInfo.headerHex,
                 ),
                 baseMetrics,
             )
@@ -347,12 +349,13 @@ class AudioAnalysisEngine(private val context: Context) {
                 quietAboveFraction = metrics.quietAboveFraction,
                 analyzedFrames = metrics.analyzedFrames,
                 sourceMime = codecInfo.sourceMime,
-                codecDetectionSource = codecInfo.detectionSource,
+                codecDetectionSource = codecInfo.detectionSource.name,
                 bitrateNote = codecInfo.bitrateNote,
                 theoreticalBitrate = codecInfo.theoreticalBitrate,
                 formatVerdict = metrics.formatVerdict,
                 transcodeVerdict = metrics.transcodeVerdict,
                 energyAboveCutoffRatio = metrics.energyAboveCutoffRatio,
+                rawHeaderHex = codecInfo.headerHex,
                 cutoffRetries = metrics.cutoffRetries,
             )
         } finally {

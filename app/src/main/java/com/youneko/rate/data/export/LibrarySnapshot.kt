@@ -82,7 +82,7 @@ data class AudioAnalysisSnapshot(
     val id: String, val trackId: String?, val albumId: String?, val fileName: String, val fileUriOrPath: String, val fileHash: String, val container: String?, val codec: String?, val sampleRate: Int?, val bitDepth: Int?, val bitrate: Long?, val isVbr: Boolean?, val channels: Int?, val durationMs: Long?, val encoderTag: String?, val cutoffHz: Double?, val rolloffSlope: Double?, val dynamicRangeDb: Double?, val truePeakDbtp: Double?, val clippingPercent: Double?, val verdict: String, val confidence: Int, val reasonsJson: String, val spectrumJson: String, val spectrogramPngPath: String?, val engineVersion: String, val analyzedAt: Long,
     val noiseFloorDb: Double? = null, val cliffDb: Double? = null, val quietAboveFraction: Double? = null, val analyzedFrames: Int = 0,
     val sourceMime: String? = null, val codecDetectionSource: String? = null, val bitrateNote: String? = null, val theoreticalBitrate: Long? = null,
-    val energyAboveCutoffRatio: Double? = null, val cutoffRetries: Int = 0, val formatVerdict: String? = null, val transcodeVerdict: String? = null,
+    val energyAboveCutoffRatio: Double? = null, val cutoffRetries: Int = 0, val formatVerdict: String? = null, val transcodeVerdict: String? = null, val rawHeaderHex: String? = null,
 )
 
 @Serializable
@@ -123,7 +123,8 @@ private fun TrackEntity.toSnapshot() = TrackSnapshot(
 private fun CreditEntity.toSnapshot() = CreditSnapshot(id, albumId, trackId, personName, personMbid, role, instrumentOrAttribute, sourceProvider, sourceUrl, sortOrder, beginDate, endDate)
 private fun AudioAnalysisEntity.toSnapshot() = AudioAnalysisSnapshot(
     id, trackId, albumId, fileName, fileUriOrPath, fileHash, container, codec, sampleRate, bitDepth, bitrate, isVbr, channels, durationMs, encoderTag, cutoffHz, rolloffSlope, dynamicRangeDb, truePeakDbtp, clippingPercent, verdict, confidence, reasonsJson, spectrumJson, spectrogramPngPath, engineVersion, analyzedAt,
-    noiseFloorDb, cliffDb, quietAboveFraction, analyzedFrames, sourceMime, codecDetectionSource, bitrateNote, theoreticalBitrate, energyAboveCutoffRatio, cutoffRetries, formatVerdict, transcodeVerdict,
+    noiseFloorDb, cliffDb, quietAboveFraction, analyzedFrames, sourceMime, codecDetectionSource, bitrateNote,     theoreticalBitrate, energyAboveCutoffRatio, cutoffRetries, formatVerdict, transcodeVerdict, rawHeaderHex,
+
 )
 private fun ReviewRevisionEntity.toSnapshot() = ReviewRevisionSnapshot(id, albumId, trackId, body, createdAt)
 private fun AlbumTagEntity.toSnapshot() = AlbumTagSnapshot(id, albumId, name, createdAt)

@@ -193,7 +193,7 @@ private fun openBackupDatabase(context: Context, directory: File): YounekoDataba
             YounekoDatabase.MIGRATION_7_8, YounekoDatabase.MIGRATION_8_9, YounekoDatabase.MIGRATION_9_10,
             YounekoDatabase.MIGRATION_10_11, YounekoDatabase.MIGRATION_11_12, YounekoDatabase.MIGRATION_12_13,
             YounekoDatabase.MIGRATION_13_14, YounekoDatabase.MIGRATION_14_15, YounekoDatabase.MIGRATION_15_16,
-            YounekoDatabase.MIGRATION_16_17, YounekoDatabase.MIGRATION_17_18,
+            YounekoDatabase.MIGRATION_16_17, YounekoDatabase.MIGRATION_17_18, YounekoDatabase.MIGRATION_18_19,
         ).build()
 
 private suspend fun mergeSnapshot(context: Context, database: YounekoDatabase, snapshot: LibrarySnapshot, staging: File): RestoreReport {
@@ -268,7 +268,7 @@ private suspend fun mergeSnapshot(context: Context, database: YounekoDatabase, s
                     noiseFloorDb = value.noiseFloorDb, cliffDb = value.cliffDb, quietAboveFraction = value.quietAboveFraction, analyzedFrames = value.analyzedFrames,
                     sourceMime = value.sourceMime, codecDetectionSource = value.codecDetectionSource, bitrateNote = value.bitrateNote,
                     theoreticalBitrate = value.theoreticalBitrate, energyAboveCutoffRatio = value.energyAboveCutoffRatio, cutoffRetries = value.cutoffRetries,
-                    formatVerdict = value.formatVerdict, transcodeVerdict = value.transcodeVerdict,
+                    formatVerdict = value.formatVerdict, transcodeVerdict = value.transcodeVerdict, rawHeaderHex = value.rawHeaderHex,
                 ),
             )
         }

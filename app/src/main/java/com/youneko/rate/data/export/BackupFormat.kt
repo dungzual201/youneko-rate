@@ -6,7 +6,7 @@ import java.time.Instant
 import kotlinx.serialization.Serializable
 
 const val CURRENT_BACKUP_FORMAT_VERSION = 1
-const val CURRENT_DATABASE_SCHEMA_VERSION = 18
+const val CURRENT_DATABASE_SCHEMA_VERSION = 19
 const val BACKUP_MANIFEST = "manifest.json"
 const val BACKUP_DATABASE_ENTRY = "database/youneko.db"
 const val BACKUP_SETTINGS = "settings.json"

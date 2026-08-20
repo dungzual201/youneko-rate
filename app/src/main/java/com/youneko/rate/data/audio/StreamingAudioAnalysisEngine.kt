@@ -59,14 +59,14 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
                 durationMs = durationMs, sourceFormatBitDepth = bitDepth(sourceFormat),
                 trackBitrate = sourceFormat.getLongOrNull(MediaFormat.KEY_BIT_RATE),
             )
-            Log.i("ANALYZE", "CODEC: sourceMime=${codecInfo.sourceMime ?: "?"} codec=${codecInfo.codecLabel} group=${codecInfo.group} detectedBy=${codecInfo.detectionSource} bitrate=${codecInfo.bitrate ?: "?"} note=${codecInfo.bitrateNote ?: "track"}")
+            Log.i("ANALYZE", "CODEC: trackCount=? idx=? trackMime=${codecInfo.sourceMime ?: "?"} magic=${codecInfo.headerHex.take(11)} chosen=${codecInfo.resolved.canonical} group=${codecInfo.resolved.group} detectedBy=${codecInfo.resolved.detectedBy} bitrate=${codecInfo.bitrate ?: "?"}")
             val metadata = SpectrogramMetadata(
                 hopFrames = SpectrogramMath.hopFrames(totalFrames, durationMs),
                 sampleRate = sampleRate,
                 container = codecInfo.container,
                 codec = codecInfo.codecLabel,
                 sourceMime = codecInfo.sourceMime,
-                codecDetectionSource = codecInfo.detectionSource,
+                codecDetectionSource = codecInfo.detectionSource.name,
                 channels = channels,
                 bitDepth = codecInfo.bitDepth,
                 bitrate = codecInfo.bitrate,
@@ -85,7 +85,7 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
                 stableKey = stableKey,
                 codec = codecInfo.codecLabel,
                 sourceMime = codecInfo.sourceMime,
-                codecDetectionSource = codecInfo.detectionSource,
+                codecDetectionSource = codecInfo.detectionSource.name,
                 channels = channels,
                 bitDepth = codecInfo.bitDepth,
                 bitrate = codecInfo.bitrate,
@@ -161,7 +161,7 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
                 bitDepth = codecInfo.bitDepth ?: decodedResult.metadata.bitDepth,
                 codec = codecInfo.codecLabel,
                 sourceMime = codecInfo.sourceMime,
-                codecDetectionSource = codecInfo.detectionSource,
+                codecDetectionSource = codecInfo.detectionSource.name,
                 bitrate = codecInfo.bitrate,
                 bitrateNote = codecInfo.bitrateNote,
                 theoreticalBitrate = codecInfo.theoreticalBitrate,
@@ -230,7 +230,8 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
             bitrate = metadata.bitrate,
             bitrateNote = metadata.bitrateNote,
             theoreticalBitrate = metadata.theoreticalBitrate,
-            codecGroup = CodecDetector.classifyMime(metadata.sourceMime).takeIf { it != CodecGroup.UNKNOWN } ?: if (metadata.codec == "WAV (PCM)") CodecGroup.LOSSLESS else null,
+            codecGroup = CodecDetector.groupForCanonical(metadata.codec),
+            rawHeaderHex = null,
             durationMs = metadata.durationMs,
         )
         val metrics = SpectrogramQuality.enrich(format, SpectralAnalyzer.verdict(format, base), spectrumDb, activeFrames = result.activeFrameSpectra)
@@ -270,6 +271,7 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
             formatVerdict = metrics.formatVerdict,
             transcodeVerdict = metrics.transcodeVerdict,
             energyAboveCutoffRatio = metrics.energyAboveCutoffRatio,
+            rawHeaderHex = null,
             cutoffRetries = metrics.cutoffRetries,
         )
         val renderStartNanos = System.nanoTime()

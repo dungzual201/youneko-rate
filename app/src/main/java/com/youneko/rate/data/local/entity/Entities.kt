@@ -198,6 +198,7 @@ data class AudioAnalysisEntity(
     val cutoffRetries: Int = 0,
     val formatVerdict: String? = null,
     val transcodeVerdict: String? = null,
+    val rawHeaderHex: String? = null,
 )
 
 @Entity(

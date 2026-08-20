@@ -52,7 +52,7 @@ import com.youneko.rate.data.local.entity.TrackEntity
         CollectionAlbumEntity::class,
         ScanRootEntity::class,
     ],
-    version = 18,
+    version = 19,
     exportSchema = true,
 )
 @TypeConverters(YounekoTypeConverters::class)
@@ -109,6 +109,12 @@ abstract class YounekoDatabase : RoomDatabase() {
                 addColumnIfMissing(db, "audio_analysis", "cutoffRetries", "INTEGER NOT NULL DEFAULT 0")
                 addColumnIfMissing(db, "audio_analysis", "formatVerdict", "TEXT")
                 addColumnIfMissing(db, "audio_analysis", "transcodeVerdict", "TEXT")
+            }
+        }
+
+        val MIGRATION_18_19: Migration = object : Migration(18, 19) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                addColumnIfMissing(db, "audio_analysis", "rawHeaderHex", "TEXT")
             }
         }
 
