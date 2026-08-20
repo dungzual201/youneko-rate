@@ -59,6 +59,7 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
                 durationMs = durationMs, sourceFormatBitDepth = bitDepth(sourceFormat),
                 trackBitrate = sourceFormat.getLongOrNull(MediaFormat.KEY_BIT_RATE),
             )
+            Log.i("ANALYZE", "CODEC: sourceMime=${codecInfo.sourceMime ?: "?"} codec=${codecInfo.codecLabel} group=${codecInfo.group} detectedBy=${codecInfo.detectionSource} bitrate=${codecInfo.bitrate ?: "?"} note=${codecInfo.bitrateNote ?: "track"}")
             val metadata = SpectrogramMetadata(
                 hopFrames = SpectrogramMath.hopFrames(totalFrames, durationMs),
                 sampleRate = sampleRate,
@@ -219,7 +220,7 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
             analyzedFrames = cutoff.analyzedFrames,
         )
         val format = AudioDecodedFormat(
-            container = containerFromUri(uri),
+            container = metadata.container ?: containerFromUri(uri),
             codec = metadata.codec,
             sourceMime = metadata.sourceMime,
             codecDetectionSource = metadata.codecDetectionSource,
@@ -261,6 +262,12 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
             cliffDb = metrics.cliffDb,
             quietAboveFraction = metrics.quietAboveFraction,
             analyzedFrames = metrics.analyzedFrames,
+            sourceMime = metadata.sourceMime,
+            codecDetectionSource = metadata.codecDetectionSource,
+            bitrateNote = metadata.bitrateNote,
+            theoreticalBitrate = metadata.theoreticalBitrate,
+            formatVerdict = metrics.formatVerdict,
+            transcodeVerdict = metrics.transcodeVerdict,
         )
         val renderStartNanos = System.nanoTime()
         SpectrogramCache(context).write(trackId ?: uriString, result)
