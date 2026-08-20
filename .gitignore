@@ -1,38 +1,49 @@
-# Gradle
+# Gradle and build outputs
 .gradle/
 /build/
 */build/
 
-# Local configuration
+# Local SDK and developer configuration
 local.properties
 
 # Android Studio / IntelliJ
 .idea/
+!.idea/codeStyles/
+!.idea/codeStyles/**
 *.iml
 *.ipr
 *.iws
-.externalNativeBuild/
+
+# Native build and captures
 .cxx/
+.externalNativeBuild/
+captures/
 
 # Signing material and secrets
 *.jks
 *.keystore
-keystore*.base64.txt
+keystore.properties
+secrets.properties
 *.p12
 *.pem
 
-# Generated files
-captures/
-.externalNativeBuild/
-.cxx/
+# Packaged artifacts
+*.apk
+*.aab
+
+# Database and backup test artifacts
+*.db
+*.younekorate
+
+# Generated and temporary files
+*.hprof
+*.log
+*.tmp
+.kotlin/
 
 # OS files
 .DS_Store
 Thumbs.db
 
-# Kotlin
-.kotlin/
-
-# Temporary files
-*.log
-*.tmp
+# Deliberately not ignored: gradlew, gradlew.bat, gradle/wrapper/*,
+# gradle/libs.versions.toml, and app/schemas/ (Room exported schemas).

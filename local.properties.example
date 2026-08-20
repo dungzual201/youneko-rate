@@ -1,0 +1,6 @@
+# Copy this file to local.properties when needed.
+# Leave blank when ANDROID_HOME or ANDROID_SDK_ROOT is configured.
+sdk.dir=
+
+# Discogs, Genius, and Last.fm credentials are not build-time constants in this app.
+# Enter optional provider credentials in the app's settings; they are stored locally.
