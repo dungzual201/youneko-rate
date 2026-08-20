@@ -2,6 +2,7 @@ package com.youneko.rate.data.audio
 
 import android.content.Context
 import android.media.MediaCodec
+import android.media.MediaCodecList
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.net.Uri
@@ -33,16 +34,23 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
         val uri = Uri.parse(uriString)
         val extractor = MediaExtractor()
         var decoder: MediaCodec? = null
+        var sourcePfd: android.os.ParcelFileDescriptor? = null
         try {
-            extractor.setDataSource(context, uri, emptyMap())
+            val openedPfd = context.contentResolver.openFileDescriptor(uri, "r")
+                ?: throw AnalyzeInputException.AccessDenied
+            sourcePfd = openedPfd
+            extractor.setDataSource(openedPfd.fileDescriptor)
             val trackIndex = (0 until extractor.trackCount).firstOrNull { index ->
                 extractor.getTrackFormat(index).getString(MediaFormat.KEY_MIME).orEmpty().startsWith("audio/")
             } ?: error("Không tìm thấy track audio")
             extractor.selectTrack(trackIndex)
             val sourceFormat = extractor.getTrackFormat(trackIndex)
-            val mime = sourceFormat.getString(MediaFormat.KEY_MIME) ?: error("Thiếu MIME audio")
+            val mime = sourceFormat.getString(MediaFormat.KEY_MIME) ?: throw AnalyzeInputException.UnsupportedFormat("audio/không rõ")
+            copyCodecConfigBuffers(sourceFormat)
             val sampleRate = sourceFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE)
             val channels = sourceFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
+            val codecName = MediaCodecList(MediaCodecList.REGULAR_CODECS).findDecoderForFormat(sourceFormat)
+                ?: throw AnalyzeInputException.NoDecoder(mime)
             val durationUs = sourceFormat.getLong(MediaFormat.KEY_DURATION).coerceAtLeast(1L)
             val durationMs = durationUs / 1_000L
             val totalFrames = (durationUs * sampleRate / 1_000_000L).coerceAtLeast(1L)
@@ -69,13 +77,16 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
                 bitDepth = bitDepth(sourceFormat),
                 bitrate = sourceFormat.getLongOrNull(MediaFormat.KEY_BIT_RATE),
             )
-            decoder = MediaCodec.createDecoderByType(mime)
+            decoder = MediaCodec.createByCodecName(codecName)
             decoder.configure(sourceFormat, null, null, 0)
             decoder.start()
             val info = MediaCodec.BufferInfo()
             var inputDone = false
             var outputDone = false
             var outputFormat = sourceFormat
+            var outputSampleRate = sampleRate
+            var outputChannels = channels
+            var outputPcmEncoding = pcmEncoding(sourceFormat)
             var lastProgressFrames = 0L
             val decodeStartNanos = System.nanoTime()
             while (!outputDone) {
@@ -99,11 +110,17 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
                 }
                 when (val outputIndex = decoder.dequeueOutputBuffer(info, 10_000)) {
                     MediaCodec.INFO_TRY_AGAIN_LATER -> if (inputDone) outputDone = true
-                    MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> outputFormat = decoder.outputFormat
+                    MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
+                        outputFormat = decoder.outputFormat
+                        outputSampleRate = runCatching { outputFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE) }.getOrNull() ?: outputSampleRate
+                        outputChannels = runCatching { outputFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT) }.getOrNull() ?: outputChannels
+                        outputPcmEncoding = pcmEncoding(outputFormat) ?: outputPcmEncoding
+                        Log.i("ANALYZE", "format_changed uri=$uri mime=$mime sampleRate=$outputSampleRate ch=$outputChannels pcmEnc=${outputPcmEncoding ?: "unknown"}")
+                    }
                     else -> if (outputIndex >= 0) {
                         decoder.getOutputBuffer(outputIndex)?.let { buffer ->
                             if (info.size > 0) {
-                                appendPcmMono(buffer, info.offset, info.size, channels, outputFormat, accumulator) { column ->
+                                appendPcmMono(buffer, info.offset, info.size, outputChannels, outputFormat, accumulator) { column ->
                                     emit(SpectrogramEvent.Column(column, columnProgress(column.index, metadata.columns)))
                                 }
                                 val decodedFrames = accumulator.samplesSeen()
@@ -122,11 +139,18 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
                 emit(SpectrogramEvent.Column(column, columnProgress(column.index, metadata.columns)))
             }
             val decodeMs = (System.nanoTime() - decodeStartNanos) / 1_000_000L
-            emit(SpectrogramEvent.Completed(accumulator.result().copy(decodeMs = decodeMs)))
+            val decodedResult = accumulator.result()
+            val decodedMetadata = decodedResult.metadata.copy(
+                sampleRate = outputSampleRate,
+                channels = outputChannels,
+                bitDepth = pcmBitDepth(outputPcmEncoding) ?: decodedResult.metadata.bitDepth,
+            )
+            emit(SpectrogramEvent.Completed(decodedResult.copy(metadata = decodedMetadata, decodeMs = decodeMs)))
         } finally {
             runCatching { decoder?.stop() }
             decoder?.release()
             extractor.release()
+            sourcePfd?.close()
         }
     }.flowOn(Dispatchers.Default.limitedParallelism(2))
 
@@ -286,9 +310,34 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
 
 private fun MediaFormat.getLongOrNull(key: String): Long? = runCatching { getLong(key) }.getOrNull()
 
-private fun bitDepth(format: MediaFormat): Int? = when (runCatching { format.getInteger(MediaFormat.KEY_PCM_ENCODING) }.getOrNull()) {
+private fun bitDepth(format: MediaFormat): Int? = pcmBitDepth(pcmEncoding(format))
+
+private fun pcmEncoding(format: MediaFormat): Int? = runCatching { format.getInteger(MediaFormat.KEY_PCM_ENCODING) }.getOrNull()
+
+private fun pcmBitDepth(encoding: Int?): Int? = when (encoding) {
     2 -> 16
     3 -> 8
     4 -> 32
+    0x1000 -> 24
     else -> null
+}
+
+private fun copyCodecConfigBuffers(format: MediaFormat) {
+    listOf("csd-0", "csd-1").forEach { key ->
+        if (format.containsKey(key)) {
+            format.getByteBuffer(key)?.let { source ->
+                val copy = java.nio.ByteBuffer.allocateDirect(source.remaining())
+                val duplicate = source.duplicate()
+                copy.put(duplicate)
+                copy.flip()
+                format.setByteBuffer(key, copy)
+            }
+        }
+    }
+}
+
+sealed class AnalyzeInputException(message: String) : Exception(message) {
+    data object AccessDenied : AnalyzeInputException("Không có quyền truy cập tệp")
+    data class NoDecoder(val mime: String) : AnalyzeInputException("Thiết bị không có bộ giải mã cho định dạng $mime")
+    data class UnsupportedFormat(val mime: String) : AnalyzeInputException("Không hỗ trợ định dạng $mime")
 }
