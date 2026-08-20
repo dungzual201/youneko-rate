@@ -178,7 +178,8 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
         val uri = Uri.parse(uriString)
         val sampleRate = metadata.sampleRate
         val averageDb = result.averageDb()
-        val cutoff = SpectrogramQuality.estimateCutoff(averageDb, sampleRate)
+        val spectrumDb = result.percentileSpectrumDb.takeIf { it.isNotEmpty() } ?: averageDb
+        val cutoff = SpectrogramQuality.estimateCutoff(spectrumDb, sampleRate, result.activeFrameSpectra)
         val rms = sqrt((result.sumSquares / result.sampleCount.coerceAtLeast(1L)).coerceAtLeast(1e-12))
         val truePeak = 20.0 * log10(result.peak.coerceAtLeast(1e-12))
         val clipping = result.clippedSamples * 100.0 / result.sampleCount.coerceAtLeast(1L)
@@ -191,10 +192,14 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
             verdict = "KHÔNG XÁC ĐỊNH",
             confidence = 0,
             reasons = emptyList(),
-            spectrum = averageDb.toList(),
+            spectrum = spectrumDb.toList(),
+            noiseFloorDb = cutoff.noiseFloorDb.toDouble(),
+            cliffDb = cutoff.cliffDb,
+            quietAboveFraction = cutoff.quietAboveFraction,
+            analyzedFrames = cutoff.analyzedFrames,
         )
         val format = AudioDecodedFormat(
-            container = null,
+            container = containerFromUri(uri),
             codec = metadata.codec,
             sampleRate = sampleRate,
             channels = metadata.channels,
@@ -202,7 +207,7 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
             bitrate = metadata.bitrate,
             durationMs = metadata.durationMs,
         )
-        val metrics = SpectrogramQuality.enrich(format, SpectralAnalyzer.verdict(format, base), averageDb)
+        val metrics = SpectrogramQuality.enrich(format, SpectralAnalyzer.verdict(format, base), spectrumDb, activeFrames = result.activeFrameSpectra)
         val entity = AudioAnalysisEntity(
             id = "$uriString:${System.currentTimeMillis()}",
             trackId = trackId,
@@ -210,7 +215,7 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
             fileName = uri.lastPathSegment.orEmpty(),
             fileUriOrPath = uriString,
             fileHash = effectiveStableKey,
-            container = null,
+            container = containerFromUri(uri),
             codec = metadata.codec,
             sampleRate = sampleRate,
             bitDepth = metadata.bitDepth,
@@ -312,6 +317,8 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
 }
 
 private fun MediaFormat.getLongOrNull(key: String): Long? = runCatching { getLong(key) }.getOrNull()
+
+private fun containerFromUri(uri: Uri): String? = uri.lastPathSegment?.substringAfterLast('.', "")?.takeIf { it.isNotBlank() }?.lowercase()
 
 private fun bitDepth(format: MediaFormat): Int? = pcmBitDepth(pcmEncoding(format))
 
