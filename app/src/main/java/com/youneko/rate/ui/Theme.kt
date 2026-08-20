@@ -11,6 +11,8 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 
 private val LightColors = lightColorScheme(
     primary = Color(0xFF7355B6),
@@ -20,6 +22,7 @@ private val LightColors = lightColorScheme(
     secondary = Color(0xFF675A71),
     background = Color(0xFFFFF9F0),
     surface = Color(0xFFFFF9F0),
+    surfaceVariant = Color(0xFFE9E0EB),
 )
 
 private val DarkColors = darkColorScheme(
@@ -28,23 +31,38 @@ private val DarkColors = darkColorScheme(
     primaryContainer = Color(0xFF543F8C),
     onPrimaryContainer = Color(0xFFEADDFF),
     secondary = Color(0xFFCDC1D2),
+    surfaceVariant = Color(0xFF4A454D),
 )
 
-private val YounekoTypography = Typography()
+private val YounekoTypography = Typography().let { base ->
+    base.copy(
+        displayLarge = base.displayLarge.copy(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Bold),
+        displayMedium = base.displayMedium.copy(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Bold),
+        headlineLarge = base.headlineLarge.copy(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Bold),
+        headlineMedium = base.headlineMedium.copy(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.SemiBold),
+        titleLarge = base.titleLarge.copy(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.SemiBold),
+    )
+}
+
+enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
 @Composable
 fun YounekoRateTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     dynamicColor: Boolean = false,
+    themeMode: ThemeMode = ThemeMode.SYSTEM,
     content: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
+    val resolvedDark = when (themeMode) {
+        ThemeMode.SYSTEM -> darkTheme
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK -> true
+    }
     val colors = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && darkTheme ->
-            dynamicDarkColorScheme(context)
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
-            dynamicLightColorScheme(context)
-        darkTheme -> DarkColors
+        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && resolvedDark -> dynamicDarkColorScheme(context)
+        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> dynamicLightColorScheme(context)
+        resolvedDark -> DarkColors
         else -> LightColors
     }
 

@@ -137,6 +137,10 @@ class AutoBackupStore(private val context: Context) {
 }
 
 class SettingsDataStore(private val context: Context) : SettingsStore {
+    val themeMode: Flow<String> = context.settingsDataStore.data.map { it[Keys.themeMode] ?: "SYSTEM" }
+
+    suspend fun setThemeMode(value: String) { context.settingsDataStore.edit { it[Keys.themeMode] = value } }
+
     private object Keys {
         val offlineOnly = booleanPreferencesKey("offline_only")
         val ratingStep = doublePreferencesKey("rating_step")
@@ -144,6 +148,7 @@ class SettingsDataStore(private val context: Context) : SettingsStore {
         val scoreMode = stringPreferencesKey("score_mode")
         val gridView = booleanPreferencesKey("library_grid_view")
         val dynamicColor = booleanPreferencesKey("dynamic_color")
+        val themeMode = stringPreferencesKey("theme_mode")
         val sortOrder = stringPreferencesKey("library_sort_order")
         val unfinishedOnly = booleanPreferencesKey("library_unfinished_only")
         val discogsEnabled = booleanPreferencesKey("provider_discogs_enabled")

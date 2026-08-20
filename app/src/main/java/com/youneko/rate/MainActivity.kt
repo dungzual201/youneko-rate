@@ -16,6 +16,7 @@ import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import com.youneko.rate.navigation.YounekoNavHost
+import com.youneko.rate.ui.ThemeMode
 import com.youneko.rate.ui.YounekoRateTheme
 
 @AndroidEntryPoint
@@ -31,7 +32,8 @@ class MainActivity : AppCompatActivity() {
         setContent {
             val settings = remember { SettingsDataStore(applicationContext) }
             val dynamicColor by settings.dynamicColor.collectAsState(initial = false)
-            YounekoRateTheme(dynamicColor = dynamicColor) {
+            val themeModeName by settings.themeMode.collectAsState(initial = "SYSTEM")
+            YounekoRateTheme(dynamicColor = dynamicColor, themeMode = runCatching { ThemeMode.valueOf(themeModeName) }.getOrDefault(ThemeMode.SYSTEM)) {
                 YounekoNavHost()
             }
         }
