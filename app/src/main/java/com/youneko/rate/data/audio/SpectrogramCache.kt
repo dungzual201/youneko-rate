@@ -122,8 +122,10 @@ object SpectrogramLut {
         0xFFFFFFFF.toInt(),
     )
 
-    fun color(db: Float): Int {
-        val normalized = ((db - SPECTROGRAM_DB_FLOOR) / (SPECTROGRAM_DB_CEILING - SPECTROGRAM_DB_FLOOR)).coerceIn(0f, 1f)
+    fun color(db: Float): Int = color(db, SPECTROGRAM_DB_FLOOR)
+
+    fun color(db: Float, floor: Float): Int {
+        val normalized = ((db - floor) / (SPECTROGRAM_DB_CEILING - floor)).coerceIn(0f, 1f)
         val scaled = normalized * (stops.lastIndex)
         val index = scaled.toInt().coerceIn(0, stops.lastIndex - 1)
         val fraction = scaled - index

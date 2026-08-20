@@ -35,6 +35,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -49,6 +50,7 @@ import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.FileProvider
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.style.TextOverflow
@@ -63,6 +65,8 @@ import androidx.work.WorkManager
 import androidx.work.workDataOf
 import com.youneko.rate.R
 import com.youneko.rate.data.audio.AudioAnalysisWorker
+import com.youneko.rate.data.audio.CachedSpectrogram
+import com.youneko.rate.data.audio.SpectrogramCache
 import com.youneko.rate.data.artwork.ArtworkStore
 import com.youneko.rate.data.local.dao.AudioAnalysisDao
 import com.youneko.rate.data.importer.AudioTag
@@ -70,6 +74,7 @@ import com.youneko.rate.data.importer.LocalAudioTagReader
 import com.youneko.rate.data.local.entity.AudioAnalysisEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.io.File
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
@@ -81,6 +86,7 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 
 enum class AnalyzeStep(@StringRes val labelRes: Int) {
@@ -212,6 +218,14 @@ fun AudioAnalysisScreen(viewModel: AudioAnalysisViewModel = hiltViewModel()) {
         viewModel.enqueue(uri.toString())
     }
     val latest = analyses.firstOrNull()
+    var cachedSpectrogram by remember { mutableStateOf<CachedSpectrogram?>(null) }
+    LaunchedEffect(latest?.fileUriOrPath, latest?.fileHash, latest?.trackId) {
+        cachedSpectrogram = latest?.let { analysis ->
+            withContext(Dispatchers.IO) {
+                SpectrogramCache(context).read(analysis.trackId ?: analysis.fileUriOrPath, analysis.fileHash)
+            }
+        }
+    }
     val analyzeState = workInfos.firstOrNull().toAnalyzeUiState()
     val snackbarHostState = remember { SnackbarHostState() }
     val cancelledMessage = stringResource(R.string.audio_analysis_cancelled)
@@ -256,7 +270,7 @@ fun AudioAnalysisScreen(viewModel: AudioAnalysisViewModel = hiltViewModel()) {
                 }
                 else -> Unit
             }
-            latest?.let { AnalysisCard(it, onExplain = { explain = true }) }
+            latest?.let { AnalysisCard(it, cachedSpectrogram, context, onExplain = { explain = true }) }
                 ?: Text(stringResource(R.string.audio_analysis_empty), style = MaterialTheme.typography.bodyLarge)
             Text(stringResource(R.string.analyze_decode_note), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
@@ -309,14 +323,14 @@ private fun displayFileName(value: String): String {
 }
 
 @Composable
-private fun AnalysisCard(analysis: AudioAnalysisEntity, onExplain: () -> Unit) {
+private fun AnalysisCard(analysis: AudioAnalysisEntity, cached: CachedSpectrogram?, context: android.content.Context, onExplain: () -> Unit) {
     val spectrum = runCatching { Json.decodeFromString<List<Float>>(analysis.spectrumJson) }.getOrDefault(emptyList())
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(R.string.audio_analysis_verdict), style = MaterialTheme.typography.titleLarge)
             Text(analysis.verdict, style = MaterialTheme.typography.headlineSmall, color = verdictColor(analysis.verdict))
             Text("${stringResource(R.string.audio_analysis_confidence)}: ${analysis.confidence}%")
-            SpectrumChart(spectrum, analysis.cutoffHz, analysis.sampleRate)
+            SpectrogramPanel(cached, context)
             MetricRow(stringResource(R.string.audio_analysis_cutoff), analysis.cutoffHz?.let { "%.1f kHz".format(java.util.Locale.US, it / 1000.0) } ?: "—")
             MetricRow(stringResource(R.string.audio_analysis_slope), analysis.rolloffSlope?.let { "%.1f dB/kHz".format(java.util.Locale.US, it) } ?: "—")
             MetricRow(stringResource(R.string.audio_analysis_dynamic), analysis.dynamicRangeDb?.let { "%.1f dB".format(java.util.Locale.US, it) } ?: "—")
@@ -345,6 +359,51 @@ private fun MetricRow(label: String, value: String) {
         Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
         Text(value, style = MaterialTheme.typography.bodyMedium)
     }
+}
+
+@Composable
+private fun SpectrogramPanel(cached: CachedSpectrogram?, context: android.content.Context) {
+    var logarithmic by rememberSaveable(cached?.metadata?.stableKey) { mutableStateOf(false) }
+    var showAxes by rememberSaveable(cached?.metadata?.stableKey) { mutableStateOf(true) }
+    var dbFloor by rememberSaveable(cached?.metadata?.stableKey) { mutableStateOf(-120f) }
+    var tooltip by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    if (cached == null) {
+        Text(stringResource(R.string.spectrogram_waiting), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        return
+    }
+    Text(stringResource(R.string.spectrogram_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        TextButton(onClick = { logarithmic = !logarithmic }) {
+            Text(if (logarithmic) stringResource(R.string.spectrogram_linear) else stringResource(R.string.spectrogram_log))
+        }
+        TextButton(onClick = { showAxes = !showAxes }) {
+            Text(if (showAxes) stringResource(R.string.spectrogram_hide_axes) else stringResource(R.string.spectrogram_show_axes))
+        }
+        TextButton(onClick = { dbFloor = if (dbFloor <= -100f) -90f else if (dbFloor <= -90f) -100f else -120f }) {
+            Text(stringResource(R.string.spectrogram_db_range, dbFloor.toInt()))
+        }
+    }
+    SpectrogramView(cached, logarithmic, dbFloor, showAxes, onTooltip = { tooltip = it })
+    tooltip?.let { Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary) }
+    Button(
+        onClick = {
+            scope.launch(Dispatchers.IO) {
+                val file = File(context.cacheDir, "spectrogram-${System.currentTimeMillis()}.png")
+                SpectrogramBitmapRenderer.writePng(cached, logarithmic, dbFloor, file)
+                withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                    val send = Intent(Intent.ACTION_SEND).apply {
+                        type = "image/png"
+                        putExtra(Intent.EXTRA_STREAM, uri)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    context.startActivity(Intent.createChooser(send, context.getString(R.string.spectrogram_share)))
+                }
+            }
+        },
+        modifier = Modifier.fillMaxWidth(),
+    ) { Text(stringResource(R.string.spectrogram_export_png)) }
 }
 
 @Composable

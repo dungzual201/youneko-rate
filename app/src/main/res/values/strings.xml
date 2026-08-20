@@ -35,6 +35,15 @@
     <string name="audio_analysis_clipping">Clipping</string>
     <string name="audio_analysis_cancel">Cancel analysis</string>
     <string name="audio_analysis_cancelled">Analysis stopped by user.</string>
+    <string name="spectrogram_title">Full-track Spek-style spectrum</string>
+    <string name="spectrogram_waiting">Building full-track spectrum…</string>
+    <string name="spectrogram_linear">Use linear frequency axis</string>
+    <string name="spectrogram_log">Use log frequency axis</string>
+    <string name="spectrogram_hide_axes">Hide axes</string>
+    <string name="spectrogram_show_axes">Show axes</string>
+    <string name="spectrogram_db_range">dB range: %1$d</string>
+    <string name="spectrogram_export_png">Export PNG and share</string>
+    <string name="spectrogram_share">Share spectrogram</string>
     <string name="stats_empty_title">Statistics</string>
     <string name="stats_empty_body">Your ratings, credits and audio quality statistics appear here.</string>
     <string name="stats_rated_albums">Rated albums</string>

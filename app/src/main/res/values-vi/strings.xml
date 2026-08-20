@@ -35,6 +35,15 @@
     <string name="audio_analysis_clipping">Xén đỉnh</string>
     <string name="audio_analysis_cancel">Huỷ phân tích</string>
     <string name="audio_analysis_cancelled">Đã huỷ phân tích.</string>
+    <string name="spectrogram_title">Phổ toàn bài kiểu Spek</string>
+    <string name="spectrogram_waiting">Đang dựng phổ toàn bài…</string>
+    <string name="spectrogram_linear">Đổi sang trục tuyến tính</string>
+    <string name="spectrogram_log">Đổi sang trục log</string>
+    <string name="spectrogram_hide_axes">Ẩn trục</string>
+    <string name="spectrogram_show_axes">Hiện trục</string>
+    <string name="spectrogram_db_range">Dải dB: %1$d</string>
+    <string name="spectrogram_export_png">Xuất PNG và chia sẻ</string>
+    <string name="spectrogram_share">Chia sẻ phổ spectrogram</string>
     <string name="stats_empty_title">Thống kê</string>
     <string name="stats_empty_body">Thống kê điểm, credits và chất lượng audio của bạn sẽ hiện ở đây.</string>
     <string name="stats_rated_albums">Album đã chấm</string>
