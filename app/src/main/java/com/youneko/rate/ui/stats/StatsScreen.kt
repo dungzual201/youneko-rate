@@ -9,6 +9,7 @@ import android.graphics.Paint
 import androidx.core.content.FileProvider
 import com.youneko.rate.BuildConfig
 import java.io.File
+import java.util.Locale
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -123,10 +124,15 @@ private fun shareStatsImage(context: Context, state: StatsUiState) {
     val bitmap = Bitmap.createBitmap(1200, 1600, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bitmap).apply { drawColor(Color.WHITE) }
     val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.BLACK; textSize = 48f }
-    canvas.drawText("YounekoRate — ${state.ratedAlbums} rated albums", 48f, 80f, paint)
-    canvas.drawText("Average: ${state.averageScore?.let { "%.2f".format(it) } ?: "—"}★", 48f, 150f, paint)
+    val ratedAlbums = context.getString(R.string.stats_rated_albums)
+    val averageScore = context.getString(R.string.stats_average_score)
+    val scoreDistribution = context.getString(R.string.stats_score_histogram)
+    val audioQuality = context.getString(R.string.stats_quality_distribution)
+    val topArtists = context.getString(R.string.stats_top_artists)
+    canvas.drawText("${context.getString(R.string.app_name)} — ${state.ratedAlbums} $ratedAlbums", 48f, 80f, paint)
+    canvas.drawText("$averageScore: ${state.averageScore?.let { "%.2f".format(Locale.getDefault(), it) } ?: "—"}★", 48f, 150f, paint)
     var y = 240f
-    listOf("Score distribution" to state.histogram, "Audio quality" to state.quality, "Top artists" to state.topArtists).forEach { (title, rows) ->
+    listOf(scoreDistribution to state.histogram, audioQuality to state.quality, topArtists to state.topArtists).forEach { (title, rows) ->
         paint.textSize = 38f
         canvas.drawText(title, 48f, y, paint)
         y += 54f
@@ -145,7 +151,7 @@ private fun SummaryCard(state: StatsUiState) {
     Card(Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
             Column { Text(stringResource(R.string.stats_rated_albums), style = MaterialTheme.typography.labelLarge); Text(state.ratedAlbums.toString(), style = MaterialTheme.typography.headlineMedium) }
-            Column { Text(stringResource(R.string.stats_average_score), style = MaterialTheme.typography.labelLarge); Text(state.averageScore?.let { "%.2f★".format(it) } ?: "—", style = MaterialTheme.typography.headlineMedium) }
+            Column { Text(stringResource(R.string.stats_average_score), style = MaterialTheme.typography.labelLarge); Text(state.averageScore?.let { "%.2f★".format(Locale.getDefault(), it) } ?: "—", style = MaterialTheme.typography.headlineMedium) }
         }
         state.topRatedAlbum?.let { title ->
             Text("${stringResource(R.string.stats_top_album)}: $title", modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
@@ -173,7 +179,7 @@ private fun ValueCard(title: String, rows: List<StatsValueRow>) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(title, style = MaterialTheme.typography.titleMedium)
-            rows.forEach { row -> Text("${row.label}: ${row.value?.let { "%.2f★".format(it) } ?: "—"}") }
+            rows.forEach { row -> Text("${row.label}: ${row.value?.let { "%.2f★".format(Locale.getDefault(), it) } ?: "—"}") }
             if (rows.isEmpty()) Text(stringResource(R.string.stats_no_data), style = MaterialTheme.typography.bodySmall)
         }
     }

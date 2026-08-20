@@ -92,6 +92,7 @@
     <string name="spectrogram_share">Share spectrogram</string>
     <string name="spectrogram_reset_view">Reset zoom</string>
     <string name="spectrogram_reset_zoom">Reset zoom</string>
+    <string name="spectrogram_tooltip">t = %1$s, f = %2$.1f kHz, %3$.0f dB</string>
     <string name="stats_empty_title">Statistics</string>
     <string name="stats_empty_body">Your ratings, credits and audio quality statistics appear here.</string>
     <string name="stats_rated_albums">Rated albums</string>

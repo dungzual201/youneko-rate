@@ -32,7 +32,9 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.youneko.rate.R
 import com.youneko.rate.data.audio.CachedSpectrogram
 import com.youneko.rate.data.audio.SPECTROGRAM_DB_CEILING
 import com.youneko.rate.data.audio.SPECTROGRAM_DB_FLOOR
@@ -93,6 +95,7 @@ fun SpectrogramView(
     onTooltip: (String?) -> Unit = {},
 ) {
     val outline = MaterialTheme.colorScheme.outline
+    val tooltipTemplate = stringResource(R.string.spectrogram_tooltip)
     val plotBitmap = remember(cached.metadata, cached.matrix.contentHashCode(), logarithmic, dbFloor) {
         SpectrogramBitmapRenderer.render(cached, logarithmic, dbFloor).asImageBitmap()
     }
@@ -129,7 +132,7 @@ fun SpectrogramView(
                         val frequency = SpectrogramMath.frequencyForRow(row, cached.metadata.spectrogram.rows, cached.metadata.spectrogram.sampleRate, logarithmic)
                         val index = column * cached.metadata.spectrogram.rows + row
                         val db = SpectrogramMath.dequantizeDb(cached.matrix.getOrElse(index) { 0 })
-                        onTooltip("t = ${formatSpectrogramTime(time)}, f = %.1f kHz, %.0f dB".format(java.util.Locale.US, frequency / 1_000.0, db))
+                        onTooltip(tooltipTemplate.format(java.util.Locale.getDefault(), formatSpectrogramTime(time), frequency / 1_000.0, db))
                     }
                 },
         ) {
