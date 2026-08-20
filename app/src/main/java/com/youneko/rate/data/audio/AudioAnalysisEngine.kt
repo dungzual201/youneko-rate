@@ -185,7 +185,6 @@ object SpectralAnalyzer {
         val transcodeVerdict = when {
             tooLittleData -> "CHƯA ĐỦ DỮ LIỆU ĐỂ XÉT DẤU HIỆU TRANSCODE"
             cutoff == null -> "KHÔNG ĐO ĐƯỢC TẦN SỐ CẮT RÕ RÀNG"
-            group == CodecGroup.UNKNOWN -> "KHÔNG XÁC ĐỊNH ĐƯỢC DẤU HIỆU TRANSCODE"
             metrics.cliffDb != null && metrics.cliffDb >= 40.0 && SpectrogramQuality.nearLossyCutoff(cutoff) && (metrics.quietAboveFraction ?: 0.0) >= 0.90 -> "CÓ DẤU HIỆU NGUỒN LOSSY"
             group == CodecGroup.LOSSLESS && format.sampleRate >= 88_200 && cutoff >= 24_000.0 -> "HI-RES THỰC"
             group == CodecGroup.LOSSLESS && format.sampleRate >= 88_200 && cutoff < 22_050.0 -> "NGHI NGỜ UPSAMPLE"
