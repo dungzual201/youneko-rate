@@ -78,10 +78,12 @@ data class RestoreReport(
     val missingTracks: Int,
     val mergedRows: Int,
     val insertedRows: Int,
+    val conflicts: Int = 0,
 ) {
     val summary: String
         get() = "Đã nối $matchedTracks/$totalTracks bài với file trong máy. " +
-            "$missingTracks bài chưa tìm thấy file; điểm đánh giá vẫn được giữ."
+            "$missingTracks bài chưa tìm thấy file; điểm đánh giá vẫn được giữ." +
+            if (conflicts > 0) " Có $conflicts xung đột updatedAt đã xử lý theo bản mới hơn." else ""
 }
 
 fun currentBackupAppInfo() = BackupAppInfo(BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE)

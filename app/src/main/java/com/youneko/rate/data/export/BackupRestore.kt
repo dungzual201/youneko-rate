@@ -203,6 +203,7 @@ private suspend fun mergeSnapshot(context: Context, database: YounekoDatabase, s
     var merged = 0
     var matchedTracks = 0
     var missingTracks = 0
+    var conflicts = 0
     database.withTransaction {
         snapshot.artists.forEach { value ->
             val existing = currentArtists.values.firstOrNull { it.mbid == value.mbid && !value.mbid.isNullOrBlank() } ?: currentArtists.values.firstOrNull { it.name.equals(value.name, true) }
@@ -237,6 +238,7 @@ private suspend fun mergeSnapshot(context: Context, database: YounekoDatabase, s
             if (presentOnThisDevice) matchedTracks++ else missingTracks++
             val target = TrackEntity(value.id, albumId, value.title, value.trackNumber, value.discNumber, value.durationMs, value.isStandalone, value.stars, value.reviewText, value.isSkip, value.isHighlight, value.listenedDate, value.recordingMbid, value.workMbid, value.isrc, value.sourceUri, value.fileName, value.createdAt, value.updatedAt, stableKey = value.stableKey, fileSizeBytes = value.fileSizeBytes, fileHash64k = value.fileHash64k, isMissing = !presentOnThisDevice, missingSince = if (presentOnThisDevice) null else System.currentTimeMillis())
             if (existing == null) { database.trackDao().insert(target); currentTracks += target; trackMap[value.id] = target.id; inserted++ } else {
+                if (value.updatedAt != existing.updatedAt) conflicts++
                 val newer = if (value.updatedAt > existing.updatedAt) target.copy(id = existing.id, sourceUri = existing.sourceUri, fileName = existing.fileName, mediaStoreId = existing.mediaStoreId, stableKey = existing.stableKey ?: target.stableKey, isMissing = existing.isMissing, missingSince = existing.missingSince, stars = target.stars ?: existing.stars, reviewText = mergeText(existing.reviewText, target.reviewText)) else existing.copy(reviewText = mergeText(existing.reviewText, target.reviewText))
                 database.trackDao().update(newer); trackMap[value.id] = existing.id; merged++
             }
@@ -257,7 +259,7 @@ private suspend fun mergeSnapshot(context: Context, database: YounekoDatabase, s
         remapStagedCovers(context, database, staging, albumMap)
     }
     val total = snapshot.tracks.size
-    return RestoreReport(matchedTracks, total, missingTracks, merged, inserted)
+    return RestoreReport(matchedTracks, total, missingTracks, merged, inserted, conflicts)
 }
 
 private suspend fun remapStagedCovers(context: Context, database: YounekoDatabase, staging: File, albumMap: Map<String, String>) {
