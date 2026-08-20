@@ -23,6 +23,10 @@ data class SpectrogramMetadata(
     val fftSize: Int = SPECTROGRAM_FFT_SIZE,
     val hopFrames: Long,
     val sampleRate: Int,
+    val codec: String? = null,
+    val channels: Int = 1,
+    val bitDepth: Int? = null,
+    val bitrate: Long? = null,
     val totalFrames: Long,
     val durationMs: Long,
     val columns: Int,
@@ -96,6 +100,10 @@ class StreamingSpectrogramAccumulator(
     private val totalFrames: Long,
     private val durationMs: Long,
     stableKey: String? = null,
+    private val codec: String? = null,
+    private val channels: Int = 1,
+    private val bitDepth: Int? = null,
+    private val bitrate: Long? = null,
 ) {
     private val fftSize = SPECTROGRAM_FFT_SIZE
     private val halfBins = fftSize / 2 + 1
@@ -124,6 +132,10 @@ class StreamingSpectrogramAccumulator(
     val metadata: SpectrogramMetadata = SpectrogramMetadata(
         hopFrames = hop,
         sampleRate = sampleRate,
+        codec = codec,
+        channels = channels,
+        bitDepth = bitDepth,
+        bitrate = bitrate,
         totalFrames = totalFrames,
         durationMs = durationMs,
         columns = columnsTarget,

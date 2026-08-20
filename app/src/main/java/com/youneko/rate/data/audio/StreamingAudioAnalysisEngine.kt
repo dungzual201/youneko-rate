@@ -46,13 +46,26 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
             val metadata = SpectrogramMetadata(
                 hopFrames = SpectrogramMath.hopFrames(totalFrames, durationMs),
                 sampleRate = sampleRate,
+                codec = mime,
+                channels = channels,
+                bitDepth = bitDepth(sourceFormat),
+                bitrate = sourceFormat.getLongOrNull(MediaFormat.KEY_BIT_RATE),
                 totalFrames = totalFrames,
                 durationMs = durationMs,
                 columns = SpectrogramMath.targetColumns(durationMs),
                 stableKey = stableKey,
             )
             emit(SpectrogramEvent.Header(metadata))
-            val accumulator = StreamingSpectrogramAccumulator(sampleRate, totalFrames, durationMs, stableKey)
+            val accumulator = StreamingSpectrogramAccumulator(
+                sampleRate = sampleRate,
+                totalFrames = totalFrames,
+                durationMs = durationMs,
+                stableKey = stableKey,
+                codec = mime,
+                channels = channels,
+                bitDepth = bitDepth(sourceFormat),
+                bitrate = sourceFormat.getLongOrNull(MediaFormat.KEY_BIT_RATE),
+            )
             decoder = MediaCodec.createDecoderByType(mime)
             decoder.configure(sourceFormat, null, null, 0)
             decoder.start()
@@ -120,9 +133,10 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
         onEvent: suspend (SpectrogramEvent) -> Unit = {},
         shouldStop: () -> Boolean = { false },
     ): AudioAnalysisEntity {
+        val effectiveStableKey = stableKey ?: computeStableKey(uriString)
         var completed: SpectrogramResult? = null
         var header: SpectrogramMetadata? = null
-        spectrogramFlow(uriString, stableKey, shouldStop).collect { event ->
+        spectrogramFlow(uriString, effectiveStableKey, shouldStop).collect { event ->
             onEvent(event)
             when (event) {
                 is SpectrogramEvent.Header -> header = event.metadata
@@ -154,11 +168,11 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
         )
         val format = AudioDecodedFormat(
             container = null,
-            codec = null,
+            codec = metadata.codec,
             sampleRate = sampleRate,
-            channels = 1,
-            bitDepth = null,
-            bitrate = null,
+            channels = metadata.channels,
+            bitDepth = metadata.bitDepth,
+            bitrate = metadata.bitrate,
             durationMs = metadata.durationMs,
         )
         val metrics = SpectralAnalyzer.verdict(format, base)
@@ -168,13 +182,13 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
             albumId = albumId,
             fileName = uri.lastPathSegment.orEmpty(),
             fileUriOrPath = uriString,
-            fileHash = stableKey ?: stableKey(uriString),
+            fileHash = effectiveStableKey,
             container = null,
-            codec = null,
+            codec = metadata.codec,
             sampleRate = sampleRate,
-            bitDepth = null,
-            bitrate = null,
-            channels = 1,
+            bitDepth = metadata.bitDepth,
+            bitrate = metadata.bitrate,
+            channels = metadata.channels,
             durationMs = metadata.durationMs,
             cutoffHz = metrics.cutoffHz,
             rolloffSlope = metrics.rolloffSlope,
@@ -187,7 +201,9 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
             spectrumJson = Json.encodeToString(metrics.spectrum),
             engineVersion = "spek-stream-v1",
             analyzedAt = System.currentTimeMillis(),
-        )
+        ).also {
+            SpectrogramCache(context).write(trackId ?: uriString, result)
+        }
     }
 
     private suspend fun appendPcmMono(
@@ -253,7 +269,7 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
         return (spectrumDb[cutoffBin] - spectrumDb[lower]).toDouble() / 2.0
     }
 
-    private fun stableKey(uriString: String): String = runCatching {
+    private fun computeStableKey(uriString: String): String = runCatching {
         val digest = MessageDigest.getInstance("SHA-256")
         context.contentResolver.openInputStream(Uri.parse(uriString))!!.use { input ->
             val buffer = ByteArray(64 * 1024)
@@ -262,4 +278,13 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
         }
         digest.digest().joinToString("") { byte -> "%02x".format(byte) }
     }.getOrElse { uriString.hashCode().toUInt().toString(16) }
+}
+
+private fun MediaFormat.getLongOrNull(key: String): Long? = runCatching { getLong(key) }.getOrNull()
+
+private fun bitDepth(format: MediaFormat): Int? = when (runCatching { format.getInteger(MediaFormat.KEY_PCM_ENCODING) }.getOrNull()) {
+    2 -> 16
+    3 -> 8
+    4 -> 32
+    else -> null
 }
