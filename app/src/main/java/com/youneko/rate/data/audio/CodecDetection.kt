@@ -112,9 +112,9 @@ object CodecDetector {
             }
         }
         if (bytes.size >= 12 && ascii(bytes, 4, 4) == "ftyp") {
-            return when {
-                containsAscii(bytes, "alac") -> MagicResult("ALAC", CodecGroup.LOSSLESS, "m4a", mp4BitDepth(bytes))
-                containsAscii(bytes, "mp4a") -> MagicResult("AAC", CodecGroup.LOSSY, "m4a", null)
+            return when (mp4SampleEntry(bytes)) {
+                "alac" -> MagicResult("ALAC", CodecGroup.LOSSLESS, "m4a", mp4BitDepth(bytes))
+                "mp4a" -> MagicResult("AAC", CodecGroup.LOSSY, "m4a", null)
                 else -> MagicResult("MP4 audio", CodecGroup.UNKNOWN, "m4a", null)
             }
         }
@@ -172,7 +172,7 @@ object CodecDetector {
             if (type == 0 && length >= 34 && offset + 4 + 34 <= bytes.size) {
                 val b10 = bytes[offset + 4 + 10].toInt() and 0xff
                 val b11 = bytes[offset + 4 + 11].toInt() and 0xff
-                return ((b10 and 0x01) shl 4) or (b11 ushr 4) + 1
+                return (((b10 and 0x01) shl 4) or (b11 ushr 4)) + 1
             }
             offset += 4 + length
             if (last) break
@@ -185,8 +185,20 @@ object CodecDetector {
         return if (fmt >= 0 && fmt + 18 <= bytes.size) u16(bytes, fmt + 16) else null
     }
 
-    private fun mp4BitDepth(bytes: ByteArray): Int? = indexOf(bytes, "alac".encodeToByteArray()).takeIf { it >= 0 }?.let {
-        if (it + 12 < bytes.size) bytes[it + 8].toInt() and 0xff else null
+    private fun mp4SampleEntry(bytes: ByteArray): String? {
+        val stsd = indexOf(bytes, "stsd".encodeToByteArray())
+        if (stsd < 0) return null
+        val end = (stsd + 64 * 1024).coerceAtMost(bytes.size)
+        val sampleEntries = listOf("alac", "mp4a", "ac-3", "ec-3")
+        return sampleEntries.firstOrNull { entry ->
+            val position = indexOf(bytes.copyOfRange(stsd, end), entry.encodeToByteArray())
+            position >= 0
+        }
+    }
+
+    private fun mp4BitDepth(bytes: ByteArray): Int? = mp4SampleEntry(bytes)?.let { entry ->
+        val position = indexOf(bytes, entry.encodeToByteArray())
+        if (entry == "alac" && position + 12 < bytes.size) bytes[position + 8].toInt() and 0xff else null
     }
 
     private fun ascii(bytes: ByteArray, offset: Int, length: Int): String = if (offset + length <= bytes.size) String(bytes, offset, length, Charsets.US_ASCII) else ""
