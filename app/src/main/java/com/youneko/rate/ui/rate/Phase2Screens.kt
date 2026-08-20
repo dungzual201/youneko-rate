@@ -1154,7 +1154,10 @@ fun SettingsScreen(onOpenExport: () -> Unit = {}, viewModel: ScoreSettingsViewMo
             Column(Modifier.padding(YounekoSpacing.md), verticalArrangement = Arrangement.spacedBy(YounekoSpacing.xs)) {
                 Text(stringResource(R.string.backup_title), style = MaterialTheme.typography.titleMedium)
                 Text(stringResource(R.string.backup_description), style = MaterialTheme.typography.bodySmall)
-                Button(onClick = onOpenExport, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.export_open)) }
+                Button(onClick = onOpenExport, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.backup_export)) }
+                OutlinedButton(onClick = onOpenExport, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.backup_import)) }
+                OutlinedButton(onClick = onOpenExport, modifier = Modifier.fillMaxWidth()) { Text("${stringResource(R.string.backup_export_csv)} & ${stringResource(R.string.backup_export_json)}") }
+                OutlinedButton(onClick = onOpenExport, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.backup_auto)) }
             }
         }
         TextButton(onClick = viewModel::refreshMusicData) { Text(stringResource(R.string.refresh_music_data)) }
