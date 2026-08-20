@@ -83,8 +83,6 @@ object CodecDetector {
         return assertAndRepair(candidate)
     }
 
-    fun classifyMime(mime: String?): CodecGroup = canonicalFromMime(mime).group
-
     fun groupForCanonical(canonical: String?): CodecGroup = when (canonical) {
         "FLAC", "ALAC", "WAV", "AIFF", "WavPack", "APE", "TTA", "DSD", "Ogg FLAC" -> CodecGroup.LOSSLESS
         "MP3", "AAC", "Vorbis", "Opus", "LOSSY" -> CodecGroup.LOSSY
