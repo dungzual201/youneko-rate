@@ -65,7 +65,7 @@ fun CollectionsScreen(onBack: () -> Unit, viewModel: CollectionsViewModel = hilt
     LaunchedEffect(Unit) { viewModel.load() }
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         TextButton(onClick = onBack) { Text(stringResource(R.string.cancel)) }
-        Text(stringResource(R.string.collections_title), style = MaterialTheme.typography.headlineSmall)
+        Text(stringResource(R.string.collections), style = MaterialTheme.typography.headlineSmall)
         Button(onClick = { showCreate = true }) { Text(stringResource(R.string.collection_create)) }
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(collections, key = { it.id }) { collection ->
@@ -145,7 +145,7 @@ fun AdvancedSearchScreen(onBack: () -> Unit, viewModel: AdvancedSearchViewModel 
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         TextButton(onClick = onBack) { Text(stringResource(R.string.cancel)) }
         Text(stringResource(R.string.advanced_search), style = MaterialTheme.typography.headlineSmall)
-        OutlinedTextField(query, { query = it }, modifier = Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.search_library)) })
+        OutlinedTextField(query, { query = it }, modifier = Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.search_hint)) })
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedTextField(min, { min = it }, modifier = Modifier.weight(1f), label = { Text(stringResource(R.string.advanced_min_score)) }); OutlinedTextField(max, { max = it }, modifier = Modifier.weight(1f), label = { Text(stringResource(R.string.advanced_max_score)) }) }
         OutlinedTextField(tag, { tag = it }, modifier = Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.advanced_tag)) })
         OutlinedTextField(credit, { credit = it }, modifier = Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.advanced_credit_person)) })

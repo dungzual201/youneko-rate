@@ -54,6 +54,7 @@
     <string name="spectrogram_export_png">Xuất PNG và chia sẻ</string>
     <string name="spectrogram_share">Chia sẻ phổ spectrogram</string>
     <string name="spectrogram_reset_view">Đặt lại zoom</string>
+    <string name="spectrogram_reset_zoom">Đặt lại zoom</string>
     <string name="stats_empty_title">Thống kê</string>
     <string name="stats_empty_body">Thống kê điểm, credits và chất lượng audio của bạn sẽ hiện ở đây.</string>
     <string name="stats_rated_albums">Album đã chấm</string>
@@ -147,6 +148,10 @@
     <string name="dynamic_color">Màu theo hệ thống</string>
     <string name="dynamic_color_body">Bật để dùng màu chủ đề của Android thay cho tím pastel và trắng kem.</string>
     <string name="search_library">Tìm album, nghệ sĩ, bài hát hoặc nhận xét</string>
+    <string name="search_hint">Tìm album, nghệ sĩ, bài hát hoặc nhận xét</string>
+    <string name="search_on_device">Trong máy</string>
+    <string name="search_online">Trực tuyến</string>
+    <string name="collections">Bộ sưu tập</string>
     <string name="add_album">Thêm album</string>
     <string name="import_music">Nhập từ file nhạc</string>
     <string name="local_search">Trong máy</string>

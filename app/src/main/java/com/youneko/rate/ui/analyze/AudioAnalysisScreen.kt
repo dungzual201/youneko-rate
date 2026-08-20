@@ -403,7 +403,7 @@ private fun SpectrogramPanel(cached: CachedSpectrogram?, context: android.conten
         TextButton(onClick = { dbFloor = if (dbFloor <= -100f) -90f else if (dbFloor <= -90f) -100f else -120f }) {
             Text(stringResource(R.string.spectrogram_db_range, dbFloor.toInt()))
         }
-        TextButton(onClick = { resetToken++ }) { Text(stringResource(R.string.spectrogram_reset_view)) }
+        TextButton(onClick = { resetToken++ }) { Text(stringResource(R.string.spectrogram_reset_zoom)) }
     }
     SpectrogramView(cached, logarithmic, dbFloor, showAxes, resetToken = resetToken, onTooltip = { tooltip = it })
     tooltip?.let { Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary) }

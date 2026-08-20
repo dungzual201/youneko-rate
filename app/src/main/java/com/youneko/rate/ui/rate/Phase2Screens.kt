@@ -188,7 +188,7 @@ fun LibraryScreen(
                 modifier = Modifier.weight(1f),
                 singleLine = true,
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                placeholder = { Text(stringResource(R.string.search_library)) },
+                placeholder = { Text(stringResource(R.string.search_hint)) },
             )
             Spacer(Modifier.width(4.dp))
             IconButton(onClick = { showFilters = true }) {
@@ -202,12 +202,12 @@ fun LibraryScreen(
             }
         }
         Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(selected = !onlineMode, onClick = { onlineMode = false }, label = { Text(stringResource(R.string.local_search)) })
-            FilterChip(selected = onlineMode, onClick = { onlineMode = true; onlineViewModel.setQuery(state.query) }, label = { Text(stringResource(R.string.online_search)) })
+            FilterChip(selected = !onlineMode, onClick = { onlineMode = false }, label = { Text(stringResource(R.string.search_on_device)) })
+            FilterChip(selected = onlineMode, onClick = { onlineMode = true; onlineViewModel.setQuery(state.query) }, label = { Text(stringResource(R.string.search_online)) })
         }
         Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TextButton(onClick = onOpenAdvancedSearch) { Text(stringResource(R.string.advanced_search)) }
-            TextButton(onClick = onOpenCollections) { Text(stringResource(R.string.collections_title)) }
+            TextButton(onClick = onOpenCollections) { Text(stringResource(R.string.collections)) }
             TextButton(onClick = refresh) { Text(stringResource(R.string.refresh_music_data)) }
         }
         if (!onlineMode) {
