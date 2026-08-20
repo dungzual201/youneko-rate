@@ -89,22 +89,23 @@ class AudioAnalysisTest {
     }
 
     @Test
-    fun decodedNonSilentWithoutSteepWallStillGetsFourBucketVerdict() {
+    fun decodedNonSilentWithoutSteepWallStaysUndecidedBelowConfidenceThreshold() {
         val metrics = SpectralAnalyzer.analyze(FloatArray(4096) { if (it % 2 == 0) 0.2f else -0.2f }, 48_000)
             .copy(cutoffHz = 18_200.0, rolloffSlope = 0.0)
         val result = SpectralAnalyzer.verdict(AudioDecodedFormat("mp3", "audio/mpeg", 48_000, 2, null, 192, 1_000), metrics)
-        assertTrue(result.verdict != "KHÔNG XÁC ĐỊNH")
-        assertTrue(result.reasons.any { it.contains("không đủ dốc", ignoreCase = true) })
+        assertEquals("CHƯA ĐỦ DỮ LIỆU ĐỂ KẾT LUẬN", result.verdict)
+        assertTrue(result.confidence < 70)
+        assertTrue(result.reasons.any { it.contains("Chưa đủ dữ liệu", ignoreCase = true) })
     }
 
     @Test
-    fun losslessWithEarlyCutoffIsSuspicious() {
+    fun losslessWithThreeConditionsNearLossyCutoffIsSuspicious() {
         val base = SpectralAnalyzer.analyze(FloatArray(4096) { 0.1f }, 48_000)
-        val metrics = base.copy(cutoffHz = 12_000.0, rolloffSlope = -180.0)
+        val metrics = base.copy(cutoffHz = 20_000.0, rolloffSlope = -180.0, cliffDb = 45.0, quietAboveFraction = 0.95, analyzedFrames = 10)
         val result = SpectralAnalyzer.verdict(
             AudioDecodedFormat("wav", "audio/flac", 48_000, 2, 24, null, 1_000),
             metrics,
         )
-        assertEquals("NGHI NGỜ NÂNG CẤP GIẢ", result.verdict)
+        assertEquals("CÓ DẤU HIỆU NGUỒN LOSSY", result.verdict)
     }
 }

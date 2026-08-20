@@ -330,6 +330,7 @@ private fun AnalysisCard(analysis: AudioAnalysisEntity, cached: CachedSpectrogra
             Text(stringResource(R.string.audio_analysis_verdict), style = MaterialTheme.typography.titleLarge)
             Text(analysis.verdict, style = MaterialTheme.typography.headlineSmall, color = verdictColor(analysis.verdict))
             Text("${stringResource(R.string.audio_analysis_confidence)}: ${analysis.confidence}%")
+            AnalysisRawMetricsCard(analysis)
             SpectrogramPanel(cached, context)
             MetricRow(stringResource(R.string.audio_analysis_cutoff), analysis.cutoffHz?.let { "%.1f kHz".format(java.util.Locale.US, it / 1000.0) } ?: "—")
             MetricRow(stringResource(R.string.audio_analysis_slope), analysis.rolloffSlope?.let { "%.1f dB/kHz".format(java.util.Locale.US, it) } ?: "—")
@@ -349,6 +350,24 @@ private fun AnalysisCard(analysis: AudioAnalysisEntity, cached: CachedSpectrogra
             val reasons = runCatching { Json.decodeFromString<List<String>>(analysis.reasonsJson) }.getOrDefault(listOf(analysis.reasonsJson))
             reasons.filter { it.isNotBlank() }.forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
             TextButton(onClick = onExplain) { Text(stringResource(R.string.audio_analysis_explain)) }
+        }
+    }
+}
+
+@Composable
+private fun AnalysisRawMetricsCard(analysis: AudioAnalysisEntity) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(stringResource(R.string.audio_analysis_raw_metrics), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            MetricRow(stringResource(R.string.audio_analysis_codec), analysis.codec ?: "—")
+            MetricRow(stringResource(R.string.audio_analysis_sample_rate), analysis.sampleRate?.let { "$it Hz" } ?: "—")
+            MetricRow(stringResource(R.string.audio_analysis_bit_depth), analysis.bitDepth?.let { "$it-bit" } ?: "—")
+            MetricRow(stringResource(R.string.audio_analysis_bitrate), analysis.bitrate?.let { "$it bps" } ?: "—")
+            MetricRow(stringResource(R.string.audio_analysis_cutoff), analysis.cutoffHz?.let { "%.1f Hz".format(java.util.Locale.US, it) } ?: "—")
+            MetricRow(stringResource(R.string.audio_analysis_cliff), analysis.cliffDb?.let { "%.1f dB".format(java.util.Locale.US, it) } ?: "—")
+            MetricRow(stringResource(R.string.audio_analysis_noise_floor), analysis.noiseFloorDb?.let { "%.1f dB".format(java.util.Locale.US, it) } ?: "—")
+            MetricRow(stringResource(R.string.audio_analysis_quiet_above), analysis.quietAboveFraction?.let { "%.1f%%".format(java.util.Locale.US, it * 100.0) } ?: "—")
+            MetricRow(stringResource(R.string.audio_analysis_analyzed_frames), analysis.analyzedFrames.toString())
         }
     }
 }
@@ -465,9 +484,9 @@ private fun SpectrumChart(values: List<Float>, cutoffHz: Double?, sampleRate: In
     }
 }
 
-private fun verdictColor(verdict: String): Color = when (verdict) {
-    "LOSSLESS THẬT" -> androidx.compose.ui.graphics.Color(0xFF2E7D32)
-    "LOSSY CHẤT LƯỢNG CAO", "LOSSY", "LOSSY CHẤT LƯỢNG THẤP" -> Color(0xFF1565C0)
-    "NGHI NGỜ NÂNG CẤP GIẢ" -> Color(0xFFC62828)
+private fun verdictColor(verdict: String): Color = when {
+    verdict.startsWith("LOSSLESS") || verdict == "HI-RES THỰC" -> Color(0xFF2E7D32)
+    verdict.startsWith("LOSSY") -> Color(0xFF1565C0)
+    verdict == "CÓ DẤU HIỆU NGUỒN LOSSY" || verdict == "NGHI NGỜ UPSAMPLE" -> Color(0xFFC62828)
     else -> Color(0xFF6D4C41)
 }

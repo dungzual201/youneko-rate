@@ -33,6 +33,15 @@
     <string name="audio_analysis_dynamic">Dải động</string>
     <string name="audio_analysis_peak">Đỉnh thực</string>
     <string name="audio_analysis_clipping">Xén đỉnh</string>
+    <string name="audio_analysis_raw_metrics">Số liệu thô</string>
+    <string name="audio_analysis_codec">Codec</string>
+    <string name="audio_analysis_sample_rate">Tần số lấy mẫu</string>
+    <string name="audio_analysis_bit_depth">Độ sâu bit</string>
+    <string name="audio_analysis_bitrate">Bitrate</string>
+    <string name="audio_analysis_noise_floor">Sàn nhiễu</string>
+    <string name="audio_analysis_cliff">Độ dốc vách</string>
+    <string name="audio_analysis_quiet_above">Tỷ lệ im lặng phía trên</string>
+    <string name="audio_analysis_analyzed_frames">Số khung đã phân tích</string>
     <string name="audio_analysis_cancel">Huỷ phân tích</string>
     <string name="audio_analysis_cancelled">Đã huỷ phân tích.</string>
     <string name="spectrogram_title">Phổ toàn bài kiểu Spek</string>

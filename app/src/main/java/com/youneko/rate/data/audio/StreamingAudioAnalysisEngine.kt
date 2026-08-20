@@ -233,6 +233,10 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
             spectrumJson = Json.encodeToString(metrics.spectrum),
             engineVersion = "spek-stream-v1",
             analyzedAt = System.currentTimeMillis(),
+            noiseFloorDb = metrics.noiseFloorDb,
+            cliffDb = metrics.cliffDb,
+            quietAboveFraction = metrics.quietAboveFraction,
+            analyzedFrames = metrics.analyzedFrames,
         )
         val renderStartNanos = System.nanoTime()
         SpectrogramCache(context).write(trackId ?: uriString, result)

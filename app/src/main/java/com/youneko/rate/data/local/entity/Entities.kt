@@ -186,6 +186,10 @@ data class AudioAnalysisEntity(
     val spectrogramPngPath: String? = null,
     val engineVersion: String = "phase8-v1",
     val analyzedAt: Long,
+    val noiseFloorDb: Double? = null,
+    val cliffDb: Double? = null,
+    val quietAboveFraction: Double? = null,
+    val analyzedFrames: Int = 0,
 )
 
 @Entity(

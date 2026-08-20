@@ -52,7 +52,7 @@ import com.youneko.rate.data.local.entity.TrackEntity
         CollectionAlbumEntity::class,
         ScanRootEntity::class,
     ],
-    version = 16,
+    version = 17,
     exportSchema = true,
 )
 @TypeConverters(YounekoTypeConverters::class)
@@ -87,6 +87,15 @@ abstract class YounekoDatabase : RoomDatabase() {
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_tracks_mediaStoreId ON tracks(mediaStoreId)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_tracks_stableKey ON tracks(stableKey)")
                 db.execSQL("CREATE TABLE IF NOT EXISTS scan_roots (uri TEXT NOT NULL PRIMARY KEY, displayName TEXT, addedAt INTEGER NOT NULL, lastScannedAt INTEGER)")
+            }
+        }
+
+        val MIGRATION_16_17: Migration = object : Migration(16, 17) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                addColumnIfMissing(db, "audio_analysis", "noiseFloorDb", "REAL")
+                addColumnIfMissing(db, "audio_analysis", "cliffDb", "REAL")
+                addColumnIfMissing(db, "audio_analysis", "quietAboveFraction", "REAL")
+                addColumnIfMissing(db, "audio_analysis", "analyzedFrames", "INTEGER NOT NULL DEFAULT 0")
             }
         }
 

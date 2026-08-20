@@ -311,6 +311,10 @@ class AudioAnalysisEngine(private val context: Context) {
                 spectrumJson = Json.encodeToString(metrics.spectrum),
                 engineVersion = AUDIO_ANALYSIS_ENGINE_VERSION,
                 analyzedAt = System.currentTimeMillis(),
+                noiseFloorDb = metrics.noiseFloorDb,
+                cliffDb = metrics.cliffDb,
+                quietAboveFraction = metrics.quietAboveFraction,
+                analyzedFrames = metrics.analyzedFrames,
             )
         } finally {
             runCatching { decoder?.stop() }
