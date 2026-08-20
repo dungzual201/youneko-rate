@@ -2,6 +2,7 @@ package com.youneko.rate.ui
 
 import android.provider.Settings
 import androidx.compose.animation.core.AnimationSpec
+import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -51,7 +52,7 @@ fun rememberReducedMotion(): Boolean {
 fun <T> younekoSpring(reducedMotion: Boolean): AnimationSpec<T> =
     if (reducedMotion) snap() else spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow)
 
-fun younekoFade(reducedMotion: Boolean): AnimationSpec<Float> =
+fun younekoFade(reducedMotion: Boolean): FiniteAnimationSpec<Float> =
     if (reducedMotion) snap() else tween(durationMillis = 200)
 
 fun younekoStaggerDelay(index: Int, reducedMotion: Boolean): Int =
