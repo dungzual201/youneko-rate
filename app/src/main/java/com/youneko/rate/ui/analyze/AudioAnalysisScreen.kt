@@ -48,6 +48,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -407,6 +409,7 @@ private fun SummaryChip(label: String, value: String) {
 private fun AnalysisDetailsCard(analysis: AudioAnalysisEntity) {
     var expanded by rememberSaveable(analysis.id) { mutableStateOf(false) }
     var help by rememberSaveable { mutableStateOf<Int?>(null) }
+    CompositionLocalProvider(LocalMetricHelp provides { help = it }) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.animateContentSize()) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -444,6 +447,7 @@ private fun AnalysisDetailsCard(analysis: AudioAnalysisEntity) {
             }
         }
     }
+    }
     help?.let { titleRes ->
         ModalBottomSheet(onDismissRequest = { help = null }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), modifier = Modifier.navigationBarsPadding()) {
             Column(Modifier.fillMaxWidth().padding(24.dp).heightIn(min = 120.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -465,12 +469,15 @@ private fun MetricGroup(title: String, content: @Composable () -> Unit) {
 
 @Composable
 private fun DetailedMetricRow(label: String, value: String, helpRes: Int, warning: Boolean = false) {
+    val onHelp = LocalMetricHelp.current
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = { }, modifier = Modifier.size(28.dp)) { Icon(Icons.Default.HelpOutline, contentDescription = stringResource(R.string.audio_analysis_help)) }
+        IconButton(onClick = { onHelp(helpRes) }, modifier = Modifier.size(28.dp)) { Icon(Icons.Default.HelpOutline, contentDescription = stringResource(R.string.audio_analysis_help)) }
         Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
         Text(value, style = MaterialTheme.typography.bodyMedium, color = if (warning) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
     }
 }
+
+private val LocalMetricHelp = compositionLocalOf<(Int) -> Unit> { {} }
 
 private fun formatDecimal(value: Double, decimals: Int): String = String.format(java.util.Locale.getDefault(), "%.${decimals}f", value)
 
