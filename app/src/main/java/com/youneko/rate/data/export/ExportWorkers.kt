@@ -2,6 +2,8 @@ package com.youneko.rate.data.export
 
 import android.content.Context
 import android.net.Uri
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import androidx.documentfile.provider.DocumentFile
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
@@ -16,6 +18,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 import java.io.File
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.encodeToString
@@ -43,12 +46,15 @@ interface ExportWorkerEntryPoint {
 }
 
 class ExportWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
+    override suspend fun getForegroundInfo(): ForegroundInfo = backupForegroundInfo(applicationContext, "Đang xuất dữ liệu…", id, 0, 1)
+
     override suspend fun doWork(): Result = runCatching {
         val database = entryPoint().database()
         val snapshot = database.exportSnapshot()
         val outputUri = inputData.getString(EXPORT_OUTPUT_URI)?.let(Uri::parse)
             ?: return Result.failure(workDataOf("error" to "Thiếu URI xuất dữ liệu"))
         val format = inputData.getString(EXPORT_FORMAT) ?: EXPORT_FORMAT_JSON
+        setProgress(workDataOf("step" to "Đang chuẩn bị dữ liệu…", "done" to 0, "total" to 1))
         val content = if (format == EXPORT_FORMAT_CSV) {
             byteArrayOf(0xEF.toByte(), 0xBB.toByte(), 0xBF.toByte()) + snapshot.toReadableCsv().toByteArray(Charsets.UTF_8)
         } else {
@@ -56,6 +62,7 @@ class ExportWorker(appContext: Context, params: WorkerParameters) : CoroutineWor
         }
         applicationContext.contentResolver.openOutputStream(outputUri)?.use { it.write(content) }
             ?: return Result.failure(workDataOf("error" to "Không thể mở nơi lưu"))
+        setProgress(workDataOf("step" to "Đang ghi tệp…", "done" to 1, "total" to 1))
         Result.success(workDataOf("format" to format, "count" to snapshot.albums.size))
     }.getOrElse { Result.failure(workDataOf("error" to (it.message ?: "Xuất dữ liệu thất bại"))) }
 
@@ -63,7 +70,7 @@ class ExportWorker(appContext: Context, params: WorkerParameters) : CoroutineWor
 }
 
 open class BackupWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
-    override suspend fun getForegroundInfo(): ForegroundInfo = backupForegroundInfo(applicationContext, "Đang sao lưu dữ liệu…")
+    override suspend fun getForegroundInfo(): ForegroundInfo = backupForegroundInfo(applicationContext, "Đang sao lưu dữ liệu…", id, 0, 1)
 
     override suspend fun doWork(): Result {
         val autoTreeUri = inputData.getString(AUTO_BACKUP_TREE_URI)?.let(Uri::parse)
@@ -102,9 +109,11 @@ open class BackupWorker(appContext: Context, params: WorkerParameters) : Corouti
             includeCovers = inputData.getBoolean("include_covers", true),
             includeReadableExports = inputData.getBoolean("include_exports", true),
             isCancelled = { isStopped },
-            onProgress = { progress ->
-                setProgressAsync(workDataOf("step" to progress.step, "done" to progress.done, "total" to progress.total))
-            },
+                            onProgress = { progress ->
+                    setProgressAsync(workDataOf("step" to progress.step, "done" to progress.done, "total" to progress.total))
+                    setForegroundAsync(backupForegroundInfo(applicationContext, progress.step, id, progress.done, progress.total))
+                },
+
         )
     }
 
@@ -130,6 +139,8 @@ open class BackupWorker(appContext: Context, params: WorkerParameters) : Corouti
 class AutoBackupWorker(appContext: Context, params: WorkerParameters) : BackupWorker(appContext, params)
 
 class RestoreWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
+    override suspend fun getForegroundInfo(): ForegroundInfo = backupForegroundInfo(applicationContext, "Đang khôi phục dữ liệu…", id, 0, 1)
+
     override suspend fun doWork(): Result = try {
         val uri = inputData.getString(BACKUP_INPUT_URI)?.let(Uri::parse)
             ?: return Result.failure(workDataOf("error" to "Thiếu file sao lưu"))
@@ -157,13 +168,20 @@ fun scheduleWeeklyAutoBackup(context: Context, treeUri: Uri? = null) {
 
 private fun timestamp(): String = java.text.SimpleDateFormat("yyyy-MM-dd_HHmm", java.util.Locale.US).format(java.util.Date())
 
-private fun backupForegroundInfo(context: Context, title: String): ForegroundInfo =
-    ForegroundInfo(2202, androidx.core.app.NotificationCompat.Builder(context, "background_tasks")
+private fun backupForegroundInfo(context: Context, title: String, workId: UUID, done: Int, total: Int): ForegroundInfo {
+    val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    manager.createNotificationChannel(NotificationChannel("background_tasks", "Tác vụ nền", NotificationManager.IMPORTANCE_LOW))
+    val cancel = WorkManager.getInstance(context).createCancelPendingIntent(workId)
+    return ForegroundInfo(2202, androidx.core.app.NotificationCompat.Builder(context, "background_tasks")
         .setSmallIcon(android.R.drawable.stat_sys_upload)
         .setContentTitle("Youneko Rate!")
         .setContentText(title)
         .setOngoing(true)
+        .setOnlyAlertOnce(true)
+        .setProgress(total.coerceAtLeast(1), done.coerceIn(0, total.coerceAtLeast(1)), total <= 0)
+        .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Huỷ", cancel)
         .build())
+}
 
 private fun LibrarySnapshot.toReadableCsv(): String = buildString {
     appendLine("album,artist,track,trackNumber,stars,albumScore,tags,listenedDate,reviewExcerpt")
