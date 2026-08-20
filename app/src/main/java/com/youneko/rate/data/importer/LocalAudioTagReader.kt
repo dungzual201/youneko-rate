@@ -2,7 +2,9 @@ package com.youneko.rate.data.importer
 
 import android.content.Context
 import android.graphics.BitmapFactory
+import android.os.Build
 import android.util.Log
+import android.util.Size
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.provider.OpenableColumns
@@ -14,6 +16,7 @@ import com.youneko.rate.data.artwork.ArtworkStore
 import com.youneko.rate.data.lyrics.Lyrics
 import com.youneko.rate.data.lyrics.LyricsParser
 import com.youneko.rate.data.importer.ArtworkCandidate
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.Locale
 import java.util.UUID
@@ -192,34 +195,57 @@ class LocalAudioTagReader @Inject constructor(
     }
 
     fun extractArtwork(uri: Uri, albumId: String, mediaStoreAlbumId: Long?): ArtworkStore.CachedArtwork? {
+        var embedded = false
+        var folder = false
+        var mediaStore = false
         val candidates = buildList {
             runCatching {
                 val retriever = MediaMetadataRetriever()
                 try {
-                    retriever.setDataSource(context, uri)
-                    artworkCandidate(retriever.embeddedPicture, "embedded")
+                    context.contentResolver.openFileDescriptor(uri, "r")?.use { pfd ->
+                        retriever.setDataSource(pfd.fileDescriptor)
+                        artworkCandidate(retriever.embeddedPicture, "embedded")
+                    }
                 } finally {
                     retriever.release()
                 }
-            }.onFailure { Log.w("Artwork", "Artwork embedded read failed for $uri", it) }.getOrNull()?.let(::add)
-            siblingArtwork(uri)?.let(::add)
+            }.onFailure { Log.w("Artwork", "Artwork embedded read failed for $uri", it) }.getOrNull()?.let { embedded = true; add(it) }
+            siblingArtwork(uri)?.let { folder = true; add(it) }
             if (mediaStoreAlbumId != null) {
                 val albumArtUri = Uri.parse("content://media/external/audio/albumart/$mediaStoreAlbumId")
                 runCatching { context.contentResolver.openInputStream(albumArtUri)?.use { it.readBytes() } }
                     .onFailure { Log.w("Artwork", "MediaStore albumart read failed for $uri", it) }
                     .getOrNull()
                     ?.let { artworkCandidate(it, "mediastore-albumart") }
+                    ?.let { mediaStore = true; add(it) }
+            }
+            if (Build.VERSION.SDK_INT >= 29) {
+                runCatching {
+                    context.contentResolver.loadThumbnail(uri, Size(1000, 1000), null)
+                }.onFailure { Log.w("Artwork", "Thumbnail fallback failed for $uri", it) }
+                    .getOrNull()
+                    ?.let { bitmapCandidate(it, "thumbnail") }
                     ?.let(::add)
             }
         }
-        val selected = candidates.firstOrNull() ?: return null
-        return artworkStore.persistAlbumArtwork(albumId, selected.path, selected.source)
+        val selected = candidates.firstOrNull()
+        Log.i("Artwork", "COVER: album=$albumId embedded=$embedded/folder=$folder/mediastore=$mediaStore/none=${selected == null}")
+        return selected?.let { artworkStore.persistAlbumArtwork(albumId, it.path, it.source) }
+    }
+
+    private fun bitmapCandidate(bitmap: android.graphics.Bitmap, source: String): ArtworkCandidate? {
+        val bytes = ByteArrayOutputStream().use { output ->
+            if (!bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 92, output)) return null
+            output.toByteArray()
+        }
+        return artworkCandidate(bytes, source)
     }
 
     private fun readWithMediaMetadataRetriever(uri: Uri, fileName: String): AudioTag? {
         val retriever = MediaMetadataRetriever()
+        val pfd = context.contentResolver.openFileDescriptor(uri, "r") ?: return null
         return try {
-            retriever.setDataSource(context, uri)
+            retriever.setDataSource(pfd.fileDescriptor)
             val title = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)
             val artist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)
             val album = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM)
@@ -236,6 +262,7 @@ class LocalAudioTagReader @Inject constructor(
         } catch (_: Exception) {
             null
         } finally {
+            pfd.close()
             retriever.release()
         }
     }
