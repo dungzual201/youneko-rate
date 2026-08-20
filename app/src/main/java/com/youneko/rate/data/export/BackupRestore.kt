@@ -91,11 +91,13 @@ suspend fun reconcilePendingRestore(context: Context, database: YounekoDatabase,
         pending!!.inputStream().use { input -> dbFile.outputStream().use { output -> input.copyTo(output) } }
         verifyDatabaseCopy(dbFile)
         if (staging != null) remapRestoredCoversOnDisk(context, dbFile, staging)
-        val report = SQLiteDatabase.openDatabase(dbFile.path, null, SQLiteDatabase.OPEN_READONLY).use { raw ->
+        val baseReport = SQLiteDatabase.openDatabase(dbFile.path, null, SQLiteDatabase.OPEN_READONLY).use { raw ->
             val total = raw.rawQuery("SELECT COUNT(*) FROM tracks", null).use { cursor -> cursor.moveToFirst(); cursor.getInt(0) }
             val missing = raw.rawQuery("SELECT COUNT(*) FROM tracks WHERE isMissing != 0", null).use { cursor -> cursor.moveToFirst(); cursor.getInt(0) }
             RestoreReport(total - missing, total, missing, 0, 0)
         }
+        val relink = runCatching { scanner.scan(forceFull = true) }.getOrNull()
+        val report = relink?.let { baseReport.copy(matchedTracks = baseReport.totalTracks - it.missing, missingTracks = it.missing) } ?: baseReport
         PendingRestoreStore(context).clear()
         rollback?.delete()
         staging?.deleteRecursively()
