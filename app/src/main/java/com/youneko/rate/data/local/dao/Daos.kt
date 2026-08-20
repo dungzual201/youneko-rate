@@ -48,6 +48,9 @@ interface AlbumDao {
 
     @Query("SELECT COUNT(*) FROM albums")
     fun observeCount(): Flow<Int>
+
+    @Query("UPDATE albums SET coverUri = NULL, coverThumbUri = NULL, coverSource = NULL, coverWidth = NULL, coverUpdatedAt = NULL WHERE LOWER(COALESCE(coverSource, '')) != 'manual'")
+    suspend fun clearAutomaticCovers()
 }
 
 @Dao

@@ -1,11 +1,15 @@
 package com.youneko.rate.ui.rate
 
+import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.youneko.rate.data.AlbumDraft
 import com.youneko.rate.data.AlbumRepository
+import com.youneko.rate.data.artwork.ArtworkStore
 import com.youneko.rate.data.SettingsStore
+import com.youneko.rate.data.MediaScanStore
+import com.youneko.rate.data.scan.enqueueMediaScan
 import com.youneko.rate.data.musicbrainz.AlbumMetadataRefreshService
 import com.youneko.rate.data.credits.CreditSourceId
 import com.youneko.rate.data.discogs.DiscogsCreditsService
@@ -14,6 +18,7 @@ import com.youneko.rate.data.musicbrainz.CoverArtService
 import com.youneko.rate.data.musicbrainz.Resource
 import com.youneko.rate.data.TrackDraft
 import com.youneko.rate.data.local.dao.RemoteMetadataCacheDao
+import com.youneko.rate.data.local.dao.AlbumDao
 import com.youneko.rate.data.local.dao.ReviewRevisionDao
 import com.youneko.rate.data.local.dao.AlbumTagDao
 import com.youneko.rate.data.local.dao.ListeningLogDao
@@ -25,6 +30,7 @@ import com.youneko.rate.data.local.entity.TrackEntity
 import com.youneko.rate.domain.usecase.ScoreMode
 import com.youneko.rate.domain.usecase.RatingScale
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import java.time.LocalDate
 import java.util.UUID
@@ -190,9 +196,15 @@ class AlbumDetailViewModel @Inject constructor(
         val album = currentAlbum() ?: return
         viewModelScope.launch(Dispatchers.IO) {
             when (val result = coverArtService?.downloadForAlbum(album.id, album.releaseGroupMbid, album.mbid)) {
-                is com.youneko.rate.data.musicbrainz.CoverResult.Success -> repository.updateAlbum(album.copy(coverUri = result.localUri, coverThumbUri = result.localUri))
+                is com.youneko.rate.data.musicbrainz.CoverResult.Success -> repository.updateAlbum(album.copy(coverUri = result.localUri, coverThumbUri = result.localUri, coverSource = result.sourceProvider, coverUpdatedAt = System.currentTimeMillis()))
                 else -> Unit
             }
+        }
+    }
+
+    fun setManualCover(uri: String) {
+        currentAlbum()?.let { album ->
+            updateAlbum(album.copy(coverUri = uri, coverThumbUri = uri, coverSource = "manual", coverUpdatedAt = System.currentTimeMillis()))
         }
     }
     fun deleteAlbum() = viewModelScope.launch(Dispatchers.IO) { repository.deleteAlbum(albumId) }
@@ -301,7 +313,11 @@ class AlbumEditorViewModel @Inject constructor(
 
 @HiltViewModel
 class ScoreSettingsViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val settings: SettingsStore,
+    private val mediaScanStore: MediaScanStore,
+    private val artworkStore: ArtworkStore,
+    private val albumDao: AlbumDao,
     private val remoteMetadataCacheDao: RemoteMetadataCacheDao,
     private val discogsService: DiscogsCreditsService,
     private val geniusService: GeniusCreditsService,
@@ -360,4 +376,13 @@ class ScoreSettingsViewModel @Inject constructor(
     fun testDiscogsToken(token: String) = viewModelScope.launch(Dispatchers.IO) { _tokenTestResult.value = _tokenTestResult.value + ("discogs" to discogsService.testToken(token)) }
     fun testGeniusToken(token: String) = viewModelScope.launch(Dispatchers.IO) { _tokenTestResult.value = _tokenTestResult.value + ("genius" to geniusService.testToken(token)) }
     fun clearMetadataCache() = viewModelScope.launch(Dispatchers.IO) { remoteMetadataCacheDao.deleteAll() }
+    fun refreshMusicData() = viewModelScope.launch(Dispatchers.IO) {
+        mediaScanStore.reset()
+        enqueueMediaScan(context, forceFull = true)
+    }
+    fun reloadAllCovers() = viewModelScope.launch(Dispatchers.IO) {
+        artworkStore.clearCachedCovers()
+        albumDao.clearAutomaticCovers()
+        enqueueMediaScan(context, forceFull = true)
+    }
 }

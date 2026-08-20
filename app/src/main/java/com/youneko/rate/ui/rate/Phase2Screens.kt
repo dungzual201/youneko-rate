@@ -21,6 +21,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
@@ -157,6 +158,20 @@ fun LibraryScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val onlineViewModel: MusicBrainzSearchViewModel = hiltViewModel()
+    val context = LocalContext.current
+    var refreshing by remember { mutableStateOf(false) }
+    val refresh: () -> Unit = {
+        if (!refreshing) {
+            refreshing = true
+            com.youneko.rate.data.scan.enqueueMediaScan(context, forceFull = false)
+        }
+    }
+    LaunchedEffect(refreshing) {
+        if (refreshing) {
+            delay(900)
+            refreshing = false
+        }
+    }
     var showFilters by rememberSaveable { mutableStateOf(false) }
     var onlineMode by rememberSaveable { mutableStateOf(false) }
     Column(modifier = Modifier.fillMaxSize()) {
@@ -193,6 +208,7 @@ fun LibraryScreen(
         Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TextButton(onClick = onOpenAdvancedSearch) { Text(stringResource(R.string.advanced_search)) }
             TextButton(onClick = onOpenCollections) { Text(stringResource(R.string.collections_title)) }
+            TextButton(onClick = refresh) { Text(stringResource(R.string.refresh_music_data)) }
         }
         if (!onlineMode) {
             Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -208,7 +224,17 @@ fun LibraryScreen(
             } else if (state.gridView) {
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive(160.dp),
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).pointerInput(Unit) {
+                        var pulled = 0f
+                        detectVerticalDragGestures(
+                            onVerticalDrag = { change, dragAmount ->
+                                if (dragAmount > 0f) pulled += dragAmount
+                                change.consume()
+                            },
+                            onDragEnd = { if (pulled >= 120f) refresh() },
+                            onDragCancel = { pulled = 0f },
+                        )
+                    },
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -217,7 +243,17 @@ fun LibraryScreen(
                 }
             } else {
                 LazyColumn(
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).pointerInput(Unit) {
+                        var pulled = 0f
+                        detectVerticalDragGestures(
+                            onVerticalDrag = { change, dragAmount ->
+                                if (dragAmount > 0f) pulled += dragAmount
+                                change.consume()
+                            },
+                            onDragEnd = { if (pulled >= 120f) refresh() },
+                            onDragCancel = { pulled = 0f },
+                        )
+                    },
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
@@ -527,6 +563,12 @@ fun AlbumDetailScreen(
     viewModel: AlbumDetailViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val manualCoverPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        uri ?: return@rememberLauncherForActivityResult
+        runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+        viewModel.setManualCover(uri.toString())
+    }
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
             when (event) {
@@ -569,6 +611,10 @@ fun AlbumDetailScreen(
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.reload_cover), maxLines = 3, overflow = TextOverflow.Ellipsis) },
                                 onClick = { menuExpanded = false; viewModel.reloadCover() },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.choose_manual_cover), maxLines = 3, overflow = TextOverflow.Ellipsis) },
+                                onClick = { menuExpanded = false; manualCoverPicker.launch(arrayOf("image/*")) },
                             )
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.view_credits), maxLines = 3, overflow = TextOverflow.Ellipsis) },
@@ -1111,6 +1157,8 @@ fun SettingsScreen(onOpenExport: () -> Unit = {}, viewModel: ScoreSettingsViewMo
                 Button(onClick = onOpenExport, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.export_open)) }
             }
         }
+        TextButton(onClick = viewModel::refreshMusicData) { Text(stringResource(R.string.refresh_music_data)) }
+        TextButton(onClick = viewModel::reloadAllCovers) { Text(stringResource(R.string.reload_all_covers)) }
         TextButton(onClick = viewModel::clearMetadataCache) { Text(stringResource(R.string.metadata_cache_clear)) }
         Text(stringResource(R.string.settings_body), style = MaterialTheme.typography.bodyMedium)
     }

@@ -25,6 +25,10 @@ class ArtworkStore @Inject constructor(
         return persistBitmap(albumId, decoded, source)
     }
 
+    fun clearCachedCovers() {
+        File(context.filesDir, "covers").listFiles()?.forEach { it.delete() }
+    }
+
     fun persistBitmap(albumId: String, bitmap: Bitmap, source: String): CachedArtwork? {
         val maxDimension = maxOf(bitmap.width, bitmap.height)
         if (maxDimension < 300) return null

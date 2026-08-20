@@ -90,6 +90,13 @@ class MediaScanStore(private val context: Context) {
             it[Keys.providerVersion] = providerVersion
         }
     }
+
+    suspend fun reset() {
+        context.settingsDataStore.edit {
+            it[Keys.lastScanTimeMs] = 0L
+            it[Keys.lastGeneration] = -1L
+        }
+    }
 }
 
 class PendingRestoreStore(private val context: Context) {

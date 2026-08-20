@@ -124,6 +124,9 @@
     <string name="export_started">Export started</string>
     <string name="export_restore_started">Restore validation started</string>
     <string name="export_open">Export, backup and sharing</string>
+    <string name="refresh_music_data">Refresh music data</string>
+    <string name="reload_all_covers">Reload all album covers</string>
+    <string name="choose_manual_cover">Choose cover image</string>
     <string name="collections_title">Collections</string>
     <string name="collection_create">Create collection</string>
     <string name="collection_name">Collection name</string>
