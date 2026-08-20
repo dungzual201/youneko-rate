@@ -249,6 +249,7 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
         val bytesPerSample = when (encoding) {
             3 -> 1
             4 -> 4
+            0x1000 -> 3
             else -> 2
         }
         val frameBytes = bytesPerSample * channels.coerceAtLeast(1)
@@ -261,10 +262,12 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
                 sum += when (encoding) {
                     3 -> duplicate.get().toInt() / 128.0
                     4 -> duplicate.float.toDouble()
+                    0x1000 -> readPcm24Packed(duplicate)
                     else -> duplicate.short.toInt() / 32768.0
                 }
             }
-            val column = accumulator.addSample((sum / channels.coerceAtLeast(1)).toFloat())
+            val normalized = (sum / channels.coerceAtLeast(1)).coerceIn(-1.0, 1.0)
+            val column = accumulator.addSample(normalized.toFloat())
             if (column != null) onColumn(column)
         }
     }
@@ -313,6 +316,14 @@ private fun MediaFormat.getLongOrNull(key: String): Long? = runCatching { getLon
 private fun bitDepth(format: MediaFormat): Int? = pcmBitDepth(pcmEncoding(format))
 
 private fun pcmEncoding(format: MediaFormat): Int? = runCatching { format.getInteger(MediaFormat.KEY_PCM_ENCODING) }.getOrNull()
+
+private fun readPcm24Packed(buffer: ByteBuffer): Double {
+    val b0 = buffer.get().toInt() and 0xff
+    val b1 = buffer.get().toInt() and 0xff
+    val b2 = buffer.get().toInt()
+    val signed = (b0 or (b1 shl 8) or (b2 shl 16)).let { value -> if ((value and 0x800000) != 0) value or -0x1000000 else value }
+    return signed / 8_388_608.0
+}
 
 private fun pcmBitDepth(encoding: Int?): Int? = when (encoding) {
     2 -> 16
