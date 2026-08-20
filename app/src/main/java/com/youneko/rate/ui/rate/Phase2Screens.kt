@@ -1,5 +1,11 @@
 package com.youneko.rate.ui.rate
 
+import com.youneko.rate.ui.YounekoEmptyState
+import com.youneko.rate.ui.YounekoErrorState
+import com.youneko.rate.ui.YounekoLoadingState
+import com.youneko.rate.ui.YounekoRadius
+import com.youneko.rate.ui.YounekoSpacing
+
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -187,7 +193,9 @@ fun LibraryScreen(
                 SortMenu(state.sort, viewModel::setSort)
             }
             Spacer(Modifier.height(8.dp))
-            if (state.albums.isEmpty()) {
+            if (state.error != null) {
+                YounekoErrorState(state.error ?: "Có lỗi, vui lòng thử lại.", onRetry = viewModel::clearError, modifier = Modifier.weight(1f).fillMaxWidth())
+            } else if (state.albums.isEmpty()) {
                 EmptyLibrary(onAddAlbum, hasQuery = state.query.isNotBlank() || state.unfinishedOnly)
             } else if (state.gridView) {
                 LazyVerticalGrid(
@@ -534,8 +542,8 @@ fun AlbumDetailScreen(
     val reviewRevisions by viewModel.reviewRevisions.collectAsStateWithLifecycle()
     Scaffold(snackbarHost = { SnackbarHost(snackbarHost) }) { padding ->
         when (state) {
-            AlbumDetailUiState.Loading -> Column(Modifier.fillMaxSize().padding(padding), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) { Text(stringResource(R.string.error_generic)) }
-            AlbumDetailUiState.AlbumDeleted -> Column(Modifier.fillMaxSize().padding(padding), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) { Text(stringResource(R.string.confirm_delete_body)) }
+            AlbumDetailUiState.Loading -> YounekoLoadingState(Modifier.fillMaxSize().padding(padding).padding(YounekoSpacing.md), lines = 4)
+            AlbumDetailUiState.AlbumDeleted -> YounekoEmptyState(stringResource(R.string.confirm_delete_body), modifier = Modifier.fillMaxSize().padding(padding))
             is AlbumDetailUiState.Content -> {
             val value = (state as AlbumDetailUiState.Content).album
             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(padding).padding(horizontal = 16.dp)) {

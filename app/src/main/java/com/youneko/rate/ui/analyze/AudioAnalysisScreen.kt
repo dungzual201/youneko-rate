@@ -1,5 +1,10 @@
 package com.youneko.rate.ui.analyze
 
+import com.youneko.rate.ui.YounekoEmptyState
+import com.youneko.rate.ui.YounekoErrorState
+import com.youneko.rate.ui.YounekoLoadingState
+import com.youneko.rate.ui.YounekoSpacing
+
 import android.content.Intent
 import androidx.annotation.StringRes
 import android.net.Uri
@@ -262,16 +267,11 @@ fun AudioAnalysisScreen(viewModel: AudioAnalysisViewModel = hiltViewModel()) {
             }
             when (val state = analyzeState) {
                 is AnalyzeUiState.Running -> AnalyzeRunningCard(state, viewModel::onCancelClicked)
-                is AnalyzeUiState.Failed -> Card(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(state.fileName, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        Text(state.reason, color = MaterialTheme.colorScheme.error)
-                    }
-                }
+                is AnalyzeUiState.Failed -> YounekoErrorState("${state.fileName}: ${state.reason}", onRetry = { picker.launch(arrayOf("audio/*")) }, modifier = Modifier.fillMaxWidth())
                 else -> Unit
             }
             latest?.let { AnalysisCard(it, cachedSpectrogram, context, onExplain = { explain = true }) }
-                ?: Text(stringResource(R.string.audio_analysis_empty), style = MaterialTheme.typography.bodyLarge)
+                ?: YounekoEmptyState(stringResource(R.string.audio_analysis_empty), actionLabel = stringResource(R.string.audio_analysis_choose_file), onAction = { picker.launch(arrayOf("audio/*")) }, modifier = Modifier.fillMaxWidth())
             Text(stringResource(R.string.analyze_decode_note), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
