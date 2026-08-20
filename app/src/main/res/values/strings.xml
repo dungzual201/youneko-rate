@@ -44,6 +44,7 @@
     <string name="spectrogram_db_range">dB range: %1$d</string>
     <string name="spectrogram_export_png">Export PNG and share</string>
     <string name="spectrogram_share">Share spectrogram</string>
+    <string name="spectrogram_reset_view">Reset zoom</string>
     <string name="stats_empty_title">Statistics</string>
     <string name="stats_empty_body">Your ratings, credits and audio quality statistics appear here.</string>
     <string name="stats_rated_albums">Rated albums</string>

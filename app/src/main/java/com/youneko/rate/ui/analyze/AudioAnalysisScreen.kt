@@ -366,6 +366,7 @@ private fun SpectrogramPanel(cached: CachedSpectrogram?, context: android.conten
     var logarithmic by rememberSaveable(cached?.metadata?.stableKey) { mutableStateOf(false) }
     var showAxes by rememberSaveable(cached?.metadata?.stableKey) { mutableStateOf(true) }
     var dbFloor by rememberSaveable(cached?.metadata?.stableKey) { mutableStateOf(-120f) }
+    var resetToken by rememberSaveable(cached?.metadata?.stableKey) { mutableStateOf(0) }
     var tooltip by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     if (cached == null) {
@@ -383,8 +384,9 @@ private fun SpectrogramPanel(cached: CachedSpectrogram?, context: android.conten
         TextButton(onClick = { dbFloor = if (dbFloor <= -100f) -90f else if (dbFloor <= -90f) -100f else -120f }) {
             Text(stringResource(R.string.spectrogram_db_range, dbFloor.toInt()))
         }
+        TextButton(onClick = { resetToken++ }) { Text(stringResource(R.string.spectrogram_reset_view)) }
     }
-    SpectrogramView(cached, logarithmic, dbFloor, showAxes, onTooltip = { tooltip = it })
+    SpectrogramView(cached, logarithmic, dbFloor, showAxes, resetToken = resetToken, onTooltip = { tooltip = it })
     tooltip?.let { Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary) }
     Button(
         onClick = {

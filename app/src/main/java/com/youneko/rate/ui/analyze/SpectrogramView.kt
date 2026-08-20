@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -87,6 +88,7 @@ fun SpectrogramView(
     logarithmic: Boolean,
     dbFloor: Float,
     showAxes: Boolean,
+    resetToken: Int = 0,
     modifier: Modifier = Modifier,
     onTooltip: (String?) -> Unit = {},
 ) {
@@ -96,6 +98,10 @@ fun SpectrogramView(
     }
     var zoom by remember(cached.metadata) { mutableFloatStateOf(1f) }
     var panX by remember(cached.metadata) { mutableFloatStateOf(0f) }
+    LaunchedEffect(resetToken) {
+        zoom = 1f
+        panX = 0f
+    }
     Box(modifier.fillMaxWidth().height(360.dp)) {
         Canvas(
             Modifier.fillMaxSize()

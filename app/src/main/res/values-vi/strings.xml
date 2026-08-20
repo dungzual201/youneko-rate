@@ -44,6 +44,7 @@
     <string name="spectrogram_db_range">Dải dB: %1$d</string>
     <string name="spectrogram_export_png">Xuất PNG và chia sẻ</string>
     <string name="spectrogram_share">Chia sẻ phổ spectrogram</string>
+    <string name="spectrogram_reset_view">Đặt lại zoom</string>
     <string name="stats_empty_title">Thống kê</string>
     <string name="stats_empty_body">Thống kê điểm, credits và chất lượng audio của bạn sẽ hiện ở đây.</string>
     <string name="stats_rated_albums">Album đã chấm</string>
