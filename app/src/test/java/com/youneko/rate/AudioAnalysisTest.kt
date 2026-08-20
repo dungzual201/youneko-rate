@@ -92,7 +92,10 @@ class AudioAnalysisTest {
     fun decodedNonSilentWithoutSteepWallStaysUndecidedBelowConfidenceThreshold() {
         val metrics = SpectralAnalyzer.analyze(FloatArray(4096) { if (it % 2 == 0) 0.2f else -0.2f }, 48_000)
             .copy(cutoffHz = 18_200.0, rolloffSlope = 0.0)
-        val result = SpectralAnalyzer.verdict(AudioDecodedFormat("mp3", "audio/mpeg", 48_000, 2, null, 192, 1_000), metrics)
+        val result = SpectralAnalyzer.verdict(
+            AudioDecodedFormat(container = "mp3", codec = "MP3", sampleRate = 48_000, channels = 2, bitDepth = null, bitrate = 192, durationMs = 1_000, codecGroup = com.youneko.rate.data.audio.CodecGroup.LOSSY),
+            metrics,
+        )
         assertTrue(result.formatVerdict?.contains("LOSSY") == true)
         assertTrue(result.transcodeVerdict?.contains("CHƯA ĐỦ DỮ LIỆU") == true)
         assertTrue(result.confidence < 70)
