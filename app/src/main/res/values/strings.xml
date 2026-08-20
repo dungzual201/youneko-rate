@@ -31,6 +31,16 @@
     <string name="verdict_hires">Hi-Res</string>
     <string name="verdict_lossy">Lossy</string>
     <string name="verdict_unknown_format">Unrecognised source format</string>
+    <string name="verdict_lossless_detail">Lossless — %1$s · %2$s</string>
+    <string name="verdict_lossy_detail">Lossy — %1$s · %2$s</string>
+    <string name="verdict_unknown_detail">Source format could not be identified</string>
+    <string name="verdict_transcode_full">Full spectrum; no transcode evidence</string>
+    <string name="verdict_transcode_suspicious">Possible lossy source</string>
+    <string name="verdict_transcode_hires">True Hi-Res</string>
+    <string name="verdict_transcode_upsample">Possible upsample</string>
+    <string name="verdict_transcode_inconclusive">Cutoff measurement inconclusive</string>
+    <string name="verdict_transcode_limited">Lossless; high-frequency range is limited</string>
+    <string name="verdict_transcode_insufficient">Not enough data to assess transcode</string>
     <string name="audio_analysis_explain">What do these metrics mean?</string>
     <string name="audio_analysis_cutoff">Cutoff frequency (kHz)</string>
     <string name="audio_analysis_slope">Cutoff slope (dB/kHz)</string>

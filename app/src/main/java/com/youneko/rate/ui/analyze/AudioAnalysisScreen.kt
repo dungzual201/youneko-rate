@@ -360,16 +360,18 @@ private fun AnalysisCard(analysis: AudioAnalysisEntity, cached: CachedSpectrogra
 
 @Composable
 private fun AnalysisHero(analysis: AudioAnalysisEntity) {
-    val formatVerdict = analysis.formatVerdict ?: analysis.verdict.substringBefore('\n')
-    val transcodeVerdict = analysis.transcodeVerdict ?: analysis.verdict.substringAfter('\n', "")
+    val rawFormatVerdict = analysis.formatVerdict ?: analysis.verdict.substringBefore('\n')
+    val rawTranscodeVerdict = analysis.transcodeVerdict ?: analysis.verdict.substringAfter('\n', "")
+    val formatVerdict = localizedFormatVerdict(analysis, rawFormatVerdict)
+    val transcodeVerdict = localizedTranscodeVerdict(rawTranscodeVerdict)
     val groupLabel = when {
-        formatVerdict.startsWith("LOSSLESS") -> stringResource(R.string.verdict_lossless)
-        formatVerdict.startsWith("LOSSY") -> stringResource(R.string.verdict_lossy)
+        rawFormatVerdict.startsWith("LOSSLESS") -> stringResource(R.string.verdict_lossless)
+        rawFormatVerdict.startsWith("LOSSY") -> stringResource(R.string.verdict_lossy)
         else -> stringResource(R.string.verdict_unknown_format)
     }
     val chipColor = when {
-        formatVerdict.startsWith("LOSSLESS") -> MaterialTheme.colorScheme.primaryContainer
-        formatVerdict.startsWith("LOSSY") -> MaterialTheme.colorScheme.surfaceVariant
+        rawFormatVerdict.startsWith("LOSSLESS") -> MaterialTheme.colorScheme.primaryContainer
+        rawFormatVerdict.startsWith("LOSSY") -> MaterialTheme.colorScheme.surfaceVariant
         else -> MaterialTheme.colorScheme.errorContainer
     }
     val identity = listOfNotNull(
@@ -382,7 +384,7 @@ private fun AnalysisHero(analysis: AudioAnalysisEntity) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 AssistChip(onClick = {}, label = { Text(groupLabel) }, colors = androidx.compose.material3.AssistChipDefaults.assistChipColors(containerColor = chipColor))
-                Text(formatVerdict, style = MaterialTheme.typography.headlineSmall, color = verdictColor(formatVerdict))
+                Text(formatVerdict, style = MaterialTheme.typography.headlineSmall, color = verdictColor(rawFormatVerdict))
                 if (identity.isNotBlank()) Text(identity, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(transcodeVerdict, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
@@ -397,6 +399,27 @@ private fun AnalysisHero(analysis: AudioAnalysisEntity) {
             SummaryChip(stringResource(R.string.audio_analysis_peak), analysis.truePeakDbtp?.let { formatDecimal(it, 1) + " dBTP" } ?: stringResource(R.string.audio_analysis_not_applicable))
         }
     }
+}
+
+@Composable
+private fun localizedFormatVerdict(analysis: AudioAnalysisEntity, raw: String): String {
+    val identity = analysis.codec ?: stringResource(R.string.audio_analysis_unknown)
+    return when {
+        raw.startsWith("LOSSLESS") -> stringResource(R.string.verdict_lossless_detail, identity, analysis.sampleRate?.let { formatDecimal(it / 1000.0, 1) + " kHz" } ?: stringResource(R.string.audio_analysis_not_applicable))
+        raw.startsWith("LOSSY") -> stringResource(R.string.verdict_lossy_detail, identity, analysis.bitrate?.let { "$it bps" } ?: stringResource(R.string.audio_analysis_not_applicable))
+        else -> stringResource(R.string.verdict_unknown_detail)
+    }
+}
+
+@Composable
+private fun localizedTranscodeVerdict(raw: String): String = when {
+    raw.startsWith("CÓ DẤU HIỆU") -> stringResource(R.string.verdict_transcode_suspicious)
+    raw.startsWith("HI-RES") -> stringResource(R.string.verdict_transcode_hires)
+    raw.startsWith("NGHI NGỜ UPSAMPLE") -> stringResource(R.string.verdict_transcode_upsample)
+    raw.startsWith("PHỔ ĐẦY ĐỦ") -> stringResource(R.string.verdict_transcode_full)
+    raw.startsWith("CHƯA ĐỦ") -> stringResource(R.string.verdict_transcode_insufficient)
+    raw.contains("DẢI CAO") -> stringResource(R.string.verdict_transcode_limited)
+    else -> stringResource(R.string.verdict_transcode_inconclusive)
 }
 
 @Composable

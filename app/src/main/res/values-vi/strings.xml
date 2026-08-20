@@ -31,6 +31,16 @@
     <string name="verdict_hires">Hi-Res</string>
     <string name="verdict_lossy">Lossy</string>
     <string name="verdict_unknown_format">Không nhận diện được định dạng</string>
+    <string name="verdict_lossless_detail">Lossless — %1$s · %2$s</string>
+    <string name="verdict_lossy_detail">Lossy — %1$s · %2$s</string>
+    <string name="verdict_unknown_detail">Không xác định được định dạng nguồn</string>
+    <string name="verdict_transcode_full">Phổ đầy đủ, không thấy dấu hiệu transcode</string>
+    <string name="verdict_transcode_suspicious">Có thể là nguồn lossy</string>
+    <string name="verdict_transcode_hires">Hi-Res thực</string>
+    <string name="verdict_transcode_upsample">Có thể upsample</string>
+    <string name="verdict_transcode_inconclusive">Chưa đo được tần số cắt rõ ràng</string>
+    <string name="verdict_transcode_limited">Lossless, dải cao tần bị giới hạn</string>
+    <string name="verdict_transcode_insufficient">Chưa đủ dữ liệu để xét transcode</string>
     <string name="audio_analysis_explain">Các chỉ số này có ý nghĩa gì?</string>
     <string name="audio_analysis_cutoff">Tần số cắt (kHz)</string>
     <string name="audio_analysis_slope">Độ dốc vách cắt (dB/kHz)</string>
