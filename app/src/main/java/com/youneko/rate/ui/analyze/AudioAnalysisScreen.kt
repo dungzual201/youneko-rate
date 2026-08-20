@@ -23,10 +23,21 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Scaffold
@@ -45,6 +56,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.geometry.Offset
@@ -58,6 +70,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.FileProvider
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.HelpOutline
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
@@ -324,122 +344,194 @@ private fun displayFileName(value: String): String {
 
 @Composable
 private fun AnalysisCard(analysis: AudioAnalysisEntity, cached: CachedSpectrogram?, context: android.content.Context, onExplain: () -> Unit) {
-    val spectrum = runCatching { Json.decodeFromString<List<Float>>(analysis.spectrumJson) }.getOrDefault(emptyList())
     Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(stringResource(R.string.audio_analysis_verdict), style = MaterialTheme.typography.titleLarge)
-            Text(
-                analysis.formatVerdict ?: analysis.verdict.substringBefore('\n'),
-                style = MaterialTheme.typography.headlineSmall,
-                color = verdictColor(analysis.verdict),
-            )
-            Text(
-                analysis.transcodeVerdict ?: analysis.verdict.substringAfter('\n', ""),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text("${stringResource(R.string.audio_analysis_confidence)}: ${analysis.confidence}%")
-            AnalysisRawMetricsCard(analysis)
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            AnalysisHero(analysis)
             SpectrogramPanel(cached, context)
-            MetricRow(stringResource(R.string.audio_analysis_cutoff), analysis.cutoffHz?.let { "%.1f kHz".format(java.util.Locale.US, it / 1000.0) } ?: "—")
-            MetricRow(stringResource(R.string.audio_analysis_slope), analysis.rolloffSlope?.let { "%.1f dB/kHz".format(java.util.Locale.US, it) } ?: "—")
-            MetricRow(stringResource(R.string.audio_analysis_dynamic), analysis.dynamicRangeDb?.let { "%.1f dB".format(java.util.Locale.US, it) } ?: "—")
-            MetricRow(stringResource(R.string.audio_analysis_peak), analysis.truePeakDbtp?.let { "%.1f dBTP".format(java.util.Locale.US, it) } ?: "—")
-            MetricRow(stringResource(R.string.audio_analysis_clipping), analysis.clippingPercent?.let { "%.3f%%".format(java.util.Locale.US, it) } ?: "—")
-            Text(
-                listOfNotNull(
-                    analysis.codec,
-                    analysis.sampleRate?.let { "$it Hz" },
-                    analysis.bitDepth?.let { "$it-bit" },
-                    analysis.channels?.let { "$it ch" },
-                    analysis.bitrate?.let { "$it bps" },
-                ).joinToString(" · "),
-                style = MaterialTheme.typography.bodySmall,
-            )
+            AnalysisDetailsCard(analysis)
             val reasons = runCatching { Json.decodeFromString<List<String>>(analysis.reasonsJson) }.getOrDefault(listOf(analysis.reasonsJson))
-            reasons.filter { it.isNotBlank() }.forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
+            reasons.filter { it.isNotBlank() }.forEach { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             TextButton(onClick = onExplain) { Text(stringResource(R.string.audio_analysis_explain)) }
         }
     }
 }
 
 @Composable
-private fun AnalysisRawMetricsCard(analysis: AudioAnalysisEntity) {
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(stringResource(R.string.audio_analysis_raw_metrics), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            MetricRow(stringResource(R.string.audio_analysis_codec), analysis.codec ?: "—")
-            MetricRow(stringResource(R.string.audio_analysis_source_mime), analysis.sourceMime ?: "—")
-            MetricRow(stringResource(R.string.audio_analysis_detection_source), analysis.codecDetectionSource ?: "—")
-            MetricRow(stringResource(R.string.audio_analysis_sample_rate), analysis.sampleRate?.let { "$it Hz" } ?: "—")
-            MetricRow(stringResource(R.string.audio_analysis_bit_depth), analysis.bitDepth?.let { "$it-bit" } ?: stringResource(R.string.audio_analysis_not_applicable))
-            MetricRow(stringResource(R.string.audio_analysis_bitrate), analysis.bitrate?.let { "$it bps" } ?: "—")
-            analysis.bitrateNote?.let { MetricRow(stringResource(R.string.audio_analysis_bitrate_note), it) }
-            MetricRow(stringResource(R.string.audio_analysis_theoretical_bitrate), analysis.theoreticalBitrate?.let { "$it bps" } ?: stringResource(R.string.audio_analysis_not_applicable))
-            MetricRow(stringResource(R.string.audio_analysis_cutoff), analysis.cutoffHz?.let { "%.1f Hz".format(java.util.Locale.US, it) } ?: "—")
-            MetricRow(stringResource(R.string.audio_analysis_cliff), analysis.cliffDb?.let { "%.1f dB".format(java.util.Locale.US, it) } ?: "—")
-            MetricRow(stringResource(R.string.audio_analysis_noise_floor), analysis.noiseFloorDb?.let { "%.1f dB".format(java.util.Locale.US, it) } ?: "—")
-            MetricRow(stringResource(R.string.audio_analysis_quiet_above), analysis.quietAboveFraction?.let { "%.1f%%".format(java.util.Locale.US, it * 100.0) } ?: "—")
-            MetricRow(stringResource(R.string.audio_analysis_energy_above), analysis.energyAboveCutoffRatio?.let { "%.2f%%".format(java.util.Locale.US, it * 100.0) } ?: "—")
-            MetricRow(stringResource(R.string.audio_analysis_cutoff_retries), analysis.cutoffRetries.toString())
-            MetricRow(stringResource(R.string.audio_analysis_analyzed_frames), analysis.analyzedFrames.toString())
+private fun AnalysisHero(analysis: AudioAnalysisEntity) {
+    val formatVerdict = analysis.formatVerdict ?: analysis.verdict.substringBefore('\n')
+    val transcodeVerdict = analysis.transcodeVerdict ?: analysis.verdict.substringAfter('\n', "")
+    val groupLabel = when {
+        formatVerdict.startsWith("LOSSLESS") -> stringResource(R.string.verdict_lossless)
+        formatVerdict.startsWith("LOSSY") -> stringResource(R.string.verdict_lossy)
+        else -> stringResource(R.string.verdict_unknown_format)
+    }
+    val chipColor = when {
+        formatVerdict.startsWith("LOSSLESS") -> MaterialTheme.colorScheme.primaryContainer
+        formatVerdict.startsWith("LOSSY") -> MaterialTheme.colorScheme.surfaceVariant
+        else -> MaterialTheme.colorScheme.errorContainer
+    }
+    val identity = listOfNotNull(
+        analysis.codec?.takeUnless { it == "UNKNOWN" },
+        analysis.sampleRate?.let { formatDecimal(it / 1000.0, 1) + " kHz" },
+        analysis.bitDepth?.let { "$it-bit" },
+    ).joinToString(" · ")
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(stringResource(R.string.audio_analysis_verdict), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                AssistChip(onClick = {}, label = { Text(groupLabel) }, colors = androidx.compose.material3.AssistChipDefaults.assistChipColors(containerColor = chipColor))
+                Text(formatVerdict, style = MaterialTheme.typography.headlineSmall, color = verdictColor(formatVerdict))
+                if (identity.isNotBlank()) Text(identity, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(transcodeVerdict, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Box(Modifier.size(68.dp), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(progress = { (analysis.confidence / 100f).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxSize(), strokeWidth = 6.dp)
+                Text("${analysis.confidence}%", style = MaterialTheme.typography.labelMedium)
+            }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            SummaryChip(stringResource(R.string.audio_analysis_cutoff), analysis.cutoffHz?.let { formatDecimal(it / 1000.0, 1) + " kHz" } ?: stringResource(R.string.audio_analysis_not_applicable))
+            SummaryChip(stringResource(R.string.audio_analysis_dynamic), analysis.dynamicRangeDb?.let { formatDecimal(it, 1) + " dB" } ?: stringResource(R.string.audio_analysis_not_applicable))
+            SummaryChip(stringResource(R.string.audio_analysis_peak), analysis.truePeakDbtp?.let { formatDecimal(it, 1) + " dBTP" } ?: stringResource(R.string.audio_analysis_not_applicable))
         }
     }
 }
 
 @Composable
-private fun MetricRow(label: String, value: String) {
-    Row(Modifier.fillMaxWidth()) {
-        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-        Text(value, style = MaterialTheme.typography.bodyMedium)
+private fun SummaryChip(label: String, value: String) {
+    AssistChip(onClick = {}, label = { Text("$label: $value", maxLines = 1, overflow = TextOverflow.Ellipsis) })
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AnalysisDetailsCard(analysis: AudioAnalysisEntity) {
+    var expanded by rememberSaveable(analysis.id) { mutableStateOf(false) }
+    var help by rememberSaveable { mutableStateOf<Int?>(null) }
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.animateContentSize()) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.audio_analysis_raw_metrics), Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                IconButton(onClick = { expanded = !expanded }) { Icon(if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore, contentDescription = stringResource(R.string.audio_analysis_expand_details)) }
+            }
+            if (expanded) {
+                MetricGroup(stringResource(R.string.audio_analysis_group_source)) {
+                    DetailedMetricRow(stringResource(R.string.audio_analysis_codec), analysis.codec ?: stringResource(R.string.audio_analysis_unknown), R.string.audio_analysis_codec)
+                    DetailedMetricRow(stringResource(R.string.audio_analysis_source_mime), analysis.sourceMime ?: stringResource(R.string.audio_analysis_not_applicable), R.string.audio_analysis_source_mime)
+                    DetailedMetricRow(stringResource(R.string.audio_analysis_detection_source), analysis.codecDetectionSource ?: stringResource(R.string.audio_analysis_not_applicable), R.string.audio_analysis_detection_source)
+                    DetailedMetricRow(stringResource(R.string.audio_analysis_sample_rate), analysis.sampleRate?.let { "$it Hz" } ?: stringResource(R.string.audio_analysis_not_applicable), R.string.audio_analysis_sample_rate)
+                    DetailedMetricRow(stringResource(R.string.audio_analysis_bit_depth), analysis.bitDepth?.let { "$it-bit" } ?: stringResource(R.string.audio_analysis_not_applicable), R.string.audio_analysis_bit_depth)
+                    DetailedMetricRow(stringResource(R.string.audio_analysis_channels), analysis.channels?.toString() ?: stringResource(R.string.audio_analysis_not_applicable), R.string.audio_analysis_channels)
+                    DetailedMetricRow(stringResource(R.string.audio_analysis_bitrate), analysis.bitrate?.let { "$it bps" } ?: stringResource(R.string.audio_analysis_not_applicable), R.string.audio_analysis_bitrate)
+                    if (analysis.bitrateNote != null) DetailedMetricRow(stringResource(R.string.audio_analysis_bitrate_note), stringResource(R.string.audio_analysis_bitrate_note_estimated), R.string.audio_analysis_bitrate_note)
+                    DetailedMetricRow(stringResource(R.string.audio_analysis_theoretical_bitrate), analysis.theoreticalBitrate?.let { "$it bps" } ?: stringResource(R.string.audio_analysis_not_applicable), R.string.audio_analysis_theoretical_bitrate)
+                    if (analysis.bitrate != null && analysis.theoreticalBitrate != null && analysis.theoreticalBitrate > 0) DetailedMetricRow(stringResource(R.string.audio_analysis_compression_ratio), formatDecimal(analysis.bitrate.toDouble() / analysis.theoreticalBitrate * 100.0, 0) + "%", R.string.audio_analysis_compression_ratio)
+                    if (analysis.codec == "UNKNOWN") DetailedMetricRow(stringResource(R.string.audio_analysis_header_hex), analysis.rawHeaderHex ?: stringResource(R.string.audio_analysis_not_applicable), R.string.audio_analysis_header_hex)
+                }
+                MetricGroup(stringResource(R.string.audio_analysis_group_spectrum)) {
+                    DetailedMetricRow(stringResource(R.string.audio_analysis_cutoff), analysis.cutoffHz?.let { formatDecimal(it / 1000.0, 1) + " kHz" } ?: stringResource(R.string.audio_analysis_not_applicable_full_spectrum), R.string.audio_analysis_cutoff)
+                    DetailedMetricRow(stringResource(R.string.audio_analysis_slope), analysis.rolloffSlope?.let { formatDecimal(it, 1) + " dB/kHz" } ?: stringResource(R.string.audio_analysis_not_applicable), R.string.audio_analysis_slope)
+                    DetailedMetricRow(stringResource(R.string.audio_analysis_noise_floor), analysis.noiseFloorDb?.let { formatDecimal(it, 1) + " dB" } ?: stringResource(R.string.audio_analysis_not_applicable), R.string.audio_analysis_noise_floor)
+                    DetailedMetricRow(stringResource(R.string.audio_analysis_quiet_above), analysis.quietAboveFraction?.let { formatDecimal(it * 100.0, 1) + "%" } ?: stringResource(R.string.audio_analysis_not_applicable), R.string.audio_analysis_quiet_above)
+                    DetailedMetricRow(stringResource(R.string.audio_analysis_energy_above), analysis.energyAboveCutoffRatio?.let { formatDecimal(it * 100.0, 2) + "%" } ?: stringResource(R.string.audio_analysis_not_applicable), R.string.audio_analysis_energy_above)
+                    DetailedMetricRow(stringResource(R.string.audio_analysis_cutoff_retries), analysis.cutoffRetries.toString(), R.string.audio_analysis_cutoff_retries)
+                    DetailedMetricRow(stringResource(R.string.audio_analysis_analyzed_frames), analysis.analyzedFrames.toString(), R.string.audio_analysis_analyzed_frames)
+                }
+                MetricGroup(stringResource(R.string.audio_analysis_group_loudness)) {
+                    DetailedMetricRow(stringResource(R.string.audio_analysis_dynamic), analysis.dynamicRangeDb?.let { formatDecimal(it, 1) + " dB" } ?: stringResource(R.string.audio_analysis_not_applicable), R.string.audio_analysis_dynamic, warning = (analysis.dynamicRangeDb ?: 0.0) < 6.0)
+                    DetailedMetricRow(stringResource(R.string.audio_analysis_peak), analysis.truePeakDbtp?.let { formatDecimal(it, 1) + " dBTP" } ?: stringResource(R.string.audio_analysis_not_applicable), R.string.audio_analysis_peak)
+                    DetailedMetricRow(stringResource(R.string.audio_analysis_clipping), analysis.clippingPercent?.let { formatDecimal(it, 3) + "%" } ?: stringResource(R.string.audio_analysis_not_applicable), R.string.audio_analysis_clipping, warning = (analysis.clippingPercent ?: 0.0) > 0.1)
+                }
+            }
+        }
+    }
+    help?.let { titleRes ->
+        ModalBottomSheet(onDismissRequest = { help = null }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), modifier = Modifier.navigationBarsPadding()) {
+            Column(Modifier.fillMaxWidth().padding(24.dp).heightIn(min = 120.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(stringResource(titleRes), style = MaterialTheme.typography.titleLarge)
+                Text(stringResource(R.string.audio_analysis_explanation_body))
+                TextButton(onClick = { help = null }) { Text(stringResource(R.string.close)) }
+            }
+        }
     }
 }
 
+@Composable
+private fun MetricGroup(title: String, content: @Composable () -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(title, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        content()
+    }
+}
+
+@Composable
+private fun DetailedMetricRow(label: String, value: String, helpRes: Int, warning: Boolean = false) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        IconButton(onClick = { }, modifier = Modifier.size(28.dp)) { Icon(Icons.Default.HelpOutline, contentDescription = stringResource(R.string.audio_analysis_help)) }
+        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+        Text(value, style = MaterialTheme.typography.bodyMedium, color = if (warning) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
+    }
+}
+
+private fun formatDecimal(value: Double, decimals: Int): String = String.format(java.util.Locale.getDefault(), "%.${decimals}f", value)
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SpectrogramPanel(cached: CachedSpectrogram?, context: android.content.Context) {
     var logarithmic by rememberSaveable(cached?.metadata?.stableKey) { mutableStateOf(false) }
     var showAxes by rememberSaveable(cached?.metadata?.stableKey) { mutableStateOf(true) }
     var dbFloor by rememberSaveable(cached?.metadata?.stableKey) { mutableStateOf(-120f) }
     var resetToken by rememberSaveable(cached?.metadata?.stableKey) { mutableStateOf(0) }
+    var fullscreen by rememberSaveable(cached?.metadata?.stableKey) { mutableStateOf(false) }
     var tooltip by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
-    if (cached == null) {
-        Text(stringResource(R.string.spectrogram_waiting), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        return
-    }
-    Text(stringResource(R.string.spectrogram_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        TextButton(onClick = { logarithmic = !logarithmic }) {
-            Text(if (logarithmic) stringResource(R.string.spectrogram_linear) else stringResource(R.string.spectrogram_log))
-        }
-        TextButton(onClick = { showAxes = !showAxes }) {
-            Text(if (showAxes) stringResource(R.string.spectrogram_hide_axes) else stringResource(R.string.spectrogram_show_axes))
-        }
-        TextButton(onClick = { dbFloor = if (dbFloor <= -100f) -90f else if (dbFloor <= -90f) -100f else -120f }) {
-            Text(stringResource(R.string.spectrogram_db_range, dbFloor.toInt()))
-        }
-        TextButton(onClick = { resetToken++ }) { Text(stringResource(R.string.spectrogram_reset_zoom)) }
-    }
-    SpectrogramView(cached, logarithmic, dbFloor, showAxes, resetToken = resetToken, onTooltip = { tooltip = it })
-    tooltip?.let { Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary) }
-    Button(
-        onClick = {
-            scope.launch(Dispatchers.IO) {
-                val file = File(context.cacheDir, "spectrogram-${System.currentTimeMillis()}.png")
-                SpectrogramBitmapRenderer.writePng(cached, logarithmic, dbFloor, file)
-                withContext(kotlinx.coroutines.Dispatchers.Main) {
-                    val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-                    val send = Intent(Intent.ACTION_SEND).apply {
-                        type = "image/png"
-                        putExtra(Intent.EXTRA_STREAM, uri)
-                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    Card(Modifier.fillMaxWidth().navigationBarsPadding()) {
+        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.spectrogram_title), Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                IconButton(onClick = { fullscreen = true }) { Icon(Icons.Default.Fullscreen, contentDescription = stringResource(R.string.spectrogram_fullscreen)) }
+                IconButton(onClick = {
+                    cached?.let { value ->
+                        scope.launch(Dispatchers.IO) {
+                            val file = File(context.cacheDir, "spectrogram-${System.currentTimeMillis()}.png")
+                            SpectrogramBitmapRenderer.writePng(value, logarithmic, dbFloor, file)
+                            withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                                val send = Intent(Intent.ACTION_SEND).apply { type = "image/png"; putExtra(Intent.EXTRA_STREAM, uri); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+                                context.startActivity(Intent.createChooser(send, context.getString(R.string.spectrogram_share)))
+                            }
+                        }
                     }
-                    context.startActivity(Intent.createChooser(send, context.getString(R.string.spectrogram_share)))
-                }
+                }) { Icon(Icons.Default.FileDownload, contentDescription = stringResource(R.string.spectrogram_export_png)) }
             }
-        },
-        modifier = Modifier.fillMaxWidth(),
-    ) { Text(stringResource(R.string.spectrogram_export_png)) }
+            if (cached == null) {
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    YounekoLoadingState(Modifier.fillMaxWidth())
+                    Text(stringResource(R.string.spectrogram_waiting), style = MaterialTheme.typography.bodySmall)
+                }
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    FilterChip(selected = !logarithmic, onClick = { logarithmic = false }, label = { Text(stringResource(R.string.spectrogram_linear)) })
+                    FilterChip(selected = logarithmic, onClick = { logarithmic = true }, label = { Text(stringResource(R.string.spectrogram_log)) })
+                    FilterChip(selected = showAxes, onClick = { showAxes = !showAxes }, label = { Text(if (showAxes) stringResource(R.string.spectrogram_hide_axes) else stringResource(R.string.spectrogram_show_axes)) })
+                    FilterChip(selected = false, onClick = { dbFloor = if (dbFloor <= -100f) -90f else if (dbFloor <= -90f) -100f else -120f }, label = { Text(stringResource(R.string.spectrogram_db_range, dbFloor.toInt())) })
+                    FilterChip(selected = false, onClick = { resetToken++ }, label = { Text(stringResource(R.string.spectrogram_reset_zoom)) })
+                }
+                SpectrogramView(cached, logarithmic, dbFloor, showAxes, resetToken = resetToken, modifier = Modifier.fillMaxWidth().aspectRatio(1.45f), onTooltip = { tooltip = it })
+                tooltip?.let { Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary) }
+            }
+        }
+    }
+    if (fullscreen && cached != null) {
+        ModalBottomSheet(onDismissRequest = { fullscreen = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), modifier = Modifier.navigationBarsPadding()) {
+            Column(Modifier.fillMaxWidth().padding(12.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(R.string.spectrogram_title), Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
+                    IconButton(onClick = { fullscreen = false }) { Icon(Icons.Default.Close, contentDescription = stringResource(R.string.close)) }
+                }
+                SpectrogramView(cached, logarithmic, dbFloor, showAxes, resetToken = resetToken, modifier = Modifier.fillMaxWidth().aspectRatio(0.9f), onTooltip = { tooltip = it })
+            }
+        }
+    }
 }
 
 @Composable
