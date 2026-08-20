@@ -353,6 +353,10 @@
     <string name="credits_group_other">Khác</string>
     <string name="change_cover">Đổi ảnh bìa</string>
     <string name="error_generic">Có lỗi, vui lòng thử lại.</string>
+    <string name="theme_mode">Giao diện</string>
+    <string name="theme_system">Theo hệ thống</string>
+    <string name="theme_light">Sáng</string>
+    <string name="theme_dark">Tối</string>
     <string name="year_invalid">Năm phát hành phải trong khoảng 1800–2100</string>
     <string name="validation_required">Trường này không được để trống</string>
     <string name="validation_title">Tên bài không được để trống</string>

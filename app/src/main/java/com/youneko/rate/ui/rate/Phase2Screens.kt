@@ -3,10 +3,14 @@ package com.youneko.rate.ui.rate
 import com.youneko.rate.ui.YounekoEmptyState
 import com.youneko.rate.ui.YounekoErrorState
 import com.youneko.rate.ui.YounekoLoadingState
-import com.youneko.rate.ui.YounekoRadius
 import com.youneko.rate.ui.YounekoSpacing
+import com.youneko.rate.ui.YounekoRadius
+import com.youneko.rate.ui.ThemeMode
+import com.youneko.rate.ui.rememberReducedMotion
+import com.youneko.rate.ui.younekoSpring
 
 import android.content.Intent
+import androidx.compose.animation.animateContentSize
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.appcompat.app.AppCompatDelegate
@@ -37,6 +41,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -103,6 +109,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import com.youneko.rate.data.SettingsDataStore
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -290,10 +297,10 @@ private fun EmptyLibrary(onAdd: () -> Unit, hasQuery: Boolean) {
 
 @Composable
 private fun AlbumCard(item: LibraryAlbum, onOpen: (String) -> Unit) {
-    Card(onClick = { onOpen(item.album.id) }) {
-        Column(Modifier.padding(12.dp)) {
-            CoverArtImage(item.album.coverUri, Modifier.fillMaxWidth().height(120.dp))
-            Spacer(Modifier.height(8.dp))
+    Card(onClick = { onOpen(item.album.id) }, shape = RoundedCornerShape(YounekoRadius.lg), modifier = Modifier.animateContentSize(animationSpec = younekoSpring(rememberReducedMotion()))) {
+        Column(Modifier.padding(YounekoSpacing.md)) {
+            CoverArtImage(item.album.coverUri, Modifier.fillMaxWidth().aspectRatio(1f))
+            Spacer(Modifier.height(YounekoSpacing.xs))
             Text(item.album.title, maxLines = 2, style = MaterialTheme.typography.titleMedium)
             Text(item.artist?.name.orEmpty(), maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
             ScoreLine(item)
@@ -303,10 +310,10 @@ private fun AlbumCard(item: LibraryAlbum, onOpen: (String) -> Unit) {
 
 @Composable
 private fun AlbumListRow(item: LibraryAlbum, onOpen: (String) -> Unit) {
-    Card(onClick = { onOpen(item.album.id) }, modifier = Modifier.fillMaxWidth()) {
-        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+    Card(onClick = { onOpen(item.album.id) }, shape = RoundedCornerShape(YounekoRadius.lg), modifier = Modifier.fillMaxWidth().animateContentSize(animationSpec = younekoSpring(rememberReducedMotion()))) {
+        Row(Modifier.padding(YounekoSpacing.md), verticalAlignment = Alignment.CenterVertically) {
             CoverArtImage(item.album.coverUri, Modifier.size(64.dp))
-            Column(Modifier.weight(1f).padding(start = 12.dp)) {
+            Column(Modifier.weight(1f).padding(start = YounekoSpacing.md)) {
                 Text(item.album.title, style = MaterialTheme.typography.titleMedium)
                 Text(item.artist?.name.orEmpty(), style = MaterialTheme.typography.bodySmall)
                 ScoreLine(item)
@@ -965,7 +972,11 @@ fun SettingsScreen(onOpenExport: () -> Unit = {}, viewModel: ScoreSettingsViewMo
     val creditsMergeMode by viewModel.creditsMergeMode.collectAsStateWithLifecycle()
     val tokenTestResult by viewModel.tokenTestResult.collectAsStateWithLifecycle()
     val applicationLanguage = AppCompatDelegate.getApplicationLocales().toLanguageTags()
-    Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    val appContext = LocalContext.current.applicationContext
+    val settingsStore = remember(appContext) { SettingsDataStore(appContext) }
+    val themeModeName by settingsStore.themeMode.collectAsStateWithLifecycle(initialValue = ThemeMode.SYSTEM.name)
+    val settingsScope = rememberCoroutineScope()
+    Column(Modifier.fillMaxSize().padding(YounekoSpacing.md), verticalArrangement = Arrangement.spacedBy(YounekoSpacing.sm)) {
         Text(stringResource(R.string.language), style = MaterialTheme.typography.titleLarge)
         FilterChip(
             selected = applicationLanguage.isBlank(),
@@ -982,6 +993,16 @@ fun SettingsScreen(onOpenExport: () -> Unit = {}, viewModel: ScoreSettingsViewMo
             onClick = { AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags("vi")) },
             label = { Text(stringResource(R.string.language_vietnamese), maxLines = 3, overflow = TextOverflow.Ellipsis) },
         )
+        Text(stringResource(R.string.theme_mode), style = MaterialTheme.typography.titleLarge)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(YounekoSpacing.xs)) {
+            ThemeMode.entries.forEach { option ->
+                FilterChip(
+                    selected = themeModeName == option.name,
+                    onClick = { settingsScope.launch { settingsStore.setThemeMode(option.name) } },
+                    label = { Text(stringResource(when (option) { ThemeMode.SYSTEM -> R.string.theme_system; ThemeMode.LIGHT -> R.string.theme_light; ThemeMode.DARK -> R.string.theme_dark })) },
+                )
+            }
+        }
         Text(stringResource(R.string.score_mode), style = MaterialTheme.typography.titleLarge)
         FilterChip(
             selected = mode == ScoreMode.SIMPLE,
@@ -1082,7 +1103,13 @@ fun SettingsScreen(onOpenExport: () -> Unit = {}, viewModel: ScoreSettingsViewMo
             onClick = { viewModel.setCreditsMergeMode(!creditsMergeMode) },
             label = { Text(stringResource(R.string.credits_view_merged)) },
         )
-        TextButton(onClick = onOpenExport) { Text(stringResource(R.string.export_open)) }
+        Card(shape = RoundedCornerShape(YounekoRadius.lg), modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(YounekoSpacing.md), verticalArrangement = Arrangement.spacedBy(YounekoSpacing.xs)) {
+                Text(stringResource(R.string.backup_title), style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.backup_description), style = MaterialTheme.typography.bodySmall)
+                Button(onClick = onOpenExport, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.export_open)) }
+            }
+        }
         TextButton(onClick = viewModel::clearMetadataCache) { Text(stringResource(R.string.metadata_cache_clear)) }
         Text(stringResource(R.string.settings_body), style = MaterialTheme.typography.bodyMedium)
     }

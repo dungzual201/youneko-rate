@@ -353,6 +353,10 @@
     <string name="credits_group_other">Other</string>
     <string name="change_cover">Change cover</string>
     <string name="error_generic">Something went wrong. Please try again.</string>
+    <string name="theme_mode">Theme</string>
+    <string name="theme_system">System default</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
     <string name="year_invalid">Release year must be between 1800 and 2100</string>
     <string name="validation_required">This field is required</string>
     <string name="validation_title">Track title is required</string>
