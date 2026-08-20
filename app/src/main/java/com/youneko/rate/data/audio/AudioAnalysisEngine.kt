@@ -55,6 +55,10 @@ data class AudioQualityMetrics(
     val confidence: Int,
     val reasons: List<String>,
     val spectrum: List<Float>,
+    val noiseFloorDb: Double? = null,
+    val cliffDb: Double? = null,
+    val quietAboveFraction: Double? = null,
+    val analyzedFrames: Int = 0,
 )
 
 object SpectralAnalyzer {
@@ -137,56 +141,49 @@ object SpectralAnalyzer {
 
     fun verdict(format: AudioDecodedFormat, metrics: AudioQualityMetrics): AudioQualityMetrics {
         val cutoff = metrics.cutoffHz
-        if (cutoff == null) {
+        val codec = format.codec.orEmpty().lowercase()
+        val lossless = listOf("flac", "alac", "audio/raw", "pcm", "wav", "aiff", "wavpack", "ape", "dsd").any(codec::contains)
+        val nyquist = format.sampleRate / 2.0
+        val confidence = when {
+            cutoff == null -> 0
+            metrics.analyzedFrames < 3 -> 45
+            metrics.cliffDb != null && metrics.cliffDb!! >= 40.0 -> 88
+            cutoff >= nyquist * 0.90 -> 86
+            else -> 68
+        }
+        if (cutoff == null || confidence < 70) {
             return metrics.copy(
-                cutoffHz = metrics.cutoffHz,
-                verdict = "LOSSY",
-                confidence = 25,
-                reasons = listOf("Đã giải mã được file nhưng phổ không có vách cắt ổn định; kết luận chỉ mang tính thận trọng."),
+                verdict = "CHƯA ĐỦ DỮ LIỆU ĐỂ KẾT LUẬN",
+                confidence = confidence,
+                reasons = listOf("Chưa đủ dữ liệu để kết luận: cần thêm khung âm thanh hoạt động hoặc vách phổ ổn định."),
             )
         }
-        val codec = format.codec.orEmpty().lowercase()
-        val lossless = codec.contains("flac") || codec.contains("alac") || codec.contains("pcm") || codec.contains("wav")
-        val nyquist = format.sampleRate?.div(2.0) ?: 22_050.0
-        val slope = metrics.rolloffSlope
-        val steep = slope != null && slope <= -30.0
-        val losslessHigh = cutoff >= 20_000.0 || cutoff >= nyquist * 0.95
-        val suspiciousLossless = lossless && cutoff <= 17_000.0 && steep
-        val bucket = when {
-            cutoff >= 20_000.0 -> "high"
-            cutoff >= 19_000.0 -> "good"
-            cutoff >= 15_000.0 -> "medium"
-            else -> "low"
+        if (!lossless) {
+            val kbps = format.bitrate?.div(1000L)
+            val low = (kbps != null && kbps < 128L) || cutoff < 16_000.0
+            val quality = when {
+                low -> "LOSSY CHẤT LƯỢNG THẤP"
+                kbps != null && kbps >= 256L -> "LOSSY CHẤT LƯỢNG CAO"
+                else -> "LOSSY CHẤT LƯỢNG KHÁ"
+            }
+            val label = if (kbps == null) "$quality — ${format.codec ?: "codec lossy"}" else "$quality — ${format.codec} ${kbps} kbps"
+            return metrics.copy(verdict = label, confidence = confidence, reasons = listOf("Codec lossy đúng định dạng; nhãn dựa trên bitrate và cutoff, không coi bản thân codec lossy là lỗi."))
         }
-        val confidence = when {
-            suspiciousLossless -> 90
-            losslessHigh -> 90
-            bucket == "high" -> if (steep) 85 else 65
-            bucket == "good" -> if (steep) 85 else 60
-            bucket == "medium" -> if (steep) 80 else 55
-            else -> if (steep) 85 else 45
-        }
-        val descriptor = "Phổ cắt tại %.1f kHz với độ dốc %.1f dB/kHz; codec %s.".format(java.util.Locale.US, cutoff / 1000.0, slope ?: 0.0, format.codec ?: "không rõ")
-        val reasons = listOf(
-            when {
-                suspiciousLossless -> "$descriptor File khai là lossless nhưng cutoff thấp và vách cắt dốc — nghi ngờ upscale từ nguồn lossy."
-                losslessHigh -> "$descriptor Phổ kéo tới vùng cao gần Nyquist, phù hợp bản lossless chuẩn."
-                !steep -> "$descriptor Đã giải mã thành công nhưng vách cắt không đủ dốc; verdict chỉ là heuristic thận trọng."
-                bucket == "high" -> "$descriptor Vách cắt nằm khoảng 19–20 kHz, phù hợp lossy chất lượng cao."
-                bucket == "good" -> "$descriptor Vách cắt nằm khoảng 18–19 kHz, phù hợp lossy tốt."
-                bucket == "medium" -> "$descriptor Vách cắt khoảng 15–17 kHz, phù hợp lossy trung bình."
-                else -> "$descriptor Vách cắt dưới 15 kHz, phù hợp lossy thấp."
-            },
-        )
+        val suspicious = metrics.cliffDb != null && metrics.cliffDb >= 40.0 && SpectrogramQuality.nearLossyCutoff(cutoff) && (metrics.quietAboveFraction ?: 0.0) >= 0.90
         val verdict = when {
-            suspiciousLossless -> "NGHI NGỜ NÂNG CẤP GIẢ"
-            losslessHigh -> "LOSSLESS THẬT"
-            bucket == "high" -> "LOSSY CHẤT LƯỢNG CAO"
-            bucket == "good" -> "LOSSY"
-            bucket == "medium" -> "LOSSY CHẤT LƯỢNG THẤP"
-            else -> "LOSSY CHẤT LƯỢNG THẤP"
+            suspicious -> "CÓ DẤU HIỆU NGUỒN LOSSY"
+            format.sampleRate >= 88_200 && cutoff >= 24_000.0 -> "HI-RES THỰC"
+            format.sampleRate >= 88_200 && cutoff < 22_050.0 -> "NGHI NGỜ UPSAMPLE"
+            cutoff >= 20_000.0 || cutoff >= nyquist * 0.90 -> "LOSSLESS — PHỔ ĐẦY ĐỦ"
+            else -> "CHƯA ĐỦ DỮ LIỆU ĐỂ KẾT LUẬN"
         }
-        return metrics.copy(verdict = verdict, confidence = confidence, reasons = reasons)
+        val reason = when {
+            suspicious -> "Có vách dốc %.1f dB gần %.1f kHz và phía trên vách im lặng %.0f%% số khung.".format(java.util.Locale.US, metrics.cliffDb, cutoff / 1000.0, (metrics.quietAboveFraction ?: 0.0) * 100.0)
+            format.sampleRate >= 88_200 && cutoff >= 24_000.0 -> "Codec lossless và có năng lượng thực trên 24 kHz."
+            format.sampleRate >= 88_200 -> "Tần số lấy mẫu hi-res nhưng cutoff chưa đủ để xác nhận phổ thực."
+            else -> "Codec lossless và cutoff được đo bằng phổ phân vị 95 trên các khung không im lặng."
+        }
+        return metrics.copy(verdict = verdict, confidence = confidence, reasons = listOf(reason))
     }
 
     private fun magnitudeSpectrum(samples: DoubleArray): DoubleArray {
