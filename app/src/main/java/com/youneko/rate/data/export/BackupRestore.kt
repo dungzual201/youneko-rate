@@ -1,6 +1,8 @@
 package com.youneko.rate.data.export
 
+import android.content.ContentValues
 import android.content.Context
+import android.database.sqlite.SQLiteDatabase
 import androidx.room.Room
 import androidx.room.withTransaction
 import com.youneko.rate.data.PendingRestoreStore
@@ -60,11 +62,7 @@ suspend fun restoreBackup(
         val pending = File(staged.directory, "database/youneko.db")
         verifyDatabaseCopy(pending)
         PendingRestoreStore(context).setPending(staged.directory.absolutePath, preRestore.absolutePath)
-        database.close()
-        File(dbFile.path + "-wal").delete()
-        File(dbFile.path + "-shm").delete()
-        pending.inputStream().use { input -> dbFile.outputStream().use { input.copyTo(it) } }
-        return@withContext RestoreResult("Đã nhập xong. Cần mở lại app để áp dụng.")
+        return@withContext RestoreResult("Đã chuẩn bị khôi phục. Hãy khởi động lại app để áp dụng database.")
     }
     val backupDb = openBackupDatabase(context, staged.directory)
     try {
@@ -84,20 +82,32 @@ suspend fun reconcilePendingRestore(context: Context, database: YounekoDatabase,
     val staging = state.second?.let(::File)
     val rollback = state.third?.let(::File)
     runCatching {
-        database.openHelper.writableDatabase.query("PRAGMA integrity_check").use { cursor ->
-            check(cursor.moveToFirst() && cursor.getString(0).equals("ok", true))
+        val dbFile = context.getDatabasePath("youneko_rate.db")
+        val pending = staging?.let { File(it, BACKUP_DATABASE_ENTRY) }
+        check(pending?.isFile == true) { "Thiếu pending database" }
+        database.close()
+        File(dbFile.path + "-wal").delete()
+        File(dbFile.path + "-shm").delete()
+        pending!!.inputStream().use { input -> dbFile.outputStream().use { output -> input.copyTo(output) } }
+        verifyDatabaseCopy(dbFile)
+        if (staging != null) remapRestoredCoversOnDisk(context, dbFile, staging)
+        val report = SQLiteDatabase.openDatabase(dbFile.path, null, SQLiteDatabase.OPEN_READONLY).use { raw ->
+            val total = raw.rawQuery("SELECT COUNT(*) FROM tracks", null).use { cursor -> cursor.moveToFirst(); cursor.getInt(0) }
+            val missing = raw.rawQuery("SELECT COUNT(*) FROM tracks WHERE isMissing != 0", null).use { cursor -> cursor.moveToFirst(); cursor.getInt(0) }
+            RestoreReport(total - missing, total, missing, 0, 0)
         }
-        if (staging != null) remapRestoredCovers(context, database, staging)
-        val scan = scanner.scan(forceFull = true)
         PendingRestoreStore(context).clear()
         rollback?.delete()
         staging?.deleteRecursively()
-        val total = database.trackDao().findAll().size
-        RestoreResult("Đã khôi phục dữ liệu và bắt đầu khớp lại thư viện.", RestoreReport(total - scan.missing, total, scan.missing, 0, 0))
+        RestoreResult("Đã áp dụng database khôi phục. Hãy khởi động lại app để nối lại thư viện.", report)
     }.getOrElse { error ->
         database.close()
         val dbFile = context.getDatabasePath("youneko_rate.db")
-        if (rollback?.exists() == true) rollback.inputStream().use { input -> dbFile.outputStream().use { input.copyTo(it) } }
+        if (rollback?.exists() == true) {
+            File(dbFile.path + "-wal").delete()
+            File(dbFile.path + "-shm").delete()
+            rollback.inputStream().use { input -> dbFile.outputStream().use { input.copyTo(it) } }
+        }
         PendingRestoreStore(context).clear()
         RestoreResult("Khôi phục thất bại; đã rollback bản DB trước đó: ${error.message}")
     }
@@ -191,6 +201,8 @@ private suspend fun mergeSnapshot(context: Context, database: YounekoDatabase, s
     val artistMap = mutableMapOf<String, String>()
     var inserted = 0
     var merged = 0
+    var matchedTracks = 0
+    var missingTracks = 0
     database.withTransaction {
         snapshot.artists.forEach { value ->
             val existing = currentArtists.values.firstOrNull { it.mbid == value.mbid && !value.mbid.isNullOrBlank() } ?: currentArtists.values.firstOrNull { it.name.equals(value.name, true) }
@@ -220,7 +232,9 @@ private suspend fun mergeSnapshot(context: Context, database: YounekoDatabase, s
             val artistName = artistId?.let { currentArtists[it]?.name }.orEmpty()
             val backupArtistName = value.albumId?.let { backupAlbumId -> snapshot.albums.firstOrNull { it.id == backupAlbumId }?.artistId }?.let { backupArtists[it]?.name }
             val existing = currentTracks.firstOrNull { candidate -> trackMatchesForRestore(value, candidate, backupArtistName, artistName) }
-            val presentOnThisDevice = value.sourceUri?.let { source -> openLocalInput(context, source)?.use { true } } ?: false
+            val localSource = existing?.sourceUri ?: value.sourceUri
+            val presentOnThisDevice = localSource?.let { source -> openLocalInput(context, source)?.use { true } } ?: false
+            if (presentOnThisDevice) matchedTracks++ else missingTracks++
             val target = TrackEntity(value.id, albumId, value.title, value.trackNumber, value.discNumber, value.durationMs, value.isStandalone, value.stars, value.reviewText, value.isSkip, value.isHighlight, value.listenedDate, value.recordingMbid, value.workMbid, value.isrc, value.sourceUri, value.fileName, value.createdAt, value.updatedAt, stableKey = value.stableKey, fileSizeBytes = value.fileSizeBytes, fileHash64k = value.fileHash64k, isMissing = !presentOnThisDevice, missingSince = if (presentOnThisDevice) null else System.currentTimeMillis())
             if (existing == null) { database.trackDao().insert(target); currentTracks += target; trackMap[value.id] = target.id; inserted++ } else {
                 val newer = if (value.updatedAt > existing.updatedAt) target.copy(id = existing.id, sourceUri = existing.sourceUri, fileName = existing.fileName, mediaStoreId = existing.mediaStoreId, stableKey = existing.stableKey ?: target.stableKey, isMissing = existing.isMissing, missingSince = existing.missingSince, stars = target.stars ?: existing.stars, reviewText = mergeText(existing.reviewText, target.reviewText)) else existing.copy(reviewText = mergeText(existing.reviewText, target.reviewText))
@@ -242,9 +256,8 @@ private suspend fun mergeSnapshot(context: Context, database: YounekoDatabase, s
         snapshot.scanRoots.forEach { value -> database.scanRootDao().upsert(com.youneko.rate.data.local.entity.ScanRootEntity(value.uri, value.displayName, value.addedAt, value.lastScannedAt)) }
         remapStagedCovers(context, database, staging, albumMap)
     }
-    val matched = currentTracks.count { it.sourceUri != null && !it.isMissing }
     val total = snapshot.tracks.size
-    return RestoreReport(matched, total, total - matched, merged, inserted)
+    return RestoreReport(matchedTracks, total, missingTracks, merged, inserted)
 }
 
 private suspend fun remapStagedCovers(context: Context, database: YounekoDatabase, staging: File, albumMap: Map<String, String>) {
@@ -262,6 +275,26 @@ private suspend fun remapStagedCovers(context: Context, database: YounekoDatabas
 }
 
 private suspend fun remapRestoredCovers(context: Context, database: YounekoDatabase, staging: File) = remapStagedCovers(context, database, staging, emptyMap())
+
+private fun remapRestoredCoversOnDisk(context: Context, databaseFile: File, staging: File) {
+    val source = File(staging, "covers")
+    val destination = File(context.filesDir, "covers").apply { mkdirs() }
+    SQLiteDatabase.openDatabase(databaseFile.path, null, SQLiteDatabase.OPEN_READWRITE).use { raw ->
+        source.listFiles()?.forEach { file ->
+            val albumId = file.nameWithoutExtension
+            val target = File(destination, "$albumId.jpg")
+            file.copyTo(target, overwrite = true)
+            val values = ContentValues().apply {
+                put("coverUri", target.toURI().toString())
+                put("coverThumbUri", target.toURI().toString())
+                put("coverSource", "backup")
+                put("coverUpdatedAt", System.currentTimeMillis())
+                put("updatedAt", System.currentTimeMillis())
+            }
+            raw.update("albums", values, "id = ?", arrayOf(albumId))
+        }
+    }
+}
 
 private fun CreditSnapshot.copyIds(albumMap: Map<String, String>, trackMap: Map<String, String>) = CreditEntity(id, albumId?.let { albumMap[it] }, trackId?.let { trackMap[it] }, personName, personMbid, role, instrumentOrAttribute, sourceProvider, sourceUrl, sortOrder, beginDate, endDate)
 private fun sameCredit(a: CreditEntity, b: CreditEntity): Boolean = a.albumId == b.albumId && a.trackId == b.trackId && a.personName.equals(b.personName, true) && a.role.equals(b.role, true) && a.instrumentOrAttribute == b.instrumentOrAttribute && a.sourceProvider == b.sourceProvider
