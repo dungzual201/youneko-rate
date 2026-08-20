@@ -193,7 +193,7 @@ private fun openBackupDatabase(context: Context, directory: File): YounekoDataba
             YounekoDatabase.MIGRATION_7_8, YounekoDatabase.MIGRATION_8_9, YounekoDatabase.MIGRATION_9_10,
             YounekoDatabase.MIGRATION_10_11, YounekoDatabase.MIGRATION_11_12, YounekoDatabase.MIGRATION_12_13,
             YounekoDatabase.MIGRATION_13_14, YounekoDatabase.MIGRATION_14_15, YounekoDatabase.MIGRATION_15_16,
-            YounekoDatabase.MIGRATION_16_17,
+            YounekoDatabase.MIGRATION_16_17, YounekoDatabase.MIGRATION_17_18,
         ).build()
 
 private suspend fun mergeSnapshot(context: Context, database: YounekoDatabase, snapshot: LibrarySnapshot, staging: File): RestoreReport {
@@ -255,7 +255,23 @@ private suspend fun mergeSnapshot(context: Context, database: YounekoDatabase, s
         snapshot.albumTags.forEach { value -> database.albumTagDao().insert(AlbumTagEntity(UUID.randomUUID().toString(), albumMap[value.albumId] ?: value.albumId, value.name, value.createdAt)) }
         snapshot.listeningLogs.forEach { value -> database.listeningLogDao().insert(ListeningLogEntity(UUID.randomUUID().toString(), albumMap[value.albumId] ?: value.albumId, value.trackId?.let { trackMap[it] }, value.listenedAt, value.note)) }
         snapshot.externalLinks.forEach { value -> database.externalLinkDao().upsert(ExternalLinkEntity(UUID.randomUUID().toString(), value.albumId?.let { albumMap[it] }, value.trackId?.let { trackMap[it] }, value.sourceId, value.externalId, value.sourceUrl, value.createdAt)) }
-        snapshot.analyses.forEach { value -> database.audioAnalysisDao().upsert(AudioAnalysisEntity(value.id, value.trackId?.let { trackMap[it] }, value.albumId?.let { albumMap[it] }, value.fileName, value.fileUriOrPath, value.fileHash, value.container, value.codec, value.sampleRate, value.bitDepth, value.bitrate, value.isVbr, value.channels, value.durationMs, value.encoderTag, value.cutoffHz, value.rolloffSlope, value.dynamicRangeDb, value.truePeakDbtp, value.clippingPercent, value.verdict, value.confidence, value.reasonsJson, value.spectrumJson, value.spectrogramPngPath, value.engineVersion, value.analyzedAt)) }
+        snapshot.analyses.forEach { value ->
+            database.audioAnalysisDao().upsert(
+                AudioAnalysisEntity(
+                    id = value.id, trackId = value.trackId?.let { trackMap[it] }, albumId = value.albumId?.let { albumMap[it] },
+                    fileName = value.fileName, fileUriOrPath = value.fileUriOrPath, fileHash = value.fileHash, container = value.container, codec = value.codec,
+                    sampleRate = value.sampleRate, bitDepth = value.bitDepth, bitrate = value.bitrate, isVbr = value.isVbr, channels = value.channels,
+                    durationMs = value.durationMs, encoderTag = value.encoderTag, cutoffHz = value.cutoffHz, rolloffSlope = value.rolloffSlope,
+                    dynamicRangeDb = value.dynamicRangeDb, truePeakDbtp = value.truePeakDbtp, clippingPercent = value.clippingPercent,
+                    verdict = value.verdict, confidence = value.confidence, reasonsJson = value.reasonsJson, spectrumJson = value.spectrumJson,
+                    spectrogramPngPath = value.spectrogramPngPath, engineVersion = value.engineVersion, analyzedAt = value.analyzedAt,
+                    noiseFloorDb = value.noiseFloorDb, cliffDb = value.cliffDb, quietAboveFraction = value.quietAboveFraction, analyzedFrames = value.analyzedFrames,
+                    sourceMime = value.sourceMime, codecDetectionSource = value.codecDetectionSource, bitrateNote = value.bitrateNote,
+                    theoreticalBitrate = value.theoreticalBitrate, energyAboveCutoffRatio = value.energyAboveCutoffRatio, cutoffRetries = value.cutoffRetries,
+                    formatVerdict = value.formatVerdict, transcodeVerdict = value.transcodeVerdict,
+                ),
+            )
+        }
         snapshot.collections.forEach { value -> database.collectionDao().upsertCollection(CollectionEntity(value.id, value.name, value.description, value.createdAt)) }
         snapshot.collectionAlbums.forEach { value -> albumMap[value.albumId]?.let { database.collectionDao().upsertAlbum(CollectionAlbumEntity(value.collectionId, it, value.sortOrder)) } }
         snapshot.scanRoots.forEach { value -> database.scanRootDao().upsert(com.youneko.rate.data.local.entity.ScanRootEntity(value.uri, value.displayName, value.addedAt, value.lastScannedAt)) }

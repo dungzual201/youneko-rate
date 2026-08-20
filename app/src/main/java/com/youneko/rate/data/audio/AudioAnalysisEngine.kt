@@ -34,6 +34,10 @@ data class AudioDecodedFormat(
     val bitrate: Long?,
     val durationMs: Long?,
     val encoderTag: String? = null,
+    val sourceMime: String? = null,
+    val codecDetectionSource: String? = null,
+    val bitrateNote: String? = null,
+    val theoreticalBitrate: Long? = null,
 )
 
 enum class AudioAnalysisStep { READING_HEADER, DECODING, FFT, COMPUTING, SAVING }
@@ -59,6 +63,8 @@ data class AudioQualityMetrics(
     val cliffDb: Double? = null,
     val quietAboveFraction: Double? = null,
     val analyzedFrames: Int = 0,
+    val formatVerdict: String? = null,
+    val transcodeVerdict: String? = null,
 )
 
 object SpectralAnalyzer {
@@ -265,6 +271,11 @@ class AudioAnalysisEngine(private val context: Context) {
             val sampleRate = sourceFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE)
             val channels = sourceFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
             val durationUs = sourceFormat.getLong(MediaFormat.KEY_DURATION)
+            val codecInfo = CodecDetector.detect(
+                context = context, uri = uri, sourceMime = mime, sampleRate = sampleRate, channels = channels,
+                durationMs = durationUs / 1_000L, sourceFormatBitDepth = bitDepth(sourceFormat),
+                trackBitrate = sourceFormat.getLongOrNull(MediaFormat.KEY_BIT_RATE),
+            )
             onProgress(AudioAnalysisProgress(AudioAnalysisStep.DECODING, -1f))
             val pcm = decodeSegments(extractor, mime, sourceFormat, durationUs, sampleRate, channels, shouldStop)
             onProgress(AudioAnalysisProgress(AudioAnalysisStep.FFT, 0f))
@@ -275,13 +286,17 @@ class AudioAnalysisEngine(private val context: Context) {
             onProgress(AudioAnalysisProgress(AudioAnalysisStep.COMPUTING, 0f))
             val metrics = SpectralAnalyzer.verdict(
                 AudioDecodedFormat(
-                    container = null,
-                    codec = mime,
+                    container = codecInfo.container,
+                    codec = codecInfo.codecLabel,
                     sampleRate = sampleRate,
                     channels = channels,
-                    bitDepth = bitDepth(sourceFormat),
-                    bitrate = sourceFormat.getLongOrNull(MediaFormat.KEY_BIT_RATE),
+                    bitDepth = codecInfo.bitDepth,
+                    bitrate = codecInfo.bitrate,
                     durationMs = durationUs / 1_000L,
+                    sourceMime = codecInfo.sourceMime,
+                    codecDetectionSource = codecInfo.detectionSource,
+                    bitrateNote = codecInfo.bitrateNote,
+                    theoreticalBitrate = codecInfo.theoreticalBitrate,
                 ),
                 baseMetrics,
             )
@@ -292,11 +307,11 @@ class AudioAnalysisEngine(private val context: Context) {
                 fileName = uri.lastPathSegment.orEmpty(),
                 fileUriOrPath = uriString,
                 fileHash = sha256(uriString),
-                container = null,
-                codec = mime,
+                container = codecInfo.container,
+                codec = codecInfo.codecLabel,
                 sampleRate = sampleRate,
-                bitDepth = bitDepth(sourceFormat),
-                bitrate = sourceFormat.getLongOrNull(MediaFormat.KEY_BIT_RATE),
+                bitDepth = codecInfo.bitDepth,
+                bitrate = codecInfo.bitrate,
                 channels = channels,
                 durationMs = durationUs / 1_000L,
                 encoderTag = null,
@@ -315,6 +330,12 @@ class AudioAnalysisEngine(private val context: Context) {
                 cliffDb = metrics.cliffDb,
                 quietAboveFraction = metrics.quietAboveFraction,
                 analyzedFrames = metrics.analyzedFrames,
+                sourceMime = codecInfo.sourceMime,
+                codecDetectionSource = codecInfo.detectionSource,
+                bitrateNote = codecInfo.bitrateNote,
+                theoreticalBitrate = codecInfo.theoreticalBitrate,
+                formatVerdict = metrics.formatVerdict,
+                transcodeVerdict = metrics.transcodeVerdict,
             )
         } finally {
             runCatching { decoder?.stop() }

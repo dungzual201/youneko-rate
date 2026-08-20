@@ -190,6 +190,14 @@ data class AudioAnalysisEntity(
     val cliffDb: Double? = null,
     val quietAboveFraction: Double? = null,
     val analyzedFrames: Int = 0,
+    val sourceMime: String? = null,
+    val codecDetectionSource: String? = null,
+    val bitrateNote: String? = null,
+    val theoreticalBitrate: Long? = null,
+    val energyAboveCutoffRatio: Double? = null,
+    val cutoffRetries: Int = 0,
+    val formatVerdict: String? = null,
+    val transcodeVerdict: String? = null,
 )
 
 @Entity(

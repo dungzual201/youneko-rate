@@ -54,13 +54,23 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
             val durationUs = sourceFormat.getLong(MediaFormat.KEY_DURATION).coerceAtLeast(1L)
             val durationMs = durationUs / 1_000L
             val totalFrames = (durationUs * sampleRate / 1_000_000L).coerceAtLeast(1L)
+            val codecInfo = CodecDetector.detect(
+                context = context, uri = uri, sourceMime = mime, sampleRate = sampleRate, channels = channels,
+                durationMs = durationMs, sourceFormatBitDepth = bitDepth(sourceFormat),
+                trackBitrate = sourceFormat.getLongOrNull(MediaFormat.KEY_BIT_RATE),
+            )
             val metadata = SpectrogramMetadata(
                 hopFrames = SpectrogramMath.hopFrames(totalFrames, durationMs),
                 sampleRate = sampleRate,
-                codec = mime,
+                container = codecInfo.container,
+                codec = codecInfo.codecLabel,
+                sourceMime = codecInfo.sourceMime,
+                codecDetectionSource = codecInfo.detectionSource,
                 channels = channels,
-                bitDepth = bitDepth(sourceFormat),
-                bitrate = sourceFormat.getLongOrNull(MediaFormat.KEY_BIT_RATE),
+                bitDepth = codecInfo.bitDepth,
+                bitrate = codecInfo.bitrate,
+                bitrateNote = codecInfo.bitrateNote,
+                theoreticalBitrate = codecInfo.theoreticalBitrate,
                 totalFrames = totalFrames,
                 durationMs = durationMs,
                 columns = SpectrogramMath.targetColumns(durationMs),
@@ -72,10 +82,14 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
                 totalFrames = totalFrames,
                 durationMs = durationMs,
                 stableKey = stableKey,
-                codec = mime,
+                codec = codecInfo.codecLabel,
+                sourceMime = codecInfo.sourceMime,
+                codecDetectionSource = codecInfo.detectionSource,
                 channels = channels,
-                bitDepth = bitDepth(sourceFormat),
-                bitrate = sourceFormat.getLongOrNull(MediaFormat.KEY_BIT_RATE),
+                bitDepth = codecInfo.bitDepth,
+                bitrate = codecInfo.bitrate,
+                bitrateNote = codecInfo.bitrateNote,
+                theoreticalBitrate = codecInfo.theoreticalBitrate,
             )
             decoder = MediaCodec.createByCodecName(codecName)
             decoder.configure(sourceFormat, null, null, 0)
@@ -143,7 +157,13 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
             val decodedMetadata = decodedResult.metadata.copy(
                 sampleRate = outputSampleRate,
                 channels = outputChannels,
-                bitDepth = pcmBitDepth(outputPcmEncoding) ?: decodedResult.metadata.bitDepth,
+                bitDepth = codecInfo.bitDepth ?: decodedResult.metadata.bitDepth,
+                codec = codecInfo.codecLabel,
+                sourceMime = codecInfo.sourceMime,
+                codecDetectionSource = codecInfo.detectionSource,
+                bitrate = codecInfo.bitrate,
+                bitrateNote = codecInfo.bitrateNote,
+                theoreticalBitrate = codecInfo.theoreticalBitrate,
             )
             emit(SpectrogramEvent.Completed(decodedResult.copy(metadata = decodedMetadata, decodeMs = decodeMs)))
         } finally {
@@ -201,10 +221,14 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
         val format = AudioDecodedFormat(
             container = containerFromUri(uri),
             codec = metadata.codec,
+            sourceMime = metadata.sourceMime,
+            codecDetectionSource = metadata.codecDetectionSource,
             sampleRate = sampleRate,
             channels = metadata.channels,
             bitDepth = metadata.bitDepth,
             bitrate = metadata.bitrate,
+            bitrateNote = metadata.bitrateNote,
+            theoreticalBitrate = metadata.theoreticalBitrate,
             durationMs = metadata.durationMs,
         )
         val metrics = SpectrogramQuality.enrich(format, SpectralAnalyzer.verdict(format, base), spectrumDb, activeFrames = result.activeFrameSpectra)
@@ -215,7 +239,7 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
             fileName = uri.lastPathSegment.orEmpty(),
             fileUriOrPath = uriString,
             fileHash = effectiveStableKey,
-            container = containerFromUri(uri),
+            container = metadata.container ?: containerFromUri(uri),
             codec = metadata.codec,
             sampleRate = sampleRate,
             bitDepth = metadata.bitDepth,
