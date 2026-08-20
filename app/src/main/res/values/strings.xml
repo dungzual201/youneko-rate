@@ -367,6 +367,8 @@
     <string name="backup_include_exports">Include readable CSV/JSON</string>
     <string name="backup_preview_title">Backup preview</string>
     <string name="backup_preview_created">Created: %1$s</string>
+    <string name="backup_preview_format">Format: %1$s · formatVersion %2$d · DB schema %3$d</string>
+    <string name="backup_preview_sha">Database SHA-256: %1$s</string>
     <string name="backup_preview_device">Source device: %1$s (SDK %2$d)</string>
     <string name="backup_preview_counts">%1$d albums · %2$d tracks · %3$d ratings · %4$d manual credits</string>
     <string name="backup_preview_current">Current library: %1$d albums · %2$d tracks</string>
@@ -376,6 +378,9 @@
     <string name="backup_replace_warning">A safety copy is created first. The app must restart after replacement.</string>
     <string name="backup_merge_note">Existing rows are not deleted. Reviews and manual credits are merged.</string>
     <string name="backup_confirm">Confirm import</string>
+    <string name="backup_replace_confirm_title">Confirm full replacement</string>
+    <string name="backup_replace_confirm_body">All current data will be replaced by this backup. The app will create pre_restore_backup.db and require a restart; confirm to continue.</string>
+    <string name="backup_replace_confirm_check">I understand that this replaces current data</string>
     <string name="backup_cancel">Cancel</string>
     <string name="backup_invalid_format">Invalid backup format.</string>
     <string name="backup_newer_version">This backup was created by a newer app version. Update the app and try again.</string>

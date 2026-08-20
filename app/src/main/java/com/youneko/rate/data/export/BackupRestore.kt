@@ -155,11 +155,12 @@ private fun stageBackup(context: Context, uri: android.net.Uri): StagedBackup {
 }
 
 fun validateBackupManifest(manifest: BackupManifest, actualSha256: String?, databaseExists: Boolean): BackupValidation {
-    if (manifest.format != "younekorate-backup") return BackupValidation(false, "Sai định dạng file sao lưu")
+    if (manifest.format != "younekorate" && manifest.format != "younekorate-backup") return BackupValidation(false, "Sai định dạng file sao lưu")
     if (manifest.formatVersion > CURRENT_BACKUP_FORMAT_VERSION) return BackupValidation(false, "Bản sao lưu được tạo bởi phiên bản app mới hơn. Vui lòng cập nhật app rồi thử lại.")
     if (manifest.dbSchemaVersion > CURRENT_DATABASE_SCHEMA_VERSION) return BackupValidation(false, "Schema database của bản sao lưu mới hơn phiên bản app này.")
     if (!databaseExists) return BackupValidation(false, "File sao lưu thiếu database/youneko.db")
-    val expected = manifest.checksum[BACKUP_DATABASE_ENTRY]?.removePrefix("sha256:")
+    val expected = manifest.sha256.takeIf { it.isNotBlank() }
+        ?: manifest.checksum[BACKUP_DATABASE_ENTRY]?.removePrefix("sha256:")
     if (expected.isNullOrBlank() || actualSha256.isNullOrBlank() || !expected.equals(actualSha256, true)) return BackupValidation(false, "File sao lưu bị hỏng hoặc không đầy đủ.")
     return BackupValidation(true)
 }

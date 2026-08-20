@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Divider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
@@ -71,6 +72,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import java.text.SimpleDateFormat
+import java.time.Instant
 import java.util.Date
 import java.util.Locale
 import javax.inject.Inject
@@ -108,6 +110,8 @@ fun ExportScreen(onBack: () -> Unit, viewModel: ExportViewModel = hiltViewModel(
     var pendingBackupOptions by remember { mutableStateOf(false) }
     var pendingImportUri by remember { mutableStateOf<Uri?>(null) }
     var restoreMode by rememberSaveable { mutableStateOf(BACKUP_RESTORE_REPLACE) }
+    var replaceConfirm by rememberSaveable { mutableStateOf(false) }
+    var replaceChecked by rememberSaveable { mutableStateOf(false) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     LaunchedEffect(Unit) { viewModel.load() }
 
@@ -183,9 +187,42 @@ fun ExportScreen(onBack: () -> Unit, viewModel: ExportViewModel = hiltViewModel(
                 else PreviewContent(preview, restoreMode, { restoreMode = it })
             },
             confirmButton = {
-                if (preview != null && pendingImportUri != null) TextButton(onClick = { viewModel.enqueueRestore(context, pendingImportUri!!, restoreMode); viewModel.clearValidation(); pendingImportUri = null }) { Text(stringResource(R.string.backup_confirm)) }
+                if (preview != null && pendingImportUri != null) TextButton(onClick = {
+                    if (restoreMode == BACKUP_RESTORE_REPLACE) {
+                        replaceChecked = false
+                        replaceConfirm = true
+                    } else {
+                        viewModel.enqueueRestore(context, pendingImportUri!!, restoreMode)
+                        viewModel.clearValidation()
+                        pendingImportUri = null
+                    }
+                }) { Text(stringResource(R.string.backup_confirm)) }
             },
             dismissButton = { TextButton(onClick = { viewModel.clearValidation(); pendingImportUri = null }) { Text(stringResource(R.string.backup_cancel)) } },
+        )
+    }
+    if (replaceConfirm && pendingImportUri != null) {
+        AlertDialog(
+            onDismissRequest = { replaceConfirm = false },
+            title = { Text(stringResource(R.string.backup_replace_confirm_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(stringResource(R.string.backup_replace_confirm_body))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = replaceChecked, onCheckedChange = { replaceChecked = it })
+                        Text(stringResource(R.string.backup_replace_confirm_check))
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = replaceChecked, onClick = {
+                    viewModel.enqueueRestore(context, pendingImportUri!!, BACKUP_RESTORE_REPLACE)
+                    replaceConfirm = false
+                    viewModel.clearValidation()
+                    pendingImportUri = null
+                }) { Text(stringResource(R.string.backup_confirm)) }
+            },
+            dismissButton = { TextButton(onClick = { replaceConfirm = false }) { Text(stringResource(R.string.backup_cancel)) } },
         )
     }
 }
@@ -194,7 +231,9 @@ fun ExportScreen(onBack: () -> Unit, viewModel: ExportViewModel = hiltViewModel(
 private fun PreviewContent(preview: BackupPreview, mode: String, onMode: (String) -> Unit) {
     val locale = LocalLocale.current.platformLocale
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(stringResource(R.string.backup_preview_created, SimpleDateFormat("yyyy-MM-dd HH:mm", locale).format(Date(preview.manifest.createdAt))) )
+        Text(stringResource(R.string.backup_preview_created, SimpleDateFormat("yyyy-MM-dd HH:mm", locale).format(Date.from(runCatching { Instant.parse(preview.manifest.createdAt) }.getOrElse { Instant.EPOCH }))) )
+        Text(stringResource(R.string.backup_preview_format, preview.manifest.format, preview.manifest.formatVersion, preview.manifest.dbSchemaVersion))
+        Text(stringResource(R.string.backup_preview_sha, preview.manifest.sha256.take(16).ifBlank { "—" } + "…"))
         Text(stringResource(R.string.backup_preview_device, preview.manifest.device.model, preview.manifest.device.sdkInt))
         Text(stringResource(R.string.backup_preview_counts, preview.manifest.counts.albums, preview.manifest.counts.tracks, preview.manifest.counts.ratings, preview.manifest.counts.manualCredits))
         Text(stringResource(R.string.backup_preview_current, preview.current.albums, preview.current.tracks))
