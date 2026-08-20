@@ -38,13 +38,32 @@ class AudioAnalysisWorker(
         setForeground(createForegroundInfo(fileName, fileIndex, totalFiles, 0f))
         return try {
             publish(AudioAnalysisProgress(AudioAnalysisStep.READING_HEADER, 0f), fileName, fileIndex, totalFiles)
-            val result = AudioAnalysisEngine(applicationContext).analyze(
+            val result = StreamingAudioAnalysisEngine(applicationContext).analyze(
                 uriString = uri,
                 trackId = inputData.getString(KEY_TRACK_ID),
                 albumId = inputData.getString(KEY_ALBUM_ID),
-                onProgress = { progress ->
-                    // The engine callback is synchronous; progress is persisted at step/frame boundaries only.
-                    kotlinx.coroutines.runBlocking { publish(progress, fileName, fileIndex, totalFiles) }
+                onEvent = { event ->
+                    when (event) {
+                        is SpectrogramEvent.Header -> publish(
+                            AudioAnalysisProgress(AudioAnalysisStep.READING_HEADER, 1f),
+                            fileName,
+                            fileIndex,
+                            totalFiles,
+                        )
+                        is SpectrogramEvent.Column -> publish(
+                            AudioAnalysisProgress(AudioAnalysisStep.FFT, event.progress),
+                            fileName,
+                            fileIndex,
+                            totalFiles,
+                        )
+                        is SpectrogramEvent.Progress -> publish(
+                            AudioAnalysisProgress(AudioAnalysisStep.DECODING, event.progress),
+                            fileName,
+                            fileIndex,
+                            totalFiles,
+                        )
+                        is SpectrogramEvent.Completed -> Unit
+                    }
                 },
                 shouldStop = { isStopped },
             )
