@@ -52,6 +52,8 @@ data class SpectrogramResult(
     val clippedSamples: Long,
     val decodeMs: Long = 0L,
     val fftMs: Long = 0L,
+    val percentileSpectrumDb: FloatArray = floatArrayOf(),
+    val activeFrameSpectra: List<FloatArray> = emptyList(),
 )
 
 sealed interface SpectrogramEvent {
@@ -131,6 +133,7 @@ class StreamingSpectrogramAccumulator(
     private var peak = 0.0
     private var clippedSamples = 0L
     private var fftNanos = 0L
+    private val activeFrameSpectra = ArrayList<FloatArray>()
 
     val metadata: SpectrogramMetadata = SpectrogramMetadata(
         hopFrames = hop,
@@ -192,6 +195,8 @@ class StreamingSpectrogramAccumulator(
         peak = peak,
         clippedSamples = clippedSamples,
         fftMs = fftNanos / 1_000_000L,
+        percentileSpectrumDb = percentile95Db(activeFrameSpectra, halfBins),
+        activeFrameSpectra = activeFrameSpectra.map { it.copyOf() },
     )
 
     private fun processFrame(): SpectrogramColumn {
@@ -225,6 +230,10 @@ class StreamingSpectrogramAccumulator(
             matrix[columnIndex * rows + row] = column[row]
         }
         fftNanos += System.nanoTime() - fftStart
+        val frameRms = kotlin.math.sqrt(ordered.sumOf { it.toDouble() * it.toDouble() } / fftSize.coerceAtLeast(1))
+        if (20.0 * kotlin.math.log10(frameRms.coerceAtLeast(1e-12)) >= -60.0) {
+            activeFrameSpectra += db.copyOf()
+        }
         frameCount++
         return SpectrogramColumn(columnIndex, column)
     }
@@ -238,6 +247,15 @@ class StreamingSpectrogramAccumulator(
             ringStart = (ringStart + hop.toInt()) % fftSize
             ringSize -= hop.toInt()
         }
+    }
+}
+
+private fun percentile95Db(frames: List<FloatArray>, bins: Int): FloatArray {
+    if (frames.isEmpty()) return FloatArray(bins) { SPECTROGRAM_DB_FLOOR }
+    return FloatArray(bins) { bin ->
+        val values = FloatArray(frames.size) { index -> frames[index].getOrElse(bin) { SPECTROGRAM_DB_FLOOR } }
+        values.sort()
+        values[((values.lastIndex) * 0.95).roundToInt().coerceIn(0, values.lastIndex)]
     }
 }
 
