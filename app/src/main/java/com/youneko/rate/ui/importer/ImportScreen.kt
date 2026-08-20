@@ -51,6 +51,7 @@ import com.youneko.rate.R
 import com.youneko.rate.data.importer.ImportGroup
 import com.youneko.rate.data.importer.stableKey
 import com.youneko.rate.ui.importer.ImportEvent
+import java.util.Locale
 import androidx.compose.runtime.saveable.rememberSaveable
 
 @Composable
@@ -140,7 +141,7 @@ fun ImportScreen(
                                     modifier = Modifier.fillMaxWidth(),
                                 )
                                 Text(candidate.sourceProvider, style = MaterialTheme.typography.labelSmall, maxLines = 2)
-                                Text(stringResource(R.string.import_cover_size_score, candidate.widthHint ?: "—", candidate.matchScore?.let { "%.2f".format(it) } ?: "—"), style = MaterialTheme.typography.labelSmall)
+                                Text(stringResource(R.string.import_cover_size_score, candidate.widthHint ?: "—", candidate.matchScore?.let { "%.2f".format(Locale.getDefault(), it) } ?: "—"), style = MaterialTheme.typography.labelSmall)
                             }
                         }
                     }
