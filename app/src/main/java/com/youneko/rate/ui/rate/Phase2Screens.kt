@@ -111,8 +111,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import com.youneko.rate.data.SettingsDataStore
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.text.KeyboardOptions
@@ -202,7 +202,7 @@ fun LibraryScreen(
             }
             Spacer(Modifier.height(8.dp))
             if (state.error != null) {
-                YounekoErrorState(state.error ?: "Có lỗi, vui lòng thử lại.", onRetry = viewModel::clearError, modifier = Modifier.weight(1f).fillMaxWidth())
+                YounekoErrorState(state.error ?: stringResource(R.string.error_generic), onRetry = viewModel::clearError, modifier = Modifier.weight(1f).fillMaxWidth())
             } else if (state.albums.isEmpty()) {
                 EmptyLibrary(onAddAlbum, hasQuery = state.query.isNotBlank() || state.unfinishedOnly)
             } else if (state.gridView) {

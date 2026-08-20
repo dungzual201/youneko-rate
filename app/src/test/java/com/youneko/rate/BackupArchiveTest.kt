@@ -10,8 +10,11 @@ import org.junit.runner.RunWith
 import com.youneko.rate.data.SettingsStore
 import com.youneko.rate.data.export.BackupCounts
 import com.youneko.rate.data.export.BACKUP_DATABASE_ENTRY
+import com.youneko.rate.data.export.BACKUP_MANIFEST
 import com.youneko.rate.data.export.BackupManifest
 import com.youneko.rate.data.export.writeBackupArchive
+import com.youneko.rate.data.export.backupCounts
+import com.youneko.rate.data.export.verifyCountsAgainstManifest
 import com.youneko.rate.data.export.CURRENT_BACKUP_FORMAT_VERSION
 import com.youneko.rate.data.export.CURRENT_DATABASE_SCHEMA_VERSION
 import com.youneko.rate.data.export.checkpointAndCopyDatabase
@@ -26,6 +29,7 @@ import com.youneko.rate.data.local.entity.ArtistEntity
 import com.youneko.rate.data.local.entity.CreditEntity
 import com.youneko.rate.data.local.entity.TrackEntity
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.util.zip.ZipInputStream
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,6 +37,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -96,12 +101,13 @@ class BackupArchiveTest {
     @Test
     fun manifestSeparatesFormatAndDatabaseVersionsAndStoresDatabaseChecksumKey() {
         val manifest = BackupManifest(
-            createdAt = 1L,
+            createdAt = "1970-01-01T00:00:00Z",
             app = com.youneko.rate.data.export.BackupAppInfo("0.1.0", 1),
             dbSchemaVersion = CURRENT_DATABASE_SCHEMA_VERSION,
             device = com.youneko.rate.data.export.BackupDeviceInfo("test", 35),
             counts = BackupCounts(1, 1, 1, 1, 1, 1, 0),
             includesCovers = false,
+            sha256 = "a".repeat(64),
             checksum = mapOf(BACKUP_DATABASE_ENTRY to "sha256:" + "a".repeat(64)),
         )
         val encoded = json.encodeToString(manifest)
@@ -113,10 +119,56 @@ class BackupArchiveTest {
 
     @Test
     fun newerVersionAndChecksumMismatchAreRejected() {
-        val base = BackupManifest(createdAt = 1L, app = com.youneko.rate.data.export.BackupAppInfo("0.1.0", 1), dbSchemaVersion = CURRENT_DATABASE_SCHEMA_VERSION, device = com.youneko.rate.data.export.BackupDeviceInfo("test", 35), counts = BackupCounts(0, 0, 0, 0, 0, 0, 0), includesCovers = false, checksum = mapOf(BACKUP_DATABASE_ENTRY to "sha256:" + "a".repeat(64)))
+        val base = BackupManifest(createdAt = "1970-01-01T00:00:00Z", app = com.youneko.rate.data.export.BackupAppInfo("0.1.0", 1), dbSchemaVersion = CURRENT_DATABASE_SCHEMA_VERSION, device = com.youneko.rate.data.export.BackupDeviceInfo("test", 35), counts = BackupCounts(0, 0, 0, 0, 0, 0, 0), includesCovers = false, sha256 = "a".repeat(64), checksum = mapOf(BACKUP_DATABASE_ENTRY to "sha256:" + "a".repeat(64)))
         assertTrue(!validateBackupManifest(base.copy(formatVersion = CURRENT_BACKUP_FORMAT_VERSION + 1), "a".repeat(64), true).ok)
         assertTrue(!validateBackupManifest(base.copy(dbSchemaVersion = CURRENT_DATABASE_SCHEMA_VERSION + 1), "a".repeat(64), true).ok)
         assertTrue(!validateBackupManifest(base, "b".repeat(64), true).ok)
+    }
+
+    @Test
+    fun exportedEvidenceArchiveHasManifestFirstNoWalNoMusicAndMatchingCounts() = runBlocking {
+        val context = RuntimeEnvironment.getApplication()
+        context.deleteDatabase("backup-evidence.db")
+        val database = Room.databaseBuilder(context, YounekoDatabase::class.java, "backup-evidence.db").build()
+        try {
+            database.withTransaction {
+                database.artistDao().insert(ArtistEntity("evidence-artist", "Nghệ sĩ", createdAt = 1L, updatedAt = 1L))
+                database.albumDao().insert(AlbumEntity("evidence-album", "Album kiểm thử", "evidence-artist", createdAt = 1L, updatedAt = 1L))
+                database.trackDao().insert(TrackEntity("evidence-track", "evidence-album", "Bài kiểm thử", stars = 4.0, reviewText = "Giữ nguyên", createdAt = 1L, updatedAt = 2L))
+                database.creditDao().upsertAll(listOf(CreditEntity("evidence-credit", trackId = "evidence-track", personName = "Credit tay", role = "Producer", sourceProvider = "manual")))
+            }
+            val before = database.backupCounts()
+            val bytes = ByteArrayOutputStream()
+            writeBackupArchive(context, database, FakeSettingsStore(), bytes, includeCovers = false, includeReadableExports = true)
+            val evidence = File(System.getProperty("user.dir"), "app/build/test-artifacts/evidence.younekorate").apply { parentFile?.mkdirs(); writeBytes(bytes.toByteArray()) }
+            val entries = mutableListOf<String>()
+            var manifest: BackupManifest? = null
+            var extractedDb: File? = null
+            ZipInputStream(bytes.toByteArray().inputStream()).use { zip ->
+                var entry = zip.nextEntry
+                while (entry != null) {
+                    entries += entry.name
+                    val data = zip.readBytes()
+                    if (entry.name == BACKUP_MANIFEST) manifest = json.decodeFromString<BackupManifest>(data.toString(Charsets.UTF_8))
+                    if (entry.name == BACKUP_DATABASE_ENTRY) extractedDb = File.createTempFile("evidence-import-", ".db").apply { writeBytes(data) }
+                    zip.closeEntry()
+                    entry = zip.nextEntry
+                }
+            }
+            val after = manifest!!.counts
+            assertEquals(before.albums, after.albums)
+            assertEquals(before.tracks, after.tracks)
+            assertEquals(before.ratings, after.ratings)
+            assertEquals(before.reviews, after.reviews)
+            assertEquals(before.manualCredits, after.manualCredits)
+            verifyCountsAgainstManifest(extractedDb!!, manifest!!.counts)
+            assertEquals(BACKUP_MANIFEST, entries.first())
+            assertFalse(entries.any { it.endsWith("-wal") || it.endsWith("-shm") || it.endsWith(".mp3") || it.endsWith(".flac") })
+            println("BACKUP_EVIDENCE_ARCHIVE=${evidence.absolutePath}")
+            println("BACKUP_EVIDENCE_TREE=${entries.joinToString(",")}")
+            println("BACKUP_COUNTS_BEFORE=$before")
+            println("BACKUP_COUNTS_AFTER_IMPORT=$after")
+        } finally { database.close(); context.deleteDatabase("backup-evidence.db") }
     }
 
     @Test

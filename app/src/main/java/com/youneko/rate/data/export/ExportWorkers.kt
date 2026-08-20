@@ -13,6 +13,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.youneko.rate.data.AutoBackupStore
+import com.youneko.rate.R
 import androidx.work.workDataOf
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
@@ -182,7 +183,7 @@ private fun backupForegroundInfo(context: Context, title: String, workId: UUID, 
     val cancel = WorkManager.getInstance(context).createCancelPendingIntent(workId)
     return ForegroundInfo(2202, androidx.core.app.NotificationCompat.Builder(context, "background_tasks")
         .setSmallIcon(android.R.drawable.stat_sys_upload)
-        .setContentTitle("Youneko Rate!")
+        .setContentTitle(context.getString(R.string.app_name))
         .setContentText(title)
         .setOngoing(true)
         .setOnlyAlertOnce(true)

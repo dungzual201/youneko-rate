@@ -7,8 +7,10 @@ import org.junit.Test
 class PlaybackCapabilityGuardTest {
     @Test
     fun sourceDoesNotContainPlaybackCapability() {
-        val current = File(System.getProperty("user.dir").orEmpty())
-        val root = if (File(current, "app").isDirectory) current else current.parentFile ?: error("Missing project root")
+        val current = File(System.getProperty("user.dir").orEmpty()).absoluteFile
+        val root = generateSequence(current) { it.parentFile }
+            .firstOrNull { File(it, "app/build.gradle.kts").isFile }
+            ?: error("Missing project root")
         val forbidden = listOf(
             "Media" + "Player",
             "Exo" + "Player",

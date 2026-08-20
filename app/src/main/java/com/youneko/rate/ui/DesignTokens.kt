@@ -49,7 +49,7 @@ fun rememberReducedMotion(): Boolean {
     }
 }
 
-fun <T> younekoSpring(reducedMotion: Boolean): AnimationSpec<T> =
+fun <T> younekoSpring(reducedMotion: Boolean): FiniteAnimationSpec<T> =
     if (reducedMotion) snap() else spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow)
 
 fun younekoFade(reducedMotion: Boolean): FiniteAnimationSpec<Float> =

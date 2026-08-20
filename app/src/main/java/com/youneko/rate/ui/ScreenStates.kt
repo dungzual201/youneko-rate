@@ -1,5 +1,8 @@
 package com.youneko.rate.ui
 
+import androidx.compose.ui.res.stringResource
+import com.youneko.rate.R
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -35,7 +38,7 @@ fun YounekoErrorState(message: String, onRetry: () -> Unit, modifier: Modifier =
         Text(message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyLarge)
         Button(onClick = onRetry) {
             Icon(Icons.Default.Refresh, contentDescription = null)
-            Text("Thử lại", modifier = Modifier.padding(start = YounekoSpacing.xs))
+            Text(stringResource(R.string.retry), modifier = Modifier.padding(start = YounekoSpacing.xs))
         }
     }
 }

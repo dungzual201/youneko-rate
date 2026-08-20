@@ -55,7 +55,7 @@ sealed interface AsyncActionState {
 fun YounekoActionButton(
     state: AsyncActionState,
     label: String,
-    successLabel: String = "Đã xong",
+    successLabel: String = label,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
