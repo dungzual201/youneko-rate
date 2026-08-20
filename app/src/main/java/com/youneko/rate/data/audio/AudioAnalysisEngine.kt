@@ -65,6 +65,8 @@ data class AudioQualityMetrics(
     val analyzedFrames: Int = 0,
     val formatVerdict: String? = null,
     val transcodeVerdict: String? = null,
+    val energyAboveCutoffRatio: Double? = null,
+    val cutoffRetries: Int = 0,
 )
 
 object SpectralAnalyzer {
@@ -336,6 +338,8 @@ class AudioAnalysisEngine(private val context: Context) {
                 theoreticalBitrate = codecInfo.theoreticalBitrate,
                 formatVerdict = metrics.formatVerdict,
                 transcodeVerdict = metrics.transcodeVerdict,
+                energyAboveCutoffRatio = metrics.energyAboveCutoffRatio,
+                cutoffRetries = metrics.cutoffRetries,
             )
         } finally {
             runCatching { decoder?.stop() }

@@ -268,6 +268,8 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
             theoreticalBitrate = metadata.theoreticalBitrate,
             formatVerdict = metrics.formatVerdict,
             transcodeVerdict = metrics.transcodeVerdict,
+            energyAboveCutoffRatio = metrics.energyAboveCutoffRatio,
+            cutoffRetries = metrics.cutoffRetries,
         )
         val renderStartNanos = System.nanoTime()
         SpectrogramCache(context).write(trackId ?: uriString, result)

@@ -1,8 +1,8 @@
 package com.youneko.rate.data.audio
 
 import kotlin.math.abs
-import kotlin.math.max
-import kotlin.math.min
+import kotlin.math.log10
+import kotlin.math.pow
 import kotlin.math.roundToInt
 
  data class CutoffEstimate(
@@ -14,49 +14,63 @@ import kotlin.math.roundToInt
     val cliffDb: Double? = null,
     val quietAboveFraction: Double = 0.0,
     val analyzedFrames: Int = 0,
+    val energyAboveCutoffRatio: Double? = null,
+    val retries: Int = 0,
 )
 
 object SpectrogramQuality {
+    private const val LREF_LOW_HZ = 1_000.0
+    private const val LREF_HIGH_HZ = 5_000.0
+    private const val THRESHOLD_DROP_DB = 55.0
+    private const val MIN_RUN_BINS = 5
+    private const val MAX_RETRIES = 3
+
     fun estimateCutoff(
         spectrumDb: FloatArray,
         sampleRate: Int,
         activeFrames: List<FloatArray> = emptyList(),
     ): CutoffEstimate {
-        if (spectrumDb.isEmpty() || sampleRate <= 0) return CutoffEstimate(null, 0, -120f, -108f, null)
+        if (spectrumDb.isEmpty() || sampleRate <= 0) return CutoffEstimate(null, 0, -120f, -175f, null)
         val measured = percentile95Spectrum(spectrumDb, activeFrames)
-        val tailStart = (measured.size * 0.95).toInt().coerceIn(0, measured.lastIndex)
-        val highTail = measured.copyOfRange(tailStart, measured.size).sorted()
-        val noiseFloor = highTail.getOrElse(highTail.size / 2) { -120f }
-        val threshold = noiseFloor + 12f
-        val minRun = 3
-        var run = 0
-        var cutoffBin: Int? = null
-        for (bin in measured.lastIndex downTo 0) {
-            if (measured[bin] >= threshold) {
-                run++
-                if (run >= minRun) {
-                    cutoffBin = (bin + minRun - 1).coerceAtMost(measured.lastIndex)
-                    break
-                }
-            } else run = 0
+        val smoothed = medianSmooth(measured)
+        val lref = referenceMedian(smoothed, sampleRate)
+        val baseThreshold = lref - THRESHOLD_DROP_DB
+        var selected: Candidate? = null
+        var retries = 0
+        while (retries <= MAX_RETRIES) {
+            val threshold = (baseThreshold + retries * 6.0).toFloat()
+            val cutoffBin = scanFromNyquist(smoothed, threshold)
+            val ratio = cutoffBin?.let { energyAboveCutoffRatio(smoothed, it) }
+            selected = Candidate(cutoffBin, threshold, ratio)
+            if (ratio == null || ratio <= 0.01 || retries == MAX_RETRIES) break
+            retries++
         }
-        val cutoffHz = cutoffBin?.let { SpectralAnalyzer.binToFrequencyHz(it.coerceAtMost(SPECTROGRAM_FFT_SIZE / 2), sampleRate) }
-        val cliff = cutoffBin?.let { cliffDb(measured, it, sampleRate) }
-        val quietFraction = if (cutoffBin == null || activeFrames.isEmpty()) 0.0 else {
-            activeFrames.count { frame ->
-                val start = (cutoffBin + 1).coerceAtMost(frame.lastIndex)
-                val high = frame.copyOfRange(start, frame.size).maxOrNull() ?: SPECTROGRAM_DB_FLOOR
-                high <= -90f
-            }.toDouble() / activeFrames.size.toDouble()
-        }
+        val cutoffBin = selected?.cutoffBin
+        val threshold = selected?.threshold ?: baseThreshold.toFloat()
+        val frequency = cutoffBin?.let { SpectralAnalyzer.binToFrequencyHz(it, sampleRate, SPECTROGRAM_FFT_SIZE) }
+        val cliff = cutoffBin?.let { cliffDb(smoothed, it, sampleRate) }
+        val quiet = cutoffBin?.let { quietAboveFraction(activeFrames, it, threshold) } ?: 0.0
+        val noiseFloor = median(smoothed.takeLast((smoothed.size * 0.05).roundToInt().coerceAtLeast(1)))
         val confidence = when {
-            cutoffHz == null -> 0
-            activeFrames.size < 3 -> 45
-            cliff != null && cliff >= 40.0 -> 88
-            cutoffHz >= sampleRate / 2.0 * 0.90 -> 86
-            else -> 68
+            frequency == null -> 0
+            activeFrames.size < 50 -> 40
+            frequency >= sampleRate / 2.0 - 600.0 -> 92
+            quiet >= 0.90 && (selected?.energyRatio ?: 1.0) <= 0.01 -> 88
+            else -> 64
         }
-        return CutoffEstimate(cutoffHz, confidence, noiseFloor, threshold, cliff, cliff, quietFraction, activeFrames.size)
+        val slope = cliff?.div(1.6)
+        return CutoffEstimate(
+            frequencyHz = frequency,
+            confidence = confidence,
+            noiseFloorDb = noiseFloor,
+            thresholdDb = threshold,
+            slopeDbPerKHz = slope,
+            cliffDb = cliff,
+            quietAboveFraction = quiet,
+            analyzedFrames = activeFrames.size,
+            energyAboveCutoffRatio = selected?.energyRatio,
+            retries = retries,
+        )
     }
 
     fun enrich(
@@ -75,6 +89,8 @@ object SpectrogramQuality {
             cliffDb = estimate.cliffDb,
             quietAboveFraction = estimate.quietAboveFraction,
             analyzedFrames = estimate.analyzedFrames,
+            energyAboveCutoffRatio = estimate.energyAboveCutoffRatio,
+            cutoffRetries = estimate.retries,
         )
         val verdicted = SpectralAnalyzer.verdict(format, metrics)
         val warnings = buildList {
@@ -86,6 +102,9 @@ object SpectrogramQuality {
             }
             if (format.bitDepth == 24 && lsbNonZeroRatio != null && lsbNonZeroRatio < 0.01) {
                 add("Đã kiểm tra LSB trên PCM 24-bit thực và thấy phần thấp gần như luôn bằng 0; có thể là 24-bit giả.")
+            }
+            if ((estimate.energyAboveCutoffRatio ?: 0.0) > 0.01 || estimate.quietAboveFraction < 0.90) {
+                add("Không đo được tần số cắt rõ ràng: năng lượng phía trên tần số cắt hoặc số khung im lặng chưa đạt ngưỡng.")
             }
         }
         return verdicted.copy(reasons = (verdicted.reasons + warnings).distinct())
@@ -102,22 +121,68 @@ object SpectrogramQuality {
         return nonZero.toDouble() / samples.size
     }
 
+    private data class Candidate(val cutoffBin: Int?, val threshold: Float, val energyRatio: Double?)
+
     private fun percentile95Spectrum(spectrumDb: FloatArray, activeFrames: List<FloatArray>): FloatArray {
         if (activeFrames.isEmpty()) return spectrumDb
         return FloatArray(spectrumDb.size) { bin ->
             val values = activeFrames.map { it.getOrElse(bin) { SPECTROGRAM_DB_FLOOR } }.sorted()
-            values[((values.lastIndex) * 0.95).toInt().coerceIn(0, values.lastIndex)]
+            values[((values.lastIndex) * 0.95).roundToInt().coerceIn(0, values.lastIndex)]
         }
     }
 
+    private fun medianSmooth(values: FloatArray): FloatArray = FloatArray(values.size) { index ->
+        val start = (index - 1).coerceAtLeast(0)
+        val end = (index + 1).coerceAtMost(values.lastIndex)
+        median(values.copyOfRange(start, end + 1).toList())
+    }
+
+    private fun referenceMedian(spectrumDb: FloatArray, sampleRate: Int): Float {
+        val low = (LREF_LOW_HZ / sampleRate * SPECTROGRAM_FFT_SIZE).roundToInt().coerceIn(0, spectrumDb.lastIndex)
+        val high = (LREF_HIGH_HZ / sampleRate * SPECTROGRAM_FFT_SIZE).roundToInt().coerceIn(low, spectrumDb.lastIndex)
+        return median(spectrumDb.copyOfRange(low, high + 1).toList())
+    }
+
+    private fun scanFromNyquist(spectrumDb: FloatArray, threshold: Float): Int? {
+        var run = 0
+        for (bin in spectrumDb.lastIndex downTo 0) {
+            if (spectrumDb[bin] >= threshold) {
+                run++
+                if (run >= MIN_RUN_BINS) return (bin + MIN_RUN_BINS - 1).coerceAtMost(spectrumDb.lastIndex)
+            } else run = 0
+        }
+        return null
+    }
+
+    private fun energyAboveCutoffRatio(spectrumDb: FloatArray, cutoffBin: Int): Double {
+        val total = spectrumDb.sumOf { 10.0.pow(it / 10.0) }.coerceAtLeast(1e-18)
+        val above = spectrumDb.drop((cutoffBin + 1).coerceAtMost(spectrumDb.size)).sumOf { 10.0.pow(it / 10.0) }
+        return (above / total).coerceIn(0.0, 1.0)
+    }
+
+    private fun quietAboveFraction(activeFrames: List<FloatArray>, cutoffBin: Int, threshold: Float): Double {
+        if (activeFrames.isEmpty()) return 0.0
+        val start = (cutoffBin + 1).coerceAtMost(activeFrames.first().size)
+        if (start >= activeFrames.first().size) return 1.0
+        val quiet = activeFrames.count { frame ->
+            frame.copyOfRange(start, frame.size).maxOrNull()?.let { it < threshold } ?: true
+        }
+        return quiet.toDouble() / activeFrames.size.toDouble()
+    }
+
     private fun cliffDb(spectrumDb: FloatArray, cutoffBin: Int, sampleRate: Int): Double? {
-        val span = (500.0 / sampleRate * SPECTROGRAM_FFT_SIZE).roundToInt().coerceAtLeast(1)
+        val span = (800.0 / sampleRate * SPECTROGRAM_FFT_SIZE).roundToInt().coerceAtLeast(1)
         val leftStart = (cutoffBin - span).coerceAtLeast(0)
         val rightEnd = (cutoffBin + span).coerceAtMost(spectrumDb.lastIndex)
         if (leftStart >= cutoffBin || cutoffBin >= rightEnd) return null
-        val left = spectrumDb.copyOfRange(leftStart, cutoffBin + 1).average()
+        val left = spectrumDb.copyOfRange(leftStart, cutoffBin).average()
         val right = spectrumDb.copyOfRange(cutoffBin, rightEnd + 1).average()
-        return (left - right).toDouble()
+        return (left - right).coerceAtLeast(0.0)
     }
 
+    private fun median(values: List<Float>): Float {
+        if (values.isEmpty()) return -120f
+        val sorted = values.sorted()
+        return sorted[sorted.size / 2]
+    }
 }
