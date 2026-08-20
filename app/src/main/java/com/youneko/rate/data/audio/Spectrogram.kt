@@ -50,6 +50,8 @@ data class SpectrogramResult(
     val sumSquares: Double,
     val peak: Double,
     val clippedSamples: Long,
+    val decodeMs: Long = 0L,
+    val fftMs: Long = 0L,
 )
 
 sealed interface SpectrogramEvent {
@@ -128,6 +130,7 @@ class StreamingSpectrogramAccumulator(
     private var sumSquares = 0.0
     private var peak = 0.0
     private var clippedSamples = 0L
+    private var fftNanos = 0L
 
     val metadata: SpectrogramMetadata = SpectrogramMetadata(
         hopFrames = hop,
@@ -163,6 +166,8 @@ class StreamingSpectrogramAccumulator(
         return column
     }
 
+    fun samplesSeen(): Long = sampleCount
+
     fun finish(): SpectrogramColumn? {
         if (ringSize == 0 || columnCount >= columnsTarget) return null
         while (ringSize < fftSize) {
@@ -183,6 +188,7 @@ class StreamingSpectrogramAccumulator(
         sumSquares = sumSquares,
         peak = peak,
         clippedSamples = clippedSamples,
+        fftMs = fftNanos / 1_000_000L,
     )
 
     private fun processFrame(): SpectrogramColumn {
@@ -191,6 +197,7 @@ class StreamingSpectrogramAccumulator(
             ordered[index] = value
             fft[index] = value.toDouble() * window[index]
         }
+        val fftStart = System.nanoTime()
         DoubleFFT_1D(fftSize.toLong()).realForward(fft)
         for (bin in 0 until halfBins) {
             val magnitudeValue = when (bin) {
@@ -214,6 +221,7 @@ class StreamingSpectrogramAccumulator(
             column[row] = SpectrogramMath.quantizeDb(maxDb)
             matrix[columnIndex * rows + row] = column[row]
         }
+        fftNanos += System.nanoTime() - fftStart
         frameCount++
         return SpectrogramColumn(columnIndex, column)
     }

@@ -5,6 +5,7 @@ import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.net.Uri
+import android.util.Log
 import com.youneko.rate.data.local.entity.AudioAnalysisEntity
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -17,6 +18,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.Dispatchers
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
@@ -74,6 +77,7 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
             var outputDone = false
             var outputFormat = sourceFormat
             var lastProgressFrames = 0L
+            val decodeStartNanos = System.nanoTime()
             while (!outputDone) {
                 if (shouldStop()) throw CancellationException("Đã huỷ phân tích")
                 if (!inputDone) {
@@ -102,7 +106,7 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
                                 appendPcmMono(buffer, info.offset, info.size, channels, outputFormat, accumulator) { column ->
                                     emit(SpectrogramEvent.Column(column, columnProgress(column.index, metadata.columns)))
                                 }
-                                val decodedFrames = accumulatorSampleCount(accumulator, channels)
+                                val decodedFrames = accumulator.samplesSeen()
                                 if (decodedFrames - lastProgressFrames >= sampleRate || inputDone) {
                                     lastProgressFrames = decodedFrames
                                     emit(SpectrogramEvent.Progress(decodedFrames, totalFrames, (decodedFrames.toFloat() / totalFrames).coerceIn(0f, 1f)))
@@ -117,13 +121,14 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
             accumulator.finish()?.let { column ->
                 emit(SpectrogramEvent.Column(column, columnProgress(column.index, metadata.columns)))
             }
-            emit(SpectrogramEvent.Completed(accumulator.result()))
+            val decodeMs = (System.nanoTime() - decodeStartNanos) / 1_000_000L
+            emit(SpectrogramEvent.Completed(accumulator.result().copy(decodeMs = decodeMs)))
         } finally {
             runCatching { decoder?.stop() }
             decoder?.release()
             extractor.release()
         }
-    }
+    }.flowOn(Dispatchers.Default.limitedParallelism(2))
 
     suspend fun analyze(
         uriString: String,
@@ -174,7 +179,7 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
             durationMs = metadata.durationMs,
         )
         val metrics = SpectrogramQuality.enrich(format, SpectralAnalyzer.verdict(format, base), averageDb)
-        return AudioAnalysisEntity(
+        val entity = AudioAnalysisEntity(
             id = "$uriString:${System.currentTimeMillis()}",
             trackId = trackId,
             albumId = albumId,
@@ -199,9 +204,12 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
             spectrumJson = Json.encodeToString(metrics.spectrum),
             engineVersion = "spek-stream-v1",
             analyzedAt = System.currentTimeMillis(),
-        ).also {
-            SpectrogramCache(context).write(trackId ?: uriString, result)
-        }
+        )
+        val renderStartNanos = System.nanoTime()
+        SpectrogramCache(context).write(trackId ?: uriString, result)
+        val renderMs = (System.nanoTime() - renderStartNanos) / 1_000_000L
+        Log.i("AudioAnalysis", "SPEK: decodeMs=${result.decodeMs} fftMs=${result.fftMs} cols=${result.metadata.columns} rows=${result.metadata.rows} renderMs=$renderMs")
+        return entity
     }
 
     private suspend fun appendPcmMono(
@@ -236,9 +244,6 @@ class StreamingAudioAnalysisEngine(private val context: Context) {
             if (column != null) onColumn(column)
         }
     }
-
-    private fun accumulatorSampleCount(accumulator: StreamingSpectrogramAccumulator, channels: Int): Long =
-        accumulator.result().sampleCount * channels.coerceAtLeast(1)
 
     private fun columnProgress(index: Int, columns: Int): Float =
         ((index + 1).toFloat() / columns.coerceAtLeast(1)).coerceIn(0f, 1f)
