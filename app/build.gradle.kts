@@ -64,6 +64,12 @@ android {
         getByName("androidTest").assets.directories.add("$projectDir/schemas")
     }
 
+    lint {
+        abortOnError = true
+        error.add("MissingTranslation")
+        error.add("ExtraTranslation")
+    }
+
     testOptions {
         unitTests.isIncludeAndroidResources = true
     }
