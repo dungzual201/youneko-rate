@@ -148,6 +148,8 @@ import com.youneko.rate.data.lyrics.Lyrics
 import com.youneko.rate.data.lyrics.toPlainText
 import com.youneko.rate.data.lyrics.LyricLine
 import com.youneko.rate.ui.artwork.CoverArtImage
+import com.youneko.rate.ui.components.YnAlbumCard
+import com.youneko.rate.ui.components.YnSkeleton
 import com.youneko.rate.domain.usecase.ScoreMode
 import com.youneko.rate.domain.usecase.RatingScale
 import com.youneko.rate.ui.musicbrainz.MusicBrainzSearchPanel
@@ -261,7 +263,11 @@ fun LibraryScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    items(state.albums, key = { stableAlbumKey(it.album.id) }) { item -> AlbumCard(item, onOpenAlbum) }
+                    if (refreshing) {
+                        items(6, key = { "skeleton-$it" }) { YnSkeleton(Modifier.padding(YnDimens.space2)) }
+                    } else {
+                        items(state.albums, key = { stableAlbumKey(it.album.id) }) { item -> AlbumCard(item, onOpenAlbum) }
+                    }
                 }
             } else {
                 LazyColumn(
@@ -356,15 +362,7 @@ private fun EmptyLibrary(onAdd: () -> Unit, hasQuery: Boolean) {
 
 @Composable
 private fun AlbumCard(item: LibraryAlbum, onOpen: (String) -> Unit) {
-    Card(onClick = { onOpen(item.album.id) }, shape = RoundedCornerShape(YounekoRadius.lg), modifier = Modifier.animateContentSize(animationSpec = younekoSpring(rememberReducedMotion()))) {
-        Column(Modifier.padding(YounekoSpacing.md)) {
-            CoverArtImage(item.album.coverUri, Modifier.fillMaxWidth().aspectRatio(1f), placeholderSeed = item.album.id, placeholderLabel = item.album.title)
-            Spacer(Modifier.height(YounekoSpacing.xs))
-            Text(item.album.title, maxLines = 2, style = MaterialTheme.typography.titleMedium)
-            Text(item.artist?.name.orEmpty(), maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
-            ScoreLine(item)
-        }
-    }
+    YnAlbumCard(item, onClick = { onOpen(item.album.id) }, modifier = Modifier.animateContentSize(animationSpec = younekoSpring(rememberReducedMotion())))
 }
 
 @Composable
