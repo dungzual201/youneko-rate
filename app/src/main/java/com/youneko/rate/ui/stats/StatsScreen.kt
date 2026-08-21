@@ -11,6 +11,7 @@ import com.youneko.rate.BuildConfig
 import java.io.File
 import java.util.Locale
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -18,7 +19,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Album
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Card
+import androidx.compose.material3.Icon
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -38,6 +44,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.youneko.rate.R
+import com.youneko.rate.ui.YnDimens
+import com.youneko.rate.ui.YnMotion
+import com.youneko.rate.ui.rememberReducedMotion
+import com.youneko.rate.ui.components.YnStatCard
 import com.youneko.rate.data.local.dao.StatsCountRow
 import com.youneko.rate.data.local.dao.StatsValueRow
 import com.youneko.rate.data.local.dao.StatsDao
@@ -107,7 +117,7 @@ fun StatsScreen(viewModel: StatsViewModel = hiltViewModel()) {
             Text(stringResource(R.string.stats_empty_title), style = MaterialTheme.typography.headlineSmall)
             Text(stringResource(R.string.stats_empty_body), style = MaterialTheme.typography.bodyMedium)
         }
-        item { SummaryCard(state) }
+        item { StatsOverview(state) }
         item { Button(onClick = { shareStatsImage(context, state) }) { Text(stringResource(R.string.stats_share_image)) } }
         item { DistributionCard(stringResource(R.string.stats_score_histogram), state.histogram) }
         item { ValueCard(stringResource(R.string.stats_average_by_year), state.averageByYear) }
@@ -147,6 +157,15 @@ private fun shareStatsImage(context: Context, state: StatsUiState) {
 }
 
 @Composable
+private fun StatsOverview(state: StatsUiState) {
+    val average = state.averageScore?.let { "%.2f★".format(Locale.getDefault(), it) } ?: "—"
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(YnDimens.space3)) {
+        YnStatCard(state.ratedAlbums.toString(), stringResource(R.string.stats_rated_albums), { Icon(Icons.Default.Album, contentDescription = null) }, Modifier.weight(1f))
+        YnStatCard(average, stringResource(R.string.stats_average_score), { Icon(Icons.Default.Star, contentDescription = null) }, Modifier.weight(1f))
+    }
+}
+
+@Composable
 private fun SummaryCard(state: StatsUiState) {
     Card(Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -165,9 +184,11 @@ private fun DistributionCard(title: String, rows: List<StatsCountRow>) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(title, style = MaterialTheme.typography.titleMedium)
             val max = rows.maxOfOrNull { it.count }?.coerceAtLeast(1) ?: 1
+            val reducedMotion = rememberReducedMotion()
             rows.forEach { row ->
                 Text("${row.label}: ${row.count}")
-                LinearProgressIndicator(progress = { row.count.toFloat() / max }, modifier = Modifier.fillMaxWidth())
+                val animatedProgress by animateFloatAsState(row.count.toFloat() / max, YnMotion.fadeOrSnap(reducedMotion), label = "statsBar")
+                LinearProgressIndicator(progress = { animatedProgress }, modifier = Modifier.fillMaxWidth())
             }
             if (rows.isEmpty()) Text(stringResource(R.string.stats_no_data), style = MaterialTheme.typography.bodySmall)
         }
