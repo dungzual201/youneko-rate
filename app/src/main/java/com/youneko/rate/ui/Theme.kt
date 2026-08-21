@@ -14,24 +14,38 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 
-private val LightColors = lightColorScheme(
-    primary = Color(0xFF7355B6),
+private val BrandLightColors = lightColorScheme(
+    primary = Color(0xFF7456B8),
     onPrimary = Color.White,
-    primaryContainer = Color(0xFFEADDFF),
-    onPrimaryContainer = Color(0xFF27124E),
-    secondary = Color(0xFF675A71),
-    background = Color(0xFFFFF9F0),
-    surface = Color(0xFFFFF9F0),
-    surfaceVariant = Color(0xFFE9E0EB),
+    primaryContainer = Color(0xFFEBDDFF),
+    onPrimaryContainer = Color(0xFF28134F),
+    secondary = Color(0xFF9A476F),
+    onSecondary = Color.White,
+    secondaryContainer = Color(0xFFFFD9E7),
+    onSecondaryContainer = Color(0xFF3F1027),
+    tertiary = Color(0xFF7A5900),
+    tertiaryContainer = Color(0xFFFFDEA0),
+    background = Color(0xFFFFF9FC),
+    surface = Color(0xFFFFF9FC),
+    surfaceVariant = Color(0xFFF0E4F0),
+    outline = Color(0xFF7D747E),
 )
 
-private val DarkColors = darkColorScheme(
-    primary = Color(0xFFD0BCFF),
-    onPrimary = Color(0xFF3B246C),
-    primaryContainer = Color(0xFF543F8C),
-    onPrimaryContainer = Color(0xFFEADDFF),
-    secondary = Color(0xFFCDC1D2),
-    surfaceVariant = Color(0xFF4A454D),
+private val BrandDarkColors = darkColorScheme(
+    primary = Color(0xFFD7BFFF),
+    onPrimary = Color(0xFF3C1D70),
+    primaryContainer = Color(0xFF563B91),
+    onPrimaryContainer = Color(0xFFEBDDFF),
+    secondary = Color(0xFFFFB0D0),
+    onSecondary = Color(0xFF5C1E3B),
+    secondaryContainer = Color(0xFF7B3154),
+    onSecondaryContainer = Color(0xFFFFD9E7),
+    tertiary = Color(0xFFF5C24F),
+    tertiaryContainer = Color(0xFF5D4300),
+    background = Color(0xFF151118),
+    surface = Color(0xFF151118),
+    surfaceVariant = Color(0xFF4D4350),
+    outline = Color(0xFF968D98),
 )
 
 private val YounekoTypography = Typography().let { base ->
@@ -62,13 +76,9 @@ fun YounekoRateTheme(
     val colors = when {
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && resolvedDark -> dynamicDarkColorScheme(context)
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> dynamicLightColorScheme(context)
-        resolvedDark -> DarkColors
-        else -> LightColors
+        resolvedDark -> BrandDarkColors
+        else -> BrandLightColors
     }
 
-    MaterialTheme(
-        colorScheme = colors,
-        typography = YounekoTypography,
-        content = content,
-    )
+    MaterialTheme(colorScheme = colors, typography = YounekoTypography, content = content)
 }
