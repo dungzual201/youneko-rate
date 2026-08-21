@@ -21,6 +21,7 @@ object YnDimens {
 
     val minTouchTarget: Dp = 48.dp
     val coverSmall: Dp = 64.dp
+    val ratingStarSize: Dp = 32.dp
     val coverDetail: Dp = 220.dp
     val coverHeroHeight: Dp = 320.dp
     val coverBlur: Dp = 40.dp

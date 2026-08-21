@@ -14,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -29,6 +30,9 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.youneko.rate.R
+import com.youneko.rate.ui.YnDimens
+import com.youneko.rate.ui.YnMotion
+import com.youneko.rate.ui.rememberReducedMotion
 import java.util.Locale
 import kotlin.math.round
 
@@ -42,7 +46,8 @@ fun StarRatingBar(
     enabled: Boolean = true,
 ) {
     val haptic = LocalHapticFeedback.current
-    val scale by animateFloatAsState(if (value != null) 1.04f else 1f, label = "starScale")
+    val reducedMotion = rememberReducedMotion()
+    val scale by animateFloatAsState(if (value != null) 1.04f else 1f, animationSpec = YnMotion.springOrSnap(reducedMotion), label = "starScale")
     val current = value ?: 0.0
     val description = stringResource(R.string.rating_accessibility, current)
     Row(
@@ -67,7 +72,10 @@ fun StarRatingBar(
                 detectDragGestures(
                     onDragStart = { offset ->
                         val next = quantize((offset.x / size.width.toFloat()) * 5.0, step)
-                        if (next != value) onValueChange(next)
+                        if (next != value) {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onValueChange(next)
+                        }
                     },
                     onDrag = { change, _ ->
                         val next = quantize((change.position.x / size.width.toFloat()) * 5.0, step)
@@ -83,12 +91,12 @@ fun StarRatingBar(
     ) {
         repeat(5) { index ->
             val fill = (current - index).coerceIn(0.0, 1.0).toFloat()
-            Box(Modifier.size(26.dp)) {
+            Box(Modifier.size(YnDimens.ratingStarSize)) {
                 Icon(
                     imageVector = Icons.Outlined.StarBorder,
                     contentDescription = null,
-                    tint = Color(0xFFB9B3C2),
-                    modifier = Modifier.size(26.dp),
+                    tint = MaterialTheme.colorScheme.outlineVariant,
+                    modifier = Modifier.size(YnDimens.ratingStarSize),
                 )
                 if (fill > 0f) {
                     Box(
@@ -100,15 +108,15 @@ fun StarRatingBar(
                         Icon(
                             imageVector = Icons.Default.Star,
                             contentDescription = null,
-                            tint = Color(0xFFFFB84D),
-                            modifier = Modifier.size(26.dp),
+                            tint = MaterialTheme.colorScheme.tertiary,
+                            modifier = Modifier.size(YnDimens.ratingStarSize),
                         )
                     }
                 }
             }
         }
         Text(
-            text = value?.let { String.format(Locale.getDefault(), "%.1f", it) } ?: "—",
+            text = value?.let { String.format(Locale.getDefault(), "%.1f", it) } ?: stringResource(R.string.not_rated),
             modifier = Modifier.padding(start = 4.dp),
         )
     }
