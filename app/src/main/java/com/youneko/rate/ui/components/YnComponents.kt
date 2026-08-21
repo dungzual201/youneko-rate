@@ -1,8 +1,11 @@
 package com.youneko.rate.ui.components
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -47,6 +50,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
@@ -63,6 +67,8 @@ import com.youneko.rate.data.local.entity.ArtistEntity
 import com.youneko.rate.data.local.entity.TrackEntity
 import com.youneko.rate.ui.YounekoRateTheme
 import com.youneko.rate.ui.YnDimens
+import com.youneko.rate.ui.YnMotion
+import com.youneko.rate.ui.rememberReducedMotion
 import com.youneko.rate.ui.artwork.CoverArtImage
 
 @Composable
@@ -164,8 +170,12 @@ enum class YnButtonState { Idle, Loading, Success }
 @Composable
 fun YnPrimaryButton(label: String, state: YnButtonState, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val haptic = LocalHapticFeedback.current
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val reducedMotion = rememberReducedMotion()
+    val pressScale by animateFloatAsState(if (pressed) 0.96f else 1f, YnMotion.springOrSnap(reducedMotion), label = "primaryButtonScale")
     LaunchedEffect(state) { if (state == YnButtonState.Success) haptic.performHapticFeedback(HapticFeedbackType.Confirm) }
-    Button(onClick = onClick, enabled = state != YnButtonState.Loading, modifier = modifier.semantics { contentDescription = label }) {
+    Button(onClick = onClick, enabled = state != YnButtonState.Loading, interactionSource = interactionSource, modifier = modifier.graphicsLayer { scaleX = pressScale; scaleY = pressScale }.semantics { contentDescription = label }) {
         when (state) {
             YnButtonState.Idle -> Text(label)
             YnButtonState.Loading -> { CircularProgressIndicator(Modifier.size(YnDimens.space3), strokeWidth = 2.dp); Spacer(Modifier.width(YnDimens.space2)); Text(stringResource(R.string.loading)) }
