@@ -4,6 +4,7 @@ import com.youneko.rate.ui.YounekoEmptyState
 import com.youneko.rate.ui.YounekoErrorState
 import com.youneko.rate.ui.YounekoLoadingState
 import com.youneko.rate.ui.YounekoSpacing
+import com.youneko.rate.ui.YnDimens
 import com.youneko.rate.ui.YounekoRadius
 import com.youneko.rate.ui.ThemeMode
 import com.youneko.rate.ui.rememberReducedMotion
@@ -49,6 +50,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FilterList
@@ -92,6 +94,11 @@ import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.LargeTopAppBar
+import androidx.compose.material3.SearchBar
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -174,36 +181,46 @@ fun LibraryScreen(
     }
     var showFilters by rememberSaveable { mutableStateOf(false) }
     var onlineMode by rememberSaveable { mutableStateOf(false) }
+    var searchActive by rememberSaveable { mutableStateOf(false) }
     Column(modifier = Modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            OutlinedTextField(
-                value = state.query,
-                onValueChange = { query ->
-                    viewModel.setQuery(query)
-                    if (onlineMode) onlineViewModel.setQuery(query)
-                },
-                modifier = Modifier.weight(1f),
-                singleLine = true,
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                placeholder = { Text(stringResource(R.string.search_hint)) },
-            )
-            Spacer(Modifier.width(4.dp))
-            IconButton(onClick = { showFilters = true }) {
-                Icon(Icons.Default.FilterList, contentDescription = stringResource(R.string.filters))
-            }
-            IconButton(onClick = { viewModel.setGridView(!state.gridView) }) {
-                Icon(
-                    if (state.gridView) Icons.Default.List else Icons.Default.GridView,
-                    contentDescription = if (state.gridView) stringResource(R.string.library_list) else stringResource(R.string.library_grid),
+        LargeTopAppBar(
+            title = { Text(stringResource(R.string.library), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            actions = {
+                IconButton(onClick = { showFilters = true }) {
+                    Icon(Icons.Default.FilterList, contentDescription = stringResource(R.string.filters))
+                }
+                IconButton(onClick = { viewModel.setGridView(!state.gridView) }) {
+                    Icon(
+                        if (state.gridView) Icons.Default.List else Icons.Default.GridView,
+                        contentDescription = if (state.gridView) stringResource(R.string.library_list) else stringResource(R.string.library_grid),
+                    )
+                }
+            },
+        )
+        SearchBar(
+            query = state.query,
+            onQueryChange = { query ->
+                viewModel.setQuery(query)
+                if (onlineMode) onlineViewModel.setQuery(query)
+            },
+            onSearch = { searchActive = false },
+            active = searchActive,
+            onActiveChange = { searchActive = it },
+            placeholder = { Text(stringResource(R.string.search_hint)) },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = stringResource(R.string.search)) },
+            trailingIcon = if (state.query.isNotBlank()) ({ IconButton(onClick = { viewModel.setQuery("") }) { Icon(Icons.Default.Close, contentDescription = stringResource(R.string.close)) } }) else null,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = YnDimens.space4),
+        ) { Text(stringResource(R.string.search_library), Modifier.padding(YnDimens.space4)) }
+        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = YnDimens.space4, vertical = YnDimens.space2)) {
+            val labels = listOf(stringResource(R.string.search_on_device), stringResource(R.string.search_online))
+            labels.forEachIndexed { index, label ->
+                SegmentedButton(
+                    selected = onlineMode == (index == 1),
+                    onClick = { onlineMode = index == 1; if (onlineMode) onlineViewModel.setQuery(state.query) },
+                    shape = SegmentedButtonDefaults.itemShape(index = index, count = labels.size),
+                    label = { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 )
             }
-        }
-        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(selected = !onlineMode, onClick = { onlineMode = false }, label = { Text(stringResource(R.string.search_on_device)) })
-            FilterChip(selected = onlineMode, onClick = { onlineMode = true; onlineViewModel.setQuery(state.query) }, label = { Text(stringResource(R.string.search_online)) })
         }
         Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TextButton(onClick = onOpenAdvancedSearch) { Text(stringResource(R.string.advanced_search)) }
