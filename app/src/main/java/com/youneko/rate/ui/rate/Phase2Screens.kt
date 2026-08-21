@@ -114,6 +114,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -645,12 +646,11 @@ fun AlbumDetailScreen(
                         }
                     }
                 }
-                Box(
-                    Modifier.fillMaxWidth().aspectRatio(1f).clickable(enabled = value.album.coverUri != null) { showFullCover = true },
-                ) {
-                    CoverArtImage(value.album.coverUri, Modifier.fillMaxSize(), placeholderSeed = value.album.id, placeholderLabel = value.album.title)
+                Box(Modifier.fillMaxWidth().height(YnDimens.coverHeroHeight), contentAlignment = Alignment.Center) {
+                    CoverArtImage(value.album.coverUri, Modifier.fillMaxSize().blur(YnDimens.coverBlur).graphicsLayer { alpha = 0.18f }, placeholderSeed = value.album.id, placeholderLabel = value.album.title)
+                    CoverArtImage(value.album.coverUri, Modifier.size(YnDimens.coverDetail).clickable(enabled = value.album.coverUri != null) { showFullCover = true }, placeholderSeed = value.album.id, placeholderLabel = value.album.title)
                 }
-                Text(value.album.title, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(top = 12.dp))
+                Text(value.album.title, style = MaterialTheme.typography.displaySmall, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = YnDimens.space3))
                 TextButton(onClick = { value.artist?.id?.let(onOpenArtist) }, enabled = value.artist != null) { Text(value.artist?.name.orEmpty(), style = MaterialTheme.typography.titleMedium) }
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 8.dp)) {
                     Text(value.score?.let { "${it.effectiveScore.format2()}★" } ?: stringResource(R.string.not_rated), style = MaterialTheme.typography.displaySmall, color = MaterialTheme.colorScheme.primary)
