@@ -106,7 +106,7 @@ fun MusicBrainzSearchPanel(
                 }
             }
             LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(results.itemCount) { index ->
+                items(results.itemCount, key = { index -> results.peek(index)?.id ?: "page-$index" }) { index ->
                     results[index]?.let { MusicBrainzResultCard(it, viewModel::openPreview) }
                 }
                 if (results.loadState.append is LoadState.Loading) {

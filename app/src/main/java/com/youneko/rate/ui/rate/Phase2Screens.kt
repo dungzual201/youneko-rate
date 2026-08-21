@@ -975,7 +975,7 @@ private fun LyricsFullscreenDialog(lyrics: Lyrics?, timestamps: Boolean, onDismi
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                         verticalArrangement = Arrangement.Top,
                     ) {
-                        items(lines.size) { index -> LyricLineText(lines[index], timestamps, agents) }
+                        items(lines.size, key = { index -> "${lines[index].startMs}-$index" }) { index -> LyricLineText(lines[index], timestamps, agents) }
                     }
                 }
             }

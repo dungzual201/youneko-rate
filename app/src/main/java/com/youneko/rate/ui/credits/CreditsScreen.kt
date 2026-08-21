@@ -422,7 +422,7 @@ fun CreditsScreen(
 private fun SourcePicker(state: CreditsUiState, onToggle: (CreditSourceId) -> Unit, onSettings: () -> Unit, onMergeMode: (Boolean) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            items(CreditSourceId.entries.toList() + null) { id ->
+            items(CreditSourceId.entries.toList() + null, key = { id -> id?.name ?: "more-sources" }) { id ->
                 if (id == null) AssistChip(onClick = onSettings, label = { Text(stringResource(R.string.credits_more_sources)) })
                 else {
                     val active = id in state.activeSources

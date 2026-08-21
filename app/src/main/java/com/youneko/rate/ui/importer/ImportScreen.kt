@@ -130,7 +130,7 @@ fun ImportScreen(
                         columns = GridCells.Fixed(3),
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        items(pickerEntry.value) { candidate ->
+                        items(pickerEntry.value, key = { candidate -> "${candidate.sourceProvider}:${candidate.url}" }) { candidate ->
                             Column(
                                 Modifier.padding(4.dp).clickable { viewModel.chooseCoverCandidate(pickerGroup, candidate) },
                                 horizontalAlignment = Alignment.CenterHorizontally,
