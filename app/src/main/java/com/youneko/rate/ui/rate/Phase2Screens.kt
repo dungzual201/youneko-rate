@@ -336,7 +336,7 @@ private fun EmptyLibrary(onAdd: () -> Unit, hasQuery: Boolean) {
 private fun AlbumCard(item: LibraryAlbum, onOpen: (String) -> Unit) {
     Card(onClick = { onOpen(item.album.id) }, shape = RoundedCornerShape(YounekoRadius.lg), modifier = Modifier.animateContentSize(animationSpec = younekoSpring(rememberReducedMotion()))) {
         Column(Modifier.padding(YounekoSpacing.md)) {
-            CoverArtImage(item.album.coverUri, Modifier.fillMaxWidth().aspectRatio(1f))
+            CoverArtImage(item.album.coverUri, Modifier.fillMaxWidth().aspectRatio(1f), placeholderSeed = item.album.id, placeholderLabel = item.album.title)
             Spacer(Modifier.height(YounekoSpacing.xs))
             Text(item.album.title, maxLines = 2, style = MaterialTheme.typography.titleMedium)
             Text(item.artist?.name.orEmpty(), maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
@@ -349,7 +349,7 @@ private fun AlbumCard(item: LibraryAlbum, onOpen: (String) -> Unit) {
 private fun AlbumListRow(item: LibraryAlbum, onOpen: (String) -> Unit) {
     Card(onClick = { onOpen(item.album.id) }, shape = RoundedCornerShape(YounekoRadius.lg), modifier = Modifier.fillMaxWidth().animateContentSize(animationSpec = younekoSpring(rememberReducedMotion()))) {
         Row(Modifier.padding(YounekoSpacing.md), verticalAlignment = Alignment.CenterVertically) {
-            CoverArtImage(item.album.coverUri, Modifier.size(64.dp))
+            CoverArtImage(item.album.coverUri, Modifier.size(64.dp), placeholderSeed = item.album.id, placeholderLabel = item.album.title)
             Column(Modifier.weight(1f).padding(start = YounekoSpacing.md)) {
                 Text(item.album.title, style = MaterialTheme.typography.titleMedium)
                 Text(item.artist?.name.orEmpty(), style = MaterialTheme.typography.bodySmall)
@@ -631,7 +631,7 @@ fun AlbumDetailScreen(
                 Box(
                     Modifier.fillMaxWidth().aspectRatio(1f).clickable(enabled = value.album.coverUri != null) { showFullCover = true },
                 ) {
-                    CoverArtImage(value.album.coverUri, Modifier.fillMaxSize())
+                    CoverArtImage(value.album.coverUri, Modifier.fillMaxSize(), placeholderSeed = value.album.id, placeholderLabel = value.album.title)
                 }
                 Text(value.album.title, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(top = 12.dp))
                 TextButton(onClick = { value.artist?.id?.let(onOpenArtist) }, enabled = value.artist != null) { Text(value.artist?.name.orEmpty(), style = MaterialTheme.typography.titleMedium) }
