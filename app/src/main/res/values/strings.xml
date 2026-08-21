@@ -197,6 +197,9 @@
     <string name="online_results">MusicBrainz results</string>
     <string name="online_enter_query">Enter an album name to search MusicBrainz.</string>
     <string name="retry">Try again</string>
+    <string name="loading">Loading…</string>
+    <string name="saved">Saved</string>
+    <string name="confirm">Confirm</string>
     <string name="online_choose_release">Choose a release</string>
     <string name="online_import_conflict_title">Album may already exist</string>
     <string name="online_import_conflict_body">Choose how to handle %1$s.</string>

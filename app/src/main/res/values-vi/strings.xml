@@ -197,6 +197,9 @@
     <string name="online_results">Kết quả MusicBrainz</string>
     <string name="online_enter_query">Nhập tên album để tìm kiếm trên MusicBrainz.</string>
     <string name="retry">Thử lại</string>
+    <string name="loading">Đang tải…</string>
+    <string name="saved">Đã lưu</string>
+    <string name="confirm">Xác nhận</string>
     <string name="online_choose_release">Chọn bản phát hành</string>
     <string name="online_import_conflict_title">Có thể album đã tồn tại</string>
     <string name="online_import_conflict_body">Chọn cách xử lý %1$s.</string>
