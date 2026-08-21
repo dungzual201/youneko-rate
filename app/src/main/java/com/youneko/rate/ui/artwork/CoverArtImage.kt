@@ -95,12 +95,12 @@ private fun CoverArtPlaceholder(
         }
         return
     }
-    val hash = seed.ifBlank { label.orEmpty() }.hashCode().toUInt().toLong()
+    val hash = "${seed}\u0000${label.orEmpty()}".hashCode().toUInt().toLong()
     val hue = (hash % 360L).toFloat()
     val first = Color.hsv(hue, 0.42f, 0.78f)
     val second = Color.hsv((hue + 42f) % 360f, 0.34f, 0.62f)
     val letter = label.orEmpty().trim().firstOrNull()?.uppercase() ?: "?"
-    val foreground = if ((first.red * 0.299f + first.green * 0.587f + first.blue * 0.114f) > 0.58f) Color(0xFF231A2A) else Color.White
+    val foreground = if ((first.red * 0.299f + first.green * 0.587f + first.blue * 0.114f) > 0.58f) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.inverseOnSurface
     Box(modifier.background(Brush.linearGradient(listOf(first, second))), contentAlignment = Alignment.Center) {
         Icon(Icons.Default.Pets, contentDescription = null, tint = foreground.copy(alpha = 0.08f), modifier = Modifier.fillMaxSize(0.72f))
         Text(letter, color = foreground, style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)

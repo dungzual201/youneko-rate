@@ -189,6 +189,7 @@ class BackupArchiveTest {
         override val scoreMode: Flow<String> = MutableStateFlow("SIMPLE")
         override val gridView: Flow<Boolean> = MutableStateFlow(true)
         override val dynamicColor: Flow<Boolean> = MutableStateFlow(false)
+        override val reducedMotion: Flow<Boolean> = MutableStateFlow(false)
         override val sortOrder: Flow<String> = MutableStateFlow("NEWEST")
         override val unfinishedOnly: Flow<Boolean> = MutableStateFlow(false)
         override val discogsEnabled: Flow<Boolean> = MutableStateFlow(false)
@@ -207,6 +208,7 @@ class BackupArchiveTest {
         override suspend fun setScoreMode(value: String) = Unit
         override suspend fun setGridView(value: Boolean) = Unit
         override suspend fun setDynamicColor(value: Boolean) = Unit
+        override suspend fun setReducedMotion(value: Boolean) = Unit
         override suspend fun setSortOrder(value: String) = Unit
         override suspend fun setUnfinishedOnly(value: Boolean) = Unit
         override suspend fun setDiscogsEnabled(value: Boolean) = Unit

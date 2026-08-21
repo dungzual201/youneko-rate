@@ -383,7 +383,7 @@ private fun AlbumListRow(item: LibraryAlbum, onOpen: (String) -> Unit) {
 private fun ScoreLine(item: LibraryAlbum) {
     val score = item.score
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(Icons.Default.Star, contentDescription = null, tint = Color(0xFFFFB84D), modifier = Modifier.size(18.dp))
+        Icon(Icons.Default.Star, contentDescription = null, tint = MaterialTheme.colorScheme.tertiary, modifier = Modifier.size(YnDimens.space3))
         Text(score?.let { "${it.effectiveScore.format2()}★" } ?: stringResource(R.string.not_rated), style = MaterialTheme.typography.labelLarge)
         if (score != null) Text(" · ${score.ratedCount}/${score.totalCount}", style = MaterialTheme.typography.labelSmall)
     }

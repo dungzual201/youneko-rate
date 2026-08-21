@@ -221,6 +221,7 @@ class MusicBrainzNetworkTest {
         override val scoreMode = flowOf("SIMPLE")
         override val gridView = flowOf(true)
         override val dynamicColor = flowOf(false)
+        override val reducedMotion = flowOf(false)
         override val sortOrder = flowOf("NEWEST")
         override val unfinishedOnly = flowOf(false)
         override val discogsEnabled = flowOf(false)
@@ -239,6 +240,7 @@ class MusicBrainzNetworkTest {
         override suspend fun setScoreMode(value: String) = Unit
         override suspend fun setGridView(value: Boolean) = Unit
         override suspend fun setDynamicColor(value: Boolean) = Unit
+        override suspend fun setReducedMotion(value: Boolean) = Unit
         override suspend fun setSortOrder(value: String) = Unit
         override suspend fun setUnfinishedOnly(value: Boolean) = Unit
         override suspend fun setDiscogsEnabled(value: Boolean) = Unit

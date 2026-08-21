@@ -27,7 +27,9 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import com.youneko.rate.ui.YnDimens
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -115,14 +117,10 @@ fun YounekoStaggeredColumn(
 
 @Composable
 fun YounekoShimmer(modifier: Modifier = Modifier, lines: Int = 2) {
-    val shimmer = Brush.linearGradient(listOf(Color.Transparent, Color.White.copy(alpha = 0.28f), Color.Transparent))
+    val shimmer = Brush.linearGradient(listOf(Color.Transparent, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f), Color.Transparent))
     Column(modifier, verticalArrangement = Arrangement.spacedBy(YounekoSpacing.xs)) {
-        Box(Modifier.fillMaxWidth().size(104.dp).background(MaterialThemeTokens.placeholder, RoundedCornerShape(YounekoRadius.md)))
-        repeat(lines) { index -> Box(Modifier.fillMaxWidth(if (index == lines - 1) 0.62f else 0.9f).height(14.dp).background(MaterialThemeTokens.placeholder, RoundedCornerShape(YounekoRadius.sm))) }
-        Box(Modifier.fillMaxWidth().height(2.dp).background(shimmer))
+        Box(Modifier.fillMaxWidth().size(YnDimens.coverSmall).background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(YounekoRadius.md)))
+        repeat(lines) { index -> Box(Modifier.fillMaxWidth(if (index == lines - 1) 0.62f else 0.9f).height(YounekoSpacing.xs).background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(YounekoRadius.sm))) }
+        Box(Modifier.fillMaxWidth().height(YnDimens.space1).background(shimmer))
     }
-}
-
-private object MaterialThemeTokens {
-    val placeholder = Color(0xFFE3DCE8)
 }

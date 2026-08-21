@@ -116,6 +116,7 @@ private class FakeSettingsStore : SettingsStore {
     override val scoreMode = MutableStateFlow("SIMPLE")
     override val gridView = MutableStateFlow(true)
     override val dynamicColor = MutableStateFlow(false)
+    override val reducedMotion = MutableStateFlow(false)
     override val sortOrder = MutableStateFlow("NEWEST")
     override val unfinishedOnly = MutableStateFlow(false)
     override val discogsEnabled = MutableStateFlow(false)
@@ -134,6 +135,7 @@ private class FakeSettingsStore : SettingsStore {
     override suspend fun setScoreMode(value: String) { scoreMode.value = value }
     override suspend fun setGridView(value: Boolean) { gridView.value = value }
     override suspend fun setDynamicColor(value: Boolean) { dynamicColor.value = value }
+    override suspend fun setReducedMotion(value: Boolean) { reducedMotion.value = value }
     override suspend fun setSortOrder(value: String) { sortOrder.value = value }
     override suspend fun setUnfinishedOnly(value: Boolean) { unfinishedOnly.value = value }
     override suspend fun setDiscogsEnabled(value: Boolean) { discogsEnabled.value = value }

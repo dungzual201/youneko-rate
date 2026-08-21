@@ -621,9 +621,10 @@ private fun SpectrumChart(values: List<Float>, cutoffHz: Double?, sampleRate: In
     }
 }
 
+@Composable
 private fun verdictColor(verdict: String): Color = when {
-    verdict.startsWith("LOSSLESS") || verdict == "HI-RES THỰC" -> Color(0xFF2E7D32)
-    verdict.startsWith("LOSSY") -> Color(0xFF1565C0)
-    verdict == "CÓ DẤU HIỆU NGUỒN LOSSY" || verdict == "NGHI NGỜ UPSAMPLE" -> Color(0xFFC62828)
-    else -> Color(0xFF6D4C41)
+    verdict.startsWith("LOSSLESS") || verdict == "HI-RES THỰC" -> MaterialTheme.colorScheme.primary
+    verdict.startsWith("LOSSY") -> MaterialTheme.colorScheme.tertiary
+    verdict == "CÓ DẤU HIỆU NGUỒN LOSSY" || verdict == "NGHI NGỜ UPSAMPLE" -> MaterialTheme.colorScheme.error
+    else -> MaterialTheme.colorScheme.onSurfaceVariant
 }
