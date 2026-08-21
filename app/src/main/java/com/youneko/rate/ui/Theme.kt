@@ -11,7 +11,9 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import com.youneko.rate.R
 import androidx.compose.ui.text.font.FontWeight
 
 private val BrandLightColors = lightColorScheme(
@@ -48,13 +50,24 @@ private val BrandDarkColors = darkColorScheme(
     outline = Color(0xFF968D98),
 )
 
+private val DisplayFont = FontFamily(Font(R.font.youneko_display, FontWeight.Normal), Font(R.font.youneko_display, FontWeight.Bold))
+private val BodyFont = FontFamily(Font(R.font.youneko_body, FontWeight.Normal), Font(R.font.youneko_body, FontWeight.Medium), Font(R.font.youneko_body, FontWeight.Bold))
+
 private val YounekoTypography = Typography().let { base ->
     base.copy(
-        displayLarge = base.displayLarge.copy(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Bold),
-        displayMedium = base.displayMedium.copy(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Bold),
-        headlineLarge = base.headlineLarge.copy(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Bold),
-        headlineMedium = base.headlineMedium.copy(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.SemiBold),
-        titleLarge = base.titleLarge.copy(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.SemiBold),
+        displayLarge = base.displayLarge.copy(fontFamily = DisplayFont, fontWeight = FontWeight.Bold),
+        displayMedium = base.displayMedium.copy(fontFamily = DisplayFont, fontWeight = FontWeight.Bold),
+        displaySmall = base.displaySmall.copy(fontFamily = DisplayFont, fontWeight = FontWeight.Bold),
+        headlineLarge = base.headlineLarge.copy(fontFamily = DisplayFont, fontWeight = FontWeight.Bold),
+        headlineMedium = base.headlineMedium.copy(fontFamily = DisplayFont, fontWeight = FontWeight.Bold),
+        headlineSmall = base.headlineSmall.copy(fontFamily = DisplayFont, fontWeight = FontWeight.Bold),
+        titleLarge = base.titleLarge.copy(fontFamily = DisplayFont, fontWeight = FontWeight.Bold),
+        bodyLarge = base.bodyLarge.copy(fontFamily = BodyFont),
+        bodyMedium = base.bodyMedium.copy(fontFamily = BodyFont),
+        bodySmall = base.bodySmall.copy(fontFamily = BodyFont),
+        labelLarge = base.labelLarge.copy(fontFamily = BodyFont),
+        labelMedium = base.labelMedium.copy(fontFamily = BodyFont),
+        labelSmall = base.labelSmall.copy(fontFamily = BodyFont),
     )
 }
 
