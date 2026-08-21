@@ -32,8 +32,9 @@ class MainActivity : AppCompatActivity() {
         setContent {
             val settings = remember { SettingsDataStore(applicationContext) }
             val dynamicColor by settings.dynamicColor.collectAsState(initial = false)
+            val reducedMotion by settings.reducedMotion.collectAsState(initial = false)
             val themeModeName by settings.themeMode.collectAsState(initial = "SYSTEM")
-            YounekoRateTheme(dynamicColor = dynamicColor, themeMode = runCatching { ThemeMode.valueOf(themeModeName) }.getOrDefault(ThemeMode.SYSTEM)) {
+            YounekoRateTheme(dynamicColor = dynamicColor, reducedMotion = reducedMotion, themeMode = runCatching { ThemeMode.valueOf(themeModeName) }.getOrDefault(ThemeMode.SYSTEM)) {
                 YounekoNavHost()
             }
         }

@@ -8,11 +8,14 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.snap
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+
+val LocalReducedMotion = compositionLocalOf { false }
 
 object YounekoSpacing {
     val xxs: Dp = 4.dp
@@ -38,7 +41,9 @@ object YounekoElevation {
 fun rememberReducedMotion(): Boolean {
     val context = LocalContext.current
     val view = LocalView.current
-    return remember(context, view) {
+    val appReducedMotion = LocalReducedMotion.current
+    return remember(context, view, appReducedMotion) {
+        if (appReducedMotion) return@remember true
         runCatching {
             Settings.Global.getFloat(
                 context.contentResolver,

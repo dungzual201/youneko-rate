@@ -184,6 +184,9 @@
     <string name="language_english">Tiếng Anh</string>
     <string name="language_vietnamese">Tiếng Việt</string>
     <string name="dynamic_color">Màu theo hệ thống</string>
+    <string name="appearance">Giao diện</string>
+    <string name="reduce_motion">Giảm chuyển động</string>
+    <string name="reduce_motion_body">Rút ngắn hoặc tắt các chuyển động không cần thiết.</string>
     <string name="dynamic_color_body">Bật để dùng màu chủ đề của Android thay cho tím pastel và trắng kem.</string>
     <string name="search_library">Tìm album, nghệ sĩ, bài hát hoặc nhận xét</string>
     <string name="search_hint">Tìm album, nghệ sĩ, bài hát hoặc nhận xét</string>

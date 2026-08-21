@@ -325,6 +325,8 @@ class ScoreSettingsViewModel @Inject constructor(
     val offlineOnly = settings.offlineOnly.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
     val dynamicColor: StateFlow<Boolean> = settings.dynamicColor
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+    val reducedMotion: StateFlow<Boolean> = settings.reducedMotion
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
     val ratingScale: StateFlow<RatingScale> = settings.ratingScale.map(RatingScale::parse).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RatingScale.FIVE_STARS)
     val scoreMode: StateFlow<ScoreMode> = settings.scoreMode
         .map { if (it == "WEIGHTED_BY_DURATION") ScoreMode.WEIGHTED_BY_DURATION else ScoreMode.SIMPLE }
@@ -351,6 +353,10 @@ class ScoreSettingsViewModel @Inject constructor(
 
     fun setDynamicColor(enabled: Boolean) = viewModelScope.launch(Dispatchers.IO) {
         settings.setDynamicColor(enabled)
+    }
+
+    fun setReducedMotion(enabled: Boolean) = viewModelScope.launch(Dispatchers.IO) {
+        settings.setReducedMotion(enabled)
     }
 
     fun setDiscogsEnabled(enabled: Boolean) = viewModelScope.launch(Dispatchers.IO) { settings.setDiscogsEnabled(enabled) }

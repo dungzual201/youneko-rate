@@ -58,6 +58,9 @@ import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Highlight
 import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pets
 import androidx.compose.material.icons.filled.RemoveCircleOutline
@@ -116,6 +119,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -1019,11 +1023,20 @@ class StandaloneViewModel @javax.inject.Inject constructor(
 ) : androidx.lifecycle.ViewModel()
 
 @Composable
+private fun SettingsSectionHeader(title: String, icon: ImageVector) {
+    Row(Modifier.fillMaxWidth().padding(top = YnDimens.space3), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(YnDimens.space2)) {
+        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(YnDimens.minTouchTarget).padding(YnDimens.space2))
+        Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+    }
+}
+
+@Composable
 fun SettingsScreen(onOpenExport: () -> Unit = {}, viewModel: ScoreSettingsViewModel = hiltViewModel()) {
     val mode by viewModel.scoreMode.collectAsStateWithLifecycle()
     val ratingScale by viewModel.ratingScale.collectAsStateWithLifecycle()
     val offlineOnly by viewModel.offlineOnly.collectAsStateWithLifecycle()
     val dynamicColor by viewModel.dynamicColor.collectAsStateWithLifecycle()
+    val reducedMotion by viewModel.reducedMotion.collectAsStateWithLifecycle()
     val discogsEnabled by viewModel.discogsEnabled.collectAsStateWithLifecycle()
     val discogsToken by viewModel.discogsToken.collectAsStateWithLifecycle()
     val lastFmEnabled by viewModel.lastFmEnabled.collectAsStateWithLifecycle()
@@ -1041,7 +1054,7 @@ fun SettingsScreen(onOpenExport: () -> Unit = {}, viewModel: ScoreSettingsViewMo
     val themeModeName by settingsStore.themeMode.collectAsStateWithLifecycle(initialValue = ThemeMode.SYSTEM.name)
     val settingsScope = rememberCoroutineScope()
     Column(Modifier.fillMaxSize().padding(YounekoSpacing.md), verticalArrangement = Arrangement.spacedBy(YounekoSpacing.sm)) {
-        Text(stringResource(R.string.language), style = MaterialTheme.typography.titleLarge)
+        SettingsSectionHeader(stringResource(R.string.language), Icons.Default.Language)
         FilterChip(
             selected = applicationLanguage.isBlank(),
             onClick = { AppCompatDelegate.setApplicationLocales(LocaleListCompat.getEmptyLocaleList()) },
@@ -1057,7 +1070,8 @@ fun SettingsScreen(onOpenExport: () -> Unit = {}, viewModel: ScoreSettingsViewMo
             onClick = { AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags("vi")) },
             label = { Text(stringResource(R.string.language_vietnamese), maxLines = 3, overflow = TextOverflow.Ellipsis) },
         )
-        Text(stringResource(R.string.theme_mode), style = MaterialTheme.typography.titleLarge)
+        SettingsSectionHeader(stringResource(R.string.appearance), Icons.Default.Palette)
+        Text(stringResource(R.string.theme_mode), style = MaterialTheme.typography.titleMedium)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(YounekoSpacing.xs)) {
             ThemeMode.entries.forEach { option ->
                 FilterChip(
@@ -1067,7 +1081,7 @@ fun SettingsScreen(onOpenExport: () -> Unit = {}, viewModel: ScoreSettingsViewMo
                 )
             }
         }
-        Text(stringResource(R.string.score_mode), style = MaterialTheme.typography.titleLarge)
+        SettingsSectionHeader(stringResource(R.string.score_mode), Icons.Default.Star)
         FilterChip(
             selected = mode == ScoreMode.SIMPLE,
             onClick = { viewModel.setScoreMode(ScoreMode.SIMPLE) },
@@ -1088,7 +1102,9 @@ fun SettingsScreen(onOpenExport: () -> Unit = {}, viewModel: ScoreSettingsViewMo
             label = { Text(stringResource(R.string.dynamic_color)) },
         )
         Text(stringResource(R.string.dynamic_color_body), style = MaterialTheme.typography.bodySmall)
-        Text(stringResource(R.string.data_sources), style = MaterialTheme.typography.titleLarge)
+        FilterChip(selected = reducedMotion, onClick = { viewModel.setReducedMotion(!reducedMotion) }, label = { Text(stringResource(R.string.reduce_motion)) })
+        Text(stringResource(R.string.reduce_motion_body), style = MaterialTheme.typography.bodySmall)
+        SettingsSectionHeader(stringResource(R.string.data_sources), Icons.Default.Settings)
         MediaScanRootManager()
         FilterChip(
             selected = offlineOnly,
@@ -1148,7 +1164,7 @@ fun SettingsScreen(onOpenExport: () -> Unit = {}, viewModel: ScoreSettingsViewMo
             label = { Text(stringResource(R.string.credits_show_sources)) },
         )
         HorizontalDivider()
-        Text(stringResource(R.string.credits_sources_settings), style = MaterialTheme.typography.titleLarge)
+        SettingsSectionHeader(stringResource(R.string.credits_sources_settings), Icons.Default.Settings)
         Text(stringResource(R.string.credits_source_order), style = MaterialTheme.typography.bodySmall)
         creditSourceOrder.forEach { id ->
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

@@ -29,6 +29,7 @@ interface SettingsStore {
     val scoreMode: Flow<String>
     val gridView: Flow<Boolean>
     val dynamicColor: Flow<Boolean>
+    val reducedMotion: Flow<Boolean>
     val sortOrder: Flow<String>
     val unfinishedOnly: Flow<Boolean>
     val discogsEnabled: Flow<Boolean>
@@ -48,6 +49,7 @@ interface SettingsStore {
     suspend fun setScoreMode(value: String)
     suspend fun setGridView(value: Boolean)
     suspend fun setDynamicColor(value: Boolean)
+    suspend fun setReducedMotion(value: Boolean)
     suspend fun setSortOrder(value: String)
     suspend fun setUnfinishedOnly(value: Boolean)
     suspend fun setDiscogsEnabled(value: Boolean)
@@ -155,6 +157,7 @@ class SettingsDataStore(private val context: Context) : SettingsStore {
         val scoreMode = stringPreferencesKey("score_mode")
         val gridView = booleanPreferencesKey("library_grid_view")
         val dynamicColor = booleanPreferencesKey("dynamic_color")
+        val reducedMotion = booleanPreferencesKey("reduced_motion")
         val themeMode = stringPreferencesKey("theme_mode")
         val sortOrder = stringPreferencesKey("library_sort_order")
         val unfinishedOnly = booleanPreferencesKey("library_unfinished_only")
@@ -176,6 +179,7 @@ class SettingsDataStore(private val context: Context) : SettingsStore {
     override val scoreMode: Flow<String> = context.settingsDataStore.data.map { it[Keys.scoreMode] ?: "SIMPLE" }
     override val gridView: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.gridView] ?: true }
     override val dynamicColor: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.dynamicColor] ?: false }
+    override val reducedMotion: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.reducedMotion] ?: false }
     override val sortOrder: Flow<String> = context.settingsDataStore.data.map { it[Keys.sortOrder] ?: "NEWEST" }
     override val unfinishedOnly: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.unfinishedOnly] ?: false }
     override val discogsEnabled: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.discogsEnabled] ?: false }
@@ -195,6 +199,7 @@ class SettingsDataStore(private val context: Context) : SettingsStore {
     override suspend fun setScoreMode(value: String) { context.settingsDataStore.edit { it[Keys.scoreMode] = value } }
     override suspend fun setGridView(value: Boolean) { context.settingsDataStore.edit { it[Keys.gridView] = value } }
     override suspend fun setDynamicColor(value: Boolean) { context.settingsDataStore.edit { it[Keys.dynamicColor] = value } }
+    override suspend fun setReducedMotion(value: Boolean) { context.settingsDataStore.edit { it[Keys.reducedMotion] = value } }
     override suspend fun setSortOrder(value: String) { context.settingsDataStore.edit { it[Keys.sortOrder] = value } }
     override suspend fun setUnfinishedOnly(value: Boolean) { context.settingsDataStore.edit { it[Keys.unfinishedOnly] = value } }
     override suspend fun setDiscogsEnabled(value: Boolean) { context.settingsDataStore.edit { it[Keys.discogsEnabled] = value } }

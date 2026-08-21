@@ -9,6 +9,7 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.Font
@@ -78,6 +79,7 @@ fun YounekoRateTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     dynamicColor: Boolean = false,
     themeMode: ThemeMode = ThemeMode.SYSTEM,
+    reducedMotion: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
@@ -93,5 +95,7 @@ fun YounekoRateTheme(
         else -> BrandLightColors
     }
 
-    MaterialTheme(colorScheme = colors, typography = YounekoTypography, content = content)
+    CompositionLocalProvider(LocalReducedMotion provides reducedMotion) {
+        MaterialTheme(colorScheme = colors, typography = YounekoTypography, content = content)
+    }
 }

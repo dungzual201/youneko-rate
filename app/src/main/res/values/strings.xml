@@ -184,6 +184,9 @@
     <string name="language_english">English</string>
     <string name="language_vietnamese">Vietnamese</string>
     <string name="dynamic_color">System colors</string>
+    <string name="appearance">Appearance</string>
+    <string name="reduce_motion">Reduce motion</string>
+    <string name="reduce_motion_body">Shorten or disable non-essential animations.</string>
     <string name="dynamic_color_body">Use Android system colors instead of the pastel purple and cream brand palette.</string>
     <string name="search_library">Search albums, artists, tracks or reviews</string>
     <string name="search_hint">Search albums, artists, tracks or reviews</string>
