@@ -7,10 +7,12 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -94,12 +96,14 @@ fun YnRatingBadge(score: Double?, modifier: Modifier = Modifier, large: Boolean 
 fun YnAlbumCard(item: LibraryAlbum, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Card(onClick = onClick, modifier = modifier, shape = RoundedCornerShape(YnDimens.radiusMd), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
         Column(Modifier.padding(YnDimens.space3), verticalArrangement = Arrangement.spacedBy(YnDimens.space2)) {
-            Box {
-                CoverArtImage(item.album.coverUri, Modifier.fillMaxWidth(), placeholderSeed = item.album.id, placeholderLabel = item.album.title)
+            Box(Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(YnDimens.radiusSm))) {
+                CoverArtImage(item.album.coverUri, Modifier.fillMaxSize(), placeholderSeed = item.album.id, placeholderLabel = item.album.title)
                 YnRatingBadge(item.score?.effectiveScore, Modifier.align(Alignment.BottomEnd).padding(YnDimens.space2))
             }
-            Text(item.album.title, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Text(item.artist?.name.orEmpty(), style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Column(verticalArrangement = Arrangement.spacedBy(YnDimens.space1)) {
+                Text(item.album.title, style = MaterialTheme.typography.titleMedium, minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(item.artist?.name.orEmpty(), style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
         }
     }
 }
