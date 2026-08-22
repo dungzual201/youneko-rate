@@ -54,6 +54,7 @@ import com.youneko.rate.ui.phase12.AdvancedSearchScreen
 import com.youneko.rate.ui.phase12.CollectionsScreen
 import com.youneko.rate.ui.phase12.ArtistPageScreen
 import com.youneko.rate.ui.media.MediaAccessGate
+import com.youneko.rate.ui.coversearch.CoverSearchScreen
 
 private data class AppDestination(
     val route: String,
@@ -89,11 +90,12 @@ fun YounekoNavHost() {
     val isEditor = currentDestination?.route == "addAlbum"
     val isImport = currentDestination?.route == "importTags"
     val isExport = currentDestination?.route == "export"
+    val isCoverSearch = currentDestination?.route?.startsWith("coverSearch/") == true
 
     MediaAccessGate(content = {
         Scaffold(
         topBar = {
-            if (!isLibrary && !isAnalyze && !isDetail && !isCredits && !isEditor && !isImport && !isExport) {
+            if (!isLibrary && !isAnalyze && !isDetail && !isCredits && !isEditor && !isImport && !isExport && !isCoverSearch) {
                 TopAppBar(
                     title = { YnBrandTitle() },
                     actions = {
@@ -105,7 +107,7 @@ fun YounekoNavHost() {
             }
         },
         bottomBar = {
-            if (!isSettings && !isDetail && !isCredits && !isEditor && !isImport && !isExport) {
+            if (!isSettings && !isDetail && !isCredits && !isEditor && !isImport && !isExport && !isCoverSearch) {
                 NavigationBar {
                     destinations.forEach { destination ->
                         val selected = currentDestination?.hierarchy?.any { it.route == destination.route } == true
@@ -167,11 +169,15 @@ fun YounekoNavHost() {
             composable("addAlbum") {
                 AlbumEditorScreen(onSaved = { navController.navigate("album/$it") { popUpTo("library") } }, onCancel = { navController.popBackStack() })
             }
+            composable("coverSearch/{albumId}", arguments = listOf(navArgument("albumId") { type = NavType.StringType })) {
+                CoverSearchScreen(onBack = { navController.popBackStack() })
+            }
             composable("album/{albumId}", arguments = listOf(navArgument("albumId") { type = NavType.StringType })) {
                 AlbumDetailScreen(
                     onBack = { navController.popBackStack() },
                     onOpenArtist = { navController.navigate("artist/$it") },
                     onAnalyzeTrack = { navController.navigate("analyze") },
+                    onSearchCover = { albumId -> navController.navigate("coverSearch/$albumId") },
                     onViewCredits = { albumId, trackId, releaseMbid ->
                         val releasePart = releaseMbid?.let { "&releaseMbid=$it" }.orEmpty()
                         if (trackId == null) {

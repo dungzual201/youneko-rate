@@ -485,5 +485,19 @@
     <string name="cover_share">Chia sẻ ảnh bìa</string>
     <string name="a11y_cover_fullscreen">Ảnh bìa album, toàn màn hình</string>
     <string name="a11y_palette_swatch">Màu %1$s, nhấn giữ để xem mã</string>
+    <string name="menu_search_cover_online">Tìm ảnh bìa trực tuyến</string>
+    <string name="cover_search_title">Tìm ảnh bìa</string>
+    <string name="cover_search_artist">Nghệ sĩ</string>
+    <string name="cover_search_album">Album</string>
+    <string name="cover_search_sources">Nguồn</string>
+    <string name="cover_search_country">Quốc gia</string>
+    <string name="cover_search_none">Không tìm thấy ảnh bìa nào.</string>
+    <string name="cover_use_this">Dùng ảnh này</string>
+    <string name="cover_attribution">Ảnh bìa từ covers.musichoarders.xyz — chỉ dùng cho thư viện cá nhân.</string>
+    <string name="cover_status_searching">Đang tìm…</string>
+    <string name="cover_status_count">%1$d kết quả</string>
+    <string name="cover_status_none">Không có kết quả</string>
+    <string name="cover_status_error">Lỗi</string>
+    <string name="cover_search_reset">Đặt lại</string>
     <string name="palette_copied">Đã sao chép %1$s</string>
 </resources>

@@ -615,6 +615,7 @@ fun AlbumDetailScreen(
     onViewCredits: (albumId: String, trackId: String?, releaseMbid: String?) -> Unit = { _, _, _ -> },
     onOpenArtist: (String) -> Unit = {},
     onAnalyzeTrack: (String) -> Unit = {},
+    onSearchCover: (String) -> Unit = {},
     viewModel: AlbumDetailViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -669,6 +670,7 @@ fun AlbumDetailScreen(
                                 DropdownMenuItem(text = { Text(stringResource(R.string.refresh_metadata), maxLines = 3, overflow = TextOverflow.Ellipsis) }, onClick = { menuExpanded = false; viewModel.refreshMetadata() })
                                 DropdownMenuItem(text = { Text(stringResource(R.string.reload_cover), maxLines = 3, overflow = TextOverflow.Ellipsis) }, onClick = { menuExpanded = false; viewModel.reloadCover() })
                                 DropdownMenuItem(text = { Text(stringResource(R.string.choose_manual_cover), maxLines = 3, overflow = TextOverflow.Ellipsis) }, onClick = { menuExpanded = false; manualCoverPicker.launch(arrayOf("image/*")) })
+                                DropdownMenuItem(text = { Text(stringResource(R.string.menu_search_cover_online), maxLines = 3, overflow = TextOverflow.Ellipsis) }, onClick = { menuExpanded = false; onSearchCover(value.album.id) })
                                 DropdownMenuItem(text = { Text(stringResource(R.string.view_credits), maxLines = 3, overflow = TextOverflow.Ellipsis) }, onClick = { menuExpanded = false; onViewCredits(value.album.id, null, value.album.mbid) })
                                 DropdownMenuItem(text = { Text(stringResource(R.string.delete_album), maxLines = 3, overflow = TextOverflow.Ellipsis) }, onClick = { menuExpanded = false; showDelete = true }, leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) })
                             }
@@ -787,12 +789,13 @@ fun AlbumDetailScreen(
 }
 
 @Composable
-private fun CoverArtFullscreenDialog(
+internal fun CoverArtFullscreenDialog(
     model: Any,
     palette: CoverPalette?,
     onDismiss: () -> Unit,
     onSave: () -> Unit = {},
     onCopied: (String) -> Unit = {},
+    onUse: (() -> Unit)? = null,
 ) {
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
@@ -834,6 +837,11 @@ private fun CoverArtFullscreenDialog(
                         modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 24.dp),
                         onCopied = onCopied,
                     )
+                }
+                onUse?.let { useCover ->
+                    Button(onClick = useCover, modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 88.dp)) {
+                        Text(stringResource(R.string.cover_use_this))
+                    }
                 }
                 Row(Modifier.align(Alignment.TopEnd).padding(12.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     IconButton(onClick = onSave) { Icon(Icons.Default.SaveAlt, contentDescription = stringResource(R.string.cover_save), tint = Color.White) }

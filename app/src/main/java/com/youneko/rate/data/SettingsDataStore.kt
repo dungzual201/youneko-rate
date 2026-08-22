@@ -174,6 +174,8 @@ class SettingsDataStore(private val context: Context) : SettingsStore {
         val spectrogramDbFloor = longPreferencesKey("spectrogram_db_floor")
         val spectrogramLogarithmic = booleanPreferencesKey("spectrogram_logarithmic")
         val spectrogramShowAxes = booleanPreferencesKey("spectrogram_show_axes")
+        val coverSearchSources = stringPreferencesKey("cover_search_sources")
+        val coverSearchCountry = stringPreferencesKey("cover_search_country")
     }
 
     override val offlineOnly: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.offlineOnly] ?: false }
@@ -198,6 +200,8 @@ class SettingsDataStore(private val context: Context) : SettingsStore {
     val spectrogramDbFloor: Flow<Int> = context.settingsDataStore.data.map { (it[Keys.spectrogramDbFloor] ?: -120L).toInt().coerceIn(-120, -60) }
     val spectrogramLogarithmic: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.spectrogramLogarithmic] ?: false }
     val spectrogramShowAxes: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.spectrogramShowAxes] ?: true }
+    val coverSearchSources: Flow<String> = context.settingsDataStore.data.map { it[Keys.coverSearchSources] ?: "applemusic,spotify,tidal,deezer" }
+    val coverSearchCountry: Flow<String> = context.settingsDataStore.data.map { it[Keys.coverSearchCountry] ?: "us" }
 
     override suspend fun setOfflineOnly(value: Boolean) { context.settingsDataStore.edit { it[Keys.offlineOnly] = value } }
     override suspend fun setRatingStep(value: Double) { context.settingsDataStore.edit { it[Keys.ratingStep] = value } }
@@ -221,6 +225,8 @@ class SettingsDataStore(private val context: Context) : SettingsStore {
     suspend fun setSpectrogramDbFloor(value: Int) { context.settingsDataStore.edit { it[Keys.spectrogramDbFloor] = value.coerceIn(-120, -60).toLong() } }
     suspend fun setSpectrogramLogarithmic(value: Boolean) { context.settingsDataStore.edit { it[Keys.spectrogramLogarithmic] = value } }
     suspend fun setSpectrogramShowAxes(value: Boolean) { context.settingsDataStore.edit { it[Keys.spectrogramShowAxes] = value } }
+    suspend fun setCoverSearchSources(value: String) { context.settingsDataStore.edit { it[Keys.coverSearchSources] = value } }
+    suspend fun setCoverSearchCountry(value: String) { context.settingsDataStore.edit { it[Keys.coverSearchCountry] = value } }
 }
 
 private object TokenCipher {
