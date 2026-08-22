@@ -249,6 +249,13 @@
     <string name="cover_error_apply">The selected cover could not be applied.</string>
     <string name="cover_search_artist">Artist</string>
     <string name="cover_search_album">Album</string>
+    <string name="cover_search_retry">Search again</string>
+    <string name="cover_search_cancel">Cancel</string>
+    <string name="cover_search_loading">Searching public cover sources…</string>
+    <string name="cover_search_ready">Enter an artist and album to search.</string>
+    <string name="cover_search_no_results">No cover found for %1$s – %2$s</string>
+    <string name="cover_search_error">Cover search failed</string>
+    <string name="cover_search_resolution_unknown">Resolution unavailable</string>
     <string name="cover_search_sources">Sources</string>
     <string name="cover_sources_limit">%1$d / %2$d sources selected</string>
     <string name="cover_search_country">Country</string>

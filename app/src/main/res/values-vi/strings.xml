@@ -505,6 +505,13 @@
     <string name="cover_error_apply">Không thể áp dụng ảnh bìa đã chọn.</string>
     <string name="cover_search_artist">Nghệ sĩ</string>
     <string name="cover_search_album">Album</string>
+    <string name="cover_search_retry">Tìm lại</string>
+    <string name="cover_search_cancel">Huỷ</string>
+    <string name="cover_search_loading">Đang tìm từ các nguồn cover công khai…</string>
+    <string name="cover_search_ready">Nhập nghệ sĩ và album để tìm kiếm.</string>
+    <string name="cover_search_no_results">Không tìm thấy cover cho %1$s – %2$s</string>
+    <string name="cover_search_error">Tìm cover thất bại</string>
+    <string name="cover_search_resolution_unknown">Không rõ độ phân giải</string>
     <string name="cover_search_sources">Nguồn</string>
     <string name="cover_sources_limit">Đã chọn %1$d / %2$d nguồn</string>
     <string name="cover_search_country">Quốc gia</string>
