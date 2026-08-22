@@ -187,6 +187,7 @@ class CoverSearchViewModel @Inject constructor(
                     when (event) {
                         is CoverSearchEvent.Cover -> _state.value = _state.value.copy(results = sortResults(_state.value.results + event.cover))
                         is CoverSearchEvent.SourceStatus -> _state.value = _state.value.copy(sourceStatus = _state.value.sourceStatus + (event.source to event.status))
+                        is CoverSearchEvent.Count -> event.source?.let { source -> _state.value = _state.value.copy(sourceStatus = _state.value.sourceStatus + (source to "${event.releaseCount ?: 0}/${event.releaseTotal ?: 0}")) }
                         CoverSearchEvent.Done -> _state.value = _state.value.copy(searching = false)
                         is CoverSearchEvent.Error -> _state.value = _state.value.copy(searching = false, error = event.message ?: event.code?.toString())
                     }

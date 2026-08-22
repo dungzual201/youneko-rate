@@ -53,13 +53,33 @@ data class MusicHoardersCoverLine(
     val info: MusicHoardersCoverInfo? = null,
     val status: String? = null,
     val message: String? = null,
+    val text: String? = null,
+    val severity: String? = null,
+    val releaseCount: Int? = null,
+    val releaseTotal: Int? = null,
+    val accuracy: String? = null,
+    val next: String? = null,
+    val success: Boolean? = null,
 )
 
 sealed interface CoverSearchEvent {
     data class Cover(val cover: MusicHoardersCoverLine) : CoverSearchEvent
     data class SourceStatus(val source: String, val status: String, val count: Int? = null) : CoverSearchEvent
+    data class Count(val source: String?, val releaseCount: Int?, val releaseTotal: Int?, val accuracy: String?, val next: String?) : CoverSearchEvent
     data object Done : CoverSearchEvent
     data class Error(val code: Int? = null, val message: String? = null) : CoverSearchEvent
+}
+
+internal fun parseMusicHoardersLine(json: Json, line: String): CoverSearchEvent? {
+    val parsed = runCatching { json.decodeFromString<MusicHoardersCoverLine>(line) }.getOrNull() ?: return null
+    return when (parsed.type) {
+        "cover" -> if (!parsed.bigCoverUrl.isNullOrBlank()) CoverSearchEvent.Cover(parsed) else null
+        "source" -> parsed.source?.let { CoverSearchEvent.SourceStatus(it, parsed.status ?: "unknown") }
+        "count" -> CoverSearchEvent.Count(parsed.source, parsed.releaseCount, parsed.releaseTotal, parsed.accuracy, parsed.next)
+        "done" -> CoverSearchEvent.Done
+        "error" -> CoverSearchEvent.Error(message = parsed.text ?: parsed.message)
+        else -> null
+    }
 }
 
 object MusicHoardersSession {
@@ -135,14 +155,7 @@ class MusicHoardersApi(
                         while (!source.exhausted()) {
                             val line = source.readUtf8Line() ?: break
                             if (line.isBlank()) continue
-                            val parsed = runCatching { json.decodeFromString<MusicHoardersCoverLine>(line) }.getOrNull() ?: continue
-                            val event = when (parsed.type) {
-                                "cover" -> if (!parsed.bigCoverUrl.isNullOrBlank()) CoverSearchEvent.Cover(parsed) else null
-                                "source" -> parsed.source?.let { CoverSearchEvent.SourceStatus(it, parsed.status ?: "unknown") }
-                                "done" -> CoverSearchEvent.Done
-                                "error" -> CoverSearchEvent.Error(message = parsed.message)
-                                else -> null
-                            }
+                            val event = parseMusicHoardersLine(json, line) ?: continue
                             if (event != null) {
                                 events += event
                                 trySend(event)
