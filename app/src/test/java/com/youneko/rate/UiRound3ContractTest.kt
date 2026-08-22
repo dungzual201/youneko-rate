@@ -30,7 +30,7 @@ class UiRound3ContractTest {
         assertTrue(panel.contains("aspectRatio(16f / 10f)"))
         assertTrue(panel.contains("DbLegend("))
         assertEquals(1, panel.lines().count { it.contains("DbLegend(") && !it.contains("private fun DbLegend") })
-        assertTrue(panel.contains("horizontalScroll"))
+        assertFalse(panel.contains("horizontalScroll"))
         assertTrue(panel.contains("spectrogram_hide_axes"))
         assertTrue(panel.contains("spectrogram_db_range_short"))
         assertTrue(panel.contains("spectrogram_db_sheet_title"))

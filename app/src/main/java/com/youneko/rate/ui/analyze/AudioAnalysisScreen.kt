@@ -33,8 +33,6 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.animation.animateContentSize
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -525,7 +523,7 @@ private fun AnalysisHero(analysis: AudioAnalysisEntity) {
                 Text("${analysis.confidence}%", style = MaterialTheme.typography.labelMedium)
             }
         }
-        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp), maxItemsInEachRow = 2) {
+        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(YnDimens.space2), verticalArrangement = Arrangement.spacedBy(YnDimens.space2), maxItemsInEachRow = 2) {
             SummaryChip(stringResource(R.string.audio_analysis_cutoff_short), analysis.cutoffHz?.let { formatDecimal(it / 1000.0, 1) + " kHz" } ?: stringResource(R.string.audio_analysis_not_applicable), Modifier.weight(1f))
             SummaryChip(stringResource(R.string.audio_analysis_dynamic), analysis.dynamicRangeDb?.let { formatDecimal(it, 1) + " dB" } ?: stringResource(R.string.audio_analysis_not_applicable), Modifier.weight(1f))
             SummaryChip(stringResource(R.string.audio_analysis_peak), analysis.truePeakDbtp?.let { formatDecimal(it, 1) + " dBTP" } ?: stringResource(R.string.audio_analysis_not_applicable), Modifier.weight(1f))

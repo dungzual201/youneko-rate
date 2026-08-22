@@ -46,6 +46,7 @@ import com.youneko.rate.data.artwork.CoverDownloadResult
 import com.youneko.rate.data.artwork.CoverDownloadService
 import com.youneko.rate.data.artwork.FailureReason
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -54,6 +55,7 @@ import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.net.URLEncoder
 import javax.inject.Inject
+import android.content.Context
 
 private const val COVIT_HOST = "covers.musichoarders.xyz"
 
@@ -67,6 +69,7 @@ data class OfficialCoverUiState(
 
 @HiltViewModel
 class CoverSearchViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     savedStateHandle: SavedStateHandle,
     repository: AlbumRepository,
     private val downloader: CoverDownloadService,
@@ -95,7 +98,7 @@ class CoverSearchViewModel @Inject constructor(
             append("&album=").append(encode(state.album))
             append("&remote.port=browser")
             append("&remote.agent=").append(encode("YounekoRate/${com.youneko.rate.BuildConfig.VERSION_NAME}"))
-            append("&remote.text=").append(encode("Youneko Rate — chọn ảnh bìa cho: ${state.artist} – ${state.album}"))
+            append("&remote.text=").append(encode(context.getString(R.string.cover_remote_text, state.artist, state.album)))
         }
     }
 
@@ -112,9 +115,9 @@ class CoverSearchViewModel @Inject constructor(
             _state.value = _state.value.copy(applying = true, error = null)
             when (val downloaded = downloader.download(albumId, url, "official") {}) {
                 is CoverDownloadResult.Failure -> _state.value = _state.value.copy(applying = false, error = when (downloaded.reason) {
-                    FailureReason.HOTLINK_BLOCKED -> "The selected source blocks direct downloads. Save the image and import it from your gallery."
-                    FailureReason.NETWORK -> "The cover could not be downloaded. Check your connection and try again."
-                    else -> "The selected cover could not be applied."
+                    FailureReason.HOTLINK_BLOCKED -> context.getString(R.string.cover_error_hotlink)
+                    FailureReason.NETWORK -> context.getString(R.string.cover_error_network)
+                    else -> context.getString(R.string.cover_error_apply)
                 })
                 is CoverDownloadResult.Success -> applier.apply(albumId, downloaded.cover).onSuccess { applied ->
                     lastApplied = applied
@@ -177,8 +180,8 @@ fun CoverSearchScreen(onBack: () -> Unit, viewModel: CoverSearchViewModel = hilt
                             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                                 val uri = request.url
                                 if (uri.host == COVIT_HOST) return false
-                                                        CustomTabsIntent.Builder().build().launchUrl(context, uri)
-                        return true
+                                CustomTabsIntent.Builder().build().launchUrl(context, uri)
+                                return true
 
                             }
                         }

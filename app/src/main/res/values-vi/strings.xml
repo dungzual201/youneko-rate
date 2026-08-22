@@ -499,6 +499,10 @@
     <string name="cover_search_official_pending">Đang mở tích hợp ảnh bìa chính thức…</string>
     <string name="cover_fallback_hint">Nếu trang nhúng không trả kết quả, hãy nhấn giữ ảnh bìa, lưu ảnh rồi nhập từ thư viện.</string>
     <string name="cover_open_in_browser">Mở trang ảnh bìa chính thức</string>
+    <string name="cover_remote_text">Chọn ảnh bìa cho %1$s – %2$s</string>
+    <string name="cover_error_hotlink">Nguồn đã chọn chặn tải trực tiếp. Hãy lưu ảnh rồi nhập từ thư viện.</string>
+    <string name="cover_error_network">Không thể tải ảnh bìa. Hãy kiểm tra kết nối rồi thử lại.</string>
+    <string name="cover_error_apply">Không thể áp dụng ảnh bìa đã chọn.</string>
     <string name="cover_search_artist">Nghệ sĩ</string>
     <string name="cover_search_album">Album</string>
     <string name="cover_search_sources">Nguồn</string>
