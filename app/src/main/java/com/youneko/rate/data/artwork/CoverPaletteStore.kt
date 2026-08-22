@@ -38,15 +38,18 @@ class CoverPaletteStore @Inject constructor(
 ) {
     suspend fun getOrCreate(album: AlbumEntity): CoverPalette? = withContext(Dispatchers.Default) {
         val cached = paletteDao.findByAlbumId(album.id)
-        if (cached != null && cached.coverUpdatedAt == album.coverUpdatedAt) return@withContext cached.toPalette()
+        if (cached != null && cached.coverUpdatedAt == album.coverUpdatedAt) {
+            return@withContext cached.toPalette().also { logPalette(album.id, it) }
+        }
         val bitmap = decodeCover(album.coverUri) ?: return@withContext null
         val small = resizeForPalette(bitmap)
-        val generated = Palette.from(small).maximumColorCount(16).generate()
+        val generated = Palette.from(small).maximumColorCount(24).clearFilters().generate()
         if (small !== bitmap) small.recycle()
         bitmap.recycle()
         val result = generated.toPalette()
         paletteDao.upsert(result.toEntity(album.id, album.coverUpdatedAt))
         LogPalette.record(album.id, result)
+        logPalette(album.id, result)
         result
     }
 
@@ -72,14 +75,23 @@ class CoverPaletteStore @Inject constructor(
 }
 
 private fun Palette.toPalette(): CoverPalette {
-    val dominant = dominantSwatch?.rgb?.let(::Color) ?: Color(0xFF403A46)
+    val detectedDominant = dominantSwatch?.rgb?.let(::Color) ?: Color(0xFF403A46)
     val vibrant = vibrantSwatch?.rgb?.let(::Color)
     val darkVibrant = darkVibrantSwatch?.rgb?.let(::Color)
     val muted = mutedSwatch?.rgb?.let(::Color)
     val darkMuted = darkMutedSwatch?.rgb?.let(::Color)
     val lightVibrant = lightVibrantSwatch?.rgb?.let(::Color)
+    val dominant = vibrant ?: lightVibrant ?: muted ?: detectedDominant
     val onDominant = if (contrastRatio(dominant, Color.White) >= contrastRatio(dominant, Color.Black)) Color.White else Color.Black
     return CoverPalette(dominant, vibrant, darkVibrant, muted, darkMuted, lightVibrant, onDominant)
+}
+
+private fun logPalette(albumId: String, palette: CoverPalette) {
+    fun Color?.hex(): String = this?.toArgb()?.let { "#%08X".format(it) } ?: "null"
+    android.util.Log.d(
+        "PALETTE",
+        "album=$albumId vibrant=${palette.vibrant.hex()} lightVibrant=${palette.lightVibrant.hex()} darkVibrant=${palette.darkVibrant.hex()} muted=${palette.muted.hex()} darkMuted=${palette.darkMuted.hex()} dominant=${palette.dominant.hex()} CHOSEN=${palette.dominant.hex()}",
+    )
 }
 
 private fun AlbumPaletteEntity.toPalette() = CoverPalette(
