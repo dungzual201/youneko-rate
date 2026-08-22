@@ -184,7 +184,7 @@ fun YounekoNavHost() {
                     onBack = { navController.popBackStack() },
                     onOpenArtist = { navController.navigate("artist/$it") },
                     onAnalyzeTrack = { navController.navigate("analyze") },
-                    onSearchCover = { albumId -> navController.navigate("coverSearch/$albumId") },
+                    onSearchCover = { albumId -> navController.navigate("coverSearch/$albumId") { launchSingleTop = true } },
                     onViewCredits = { albumId, trackId, releaseMbid ->
                         val releasePart = releaseMbid?.let { "&releaseMbid=$it" }.orEmpty()
                         if (trackId == null) {
