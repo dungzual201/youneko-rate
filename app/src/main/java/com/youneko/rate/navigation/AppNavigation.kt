@@ -44,6 +44,7 @@ import com.youneko.rate.ui.rate.AlbumEditorScreen
 import com.youneko.rate.ui.importer.ImportScreen
 import com.youneko.rate.ui.rate.LibraryScreen
 import com.youneko.rate.ui.rate.RateScreen
+import com.youneko.rate.ui.components.YnBrandTitle
 import com.youneko.rate.ui.rate.SettingsScreen
 import com.youneko.rate.ui.analyze.AudioAnalysisScreen
 import com.youneko.rate.ui.credits.CreditsScreen
@@ -94,7 +95,7 @@ fun YounekoNavHost() {
         topBar = {
             if (!isLibrary && !isAnalyze && !isDetail && !isCredits && !isEditor && !isImport && !isExport) {
                 TopAppBar(
-                    title = { Text(stringResource(mainTopBarTitle(currentDestination?.route))) },
+                    title = { YnBrandTitle() },
                     actions = {
                         if (!isSettings) IconButton(onClick = { navController.navigate("settings") }) {
                             Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.settings), modifier = Modifier.size(24.dp))

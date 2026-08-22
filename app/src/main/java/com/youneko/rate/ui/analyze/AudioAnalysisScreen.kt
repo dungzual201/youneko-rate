@@ -113,6 +113,7 @@ import com.youneko.rate.data.local.dao.AudioAnalysisDao
 import com.youneko.rate.data.importer.AudioTag
 import com.youneko.rate.data.importer.LocalAudioTagReader
 import com.youneko.rate.data.local.entity.AudioAnalysisEntity
+import com.youneko.rate.ui.components.YnBrandTitle
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
@@ -285,7 +286,7 @@ fun AudioAnalysisScreen(viewModel: AudioAnalysisViewModel = hiltViewModel()) {
         modifier = Modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.analyze), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                title = { YnBrandTitle() },
                 actions = {
                     if (latest != null || analyzeState is AnalyzeUiState.Running || analyzeState is AnalyzeUiState.Failed) {
                         IconButton(onClick = { picker.launch(arrayOf("audio/*")) }, enabled = analyzeState !is AnalyzeUiState.Running) {

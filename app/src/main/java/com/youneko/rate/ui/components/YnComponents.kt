@@ -25,6 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.HelpOutline
+import androidx.compose.material.icons.filled.Pets
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.AlertDialog
@@ -72,6 +73,27 @@ import com.youneko.rate.ui.YnDimens
 import com.youneko.rate.ui.YnMotion
 import com.youneko.rate.ui.rememberReducedMotion
 import com.youneko.rate.ui.artwork.CoverArtImage
+
+@Composable
+fun YnBrandTitle() {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(
+            Icons.Default.Pets,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(YnDimens.iconMedium),
+        )
+        Spacer(Modifier.width(YnDimens.space2))
+        Text(
+            text = stringResource(R.string.app_name),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
 
 @Composable
 fun YnRatingBadge(score: Double?, modifier: Modifier = Modifier, large: Boolean = false) {
