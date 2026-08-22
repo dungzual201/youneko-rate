@@ -639,8 +639,8 @@ fun AlbumDetailScreen(
     var tagDraft by rememberSaveable { mutableStateOf("") }
     var listeningNote by rememberSaveable { mutableStateOf("") }
     var menuExpanded by rememberSaveable { mutableStateOf(false) }
-    var selectedPaletteColor by remember { mutableStateOf<Color?>(null) }
     val snackbarHost = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
     val refreshResult by viewModel.refreshResult.collectAsStateWithLifecycle()
     val ratingScale by viewModel.ratingScale.collectAsStateWithLifecycle()
     val albumPalette by viewModel.palette.collectAsStateWithLifecycle()
@@ -680,7 +680,12 @@ fun AlbumDetailScreen(
                 }
                 if (palette != null) {
                     Text(stringResource(R.string.palette_title), style = MaterialTheme.typography.labelLarge)
-                    YnPaletteSwatches(palette!!.swatches, onReleased = { selectedPaletteColor = it }, modifier = Modifier.fillMaxWidth().padding(vertical = YnDimens.space2))
+                    YnPaletteSwatches(
+                        colors = palette!!.swatches,
+                        onReleased = {},
+                        modifier = Modifier.fillMaxWidth().padding(vertical = YnDimens.space2),
+                        onCopied = { hex -> scope.launch { snackbarHost.showSnackbar(context.getString(R.string.palette_copied, hex)) } },
+                    )
                 }
                 Text(value.album.title, style = MaterialTheme.typography.displaySmall, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = YnDimens.space3))
                 TextButton(onClick = { value.artist?.id?.let(onOpenArtist) }, enabled = value.artist != null) { Text(value.artist?.name.orEmpty(), style = MaterialTheme.typography.titleMedium) }
@@ -755,18 +760,14 @@ fun AlbumDetailScreen(
             dismissButton = { TextButton(onClick = { showDelete = false }) { Text(stringResource(R.string.cancel)) } },
         )
     }
-    selectedPaletteColor?.let { color ->
-        val hex = "#%08X".format(color.toArgb())
-        AlertDialog(
-            onDismissRequest = { selectedPaletteColor = null },
-            title = { Text(stringResource(R.string.palette_title)) },
-            text = { Text(stringResource(R.string.palette_hex, hex)) },
-            confirmButton = { TextButton(onClick = { selectedPaletteColor = null }) { Text(stringResource(R.string.close)) } },
-        )
-    }
     if (showFullCover) {
         (state as? AlbumDetailUiState.Content)?.album?.album?.coverUri?.let { coverUri ->
-            CoverArtFullscreenDialog(coverUri, albumPalette, onDismiss = { showFullCover = false })
+            CoverArtFullscreenDialog(
+                model = coverUri,
+                palette = albumPalette,
+                onDismiss = { showFullCover = false },
+                onCopied = { hex -> scope.launch { snackbarHost.showSnackbar(context.getString(R.string.palette_copied, hex)) } },
+            )
         }
     }
     fileInfoTrackId?.let { trackId ->
@@ -786,7 +787,13 @@ fun AlbumDetailScreen(
 }
 
 @Composable
-private fun CoverArtFullscreenDialog(model: Any, palette: CoverPalette?, onDismiss: () -> Unit, onSave: () -> Unit = {}) {
+private fun CoverArtFullscreenDialog(
+    model: Any,
+    palette: CoverPalette?,
+    onDismiss: () -> Unit,
+    onSave: () -> Unit = {},
+    onCopied: (String) -> Unit = {},
+) {
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
     var swipeDistance by remember { mutableFloatStateOf(0f) }
@@ -825,6 +832,7 @@ private fun CoverArtFullscreenDialog(model: Any, palette: CoverPalette?, onDismi
                         colors = currentPalette.swatches,
                         onReleased = {},
                         modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 24.dp),
+                        onCopied = onCopied,
                     )
                 }
                 Row(Modifier.align(Alignment.TopEnd).padding(12.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {

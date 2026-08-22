@@ -1,8 +1,15 @@
 package com.youneko.rate.ui.components
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
@@ -49,6 +56,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -58,6 +66,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -67,6 +76,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import com.youneko.rate.R
 import com.youneko.rate.data.LibraryAlbum
 import com.youneko.rate.data.local.entity.AlbumEntity
@@ -100,29 +112,78 @@ fun YnBrandTitle() {
 
 
 @Composable
-fun YnPaletteSwatches(colors: List<Color>, onReleased: (Color) -> Unit, modifier: Modifier = Modifier) {
+fun YnPaletteSwatches(
+    colors: List<Color>,
+    onReleased: (Color) -> Unit,
+    modifier: Modifier = Modifier,
+    onCopied: (String) -> Unit = {},
+) {
+    val clipboard = LocalClipboardManager.current
+    val haptic = LocalHapticFeedback.current
     Row(
-        modifier.horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(YnDimens.space2),
+        modifier,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        colors.distinctBy { it.toArgb() }.forEach { color ->
-            val hex = "#%08X".format(color.toArgb())
-            val a11y = stringResource(R.string.a11y_palette_swatch, hex)
-            Box(
-                Modifier.size(YnDimens.space6)
-                    .clip(CircleShape)
-                    .background(color)
-                    .semantics { contentDescription = a11y }
-                    .pointerInput(color) {
-                        awaitPointerEventScope {
+        colors.distinctBy { it.toArgb() }.take(6).forEach { color ->
+            PaletteSwatch(color, clipboard, haptic, onReleased, onCopied)
+        }
+    }
+}
+
+@Composable
+private fun PaletteSwatch(
+    color: Color,
+    clipboard: androidx.compose.ui.platform.ClipboardManager,
+    haptic: androidx.compose.ui.hapticfeedback.HapticFeedback,
+    onReleased: (Color) -> Unit,
+    onCopied: (String) -> Unit,
+) {
+    var pressed by remember { mutableStateOf(false) }
+    val hex = remember(color) { "#%06X".format(0xFFFFFF and color.toArgb()) }
+    val a11y = stringResource(R.string.a11y_palette_swatch, hex)
+    Box(
+        modifier = Modifier.size(YnDimens.minTouchTarget).semantics { contentDescription = a11y },
+        contentAlignment = Alignment.Center,
+    ) {
+        AnimatedVisibility(
+            visible = pressed,
+            enter = fadeIn() + scaleIn(initialScale = 0.85f),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.TopCenter).offset(y = (-56).dp),
+        ) {
+            Surface(shape = RoundedCornerShape(8.dp), color = Color.Black.copy(alpha = 0.85f)) {
+                Text(hex, style = MaterialTheme.typography.labelLarge, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, color = Color.White, modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp))
+            }
+        }
+        Box(
+            Modifier.size(44.dp)
+                .shadow(4.dp, CircleShape)
+                .clip(CircleShape)
+                .background(color)
+                .border(1.5.dp, Color.White.copy(alpha = 0.25f), CircleShape)
+                .pointerInput(color) {
+                    val inputScopeContext = kotlin.coroutines.coroutineContext
+                    awaitPointerEventScope {
+                        while (true) {
                             val down = awaitFirstDown(requireUnconsumed = false)
                             down.consume()
-                            if (waitForUpOrCancellation() != null) onReleased(color)
+                            pressed = true
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            val copyJob = CoroutineScope(inputScopeContext).launch {
+                                delay(800L)
+                                clipboard.setText(androidx.compose.ui.text.AnnotatedString(hex))
+                                haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                                onCopied(hex)
+                            }
+                            waitForUpOrCancellation()
+                            copyJob.cancel()
+                            pressed = false
+                            onReleased(color)
                         }
-                    },
-            )
-        }
+                    }
+                },
+        )
     }
 }
 
