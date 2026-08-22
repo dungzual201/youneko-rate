@@ -81,6 +81,7 @@ fun YounekoNavHost() {
         onDispose { navController.removeOnDestinationChangedListener(listener) }
     }
     val isSettings = currentDestination?.route == "settings"
+    val isLibrary = currentDestination?.route == "library"
     val isDetail = currentDestination?.route?.startsWith("album/") == true
     val isCredits = currentDestination?.route?.startsWith("credits/") == true
     val isEditor = currentDestination?.route == "addAlbum"
@@ -90,9 +91,9 @@ fun YounekoNavHost() {
     MediaAccessGate(content = {
         Scaffold(
         topBar = {
-            if (!isDetail && !isCredits && !isEditor && !isImport && !isExport) {
+            if (!isLibrary && !isDetail && !isCredits && !isEditor && !isImport && !isExport) {
                 TopAppBar(
-                    title = { Text(if (isSettings) stringResource(R.string.settings) else stringResource(R.string.app_name)) },
+                    title = { Text(stringResource(mainTopBarTitle(currentDestination?.route))) },
                     actions = {
                         if (!isSettings) IconButton(onClick = { navController.navigate("settings") }) {
                             Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.settings))
@@ -130,6 +131,7 @@ fun YounekoNavHost() {
                     onAddAlbum = { navController.navigate("addAlbum") },
                     onOpenAdvancedSearch = { navController.navigate("advancedSearch") },
                     onOpenCollections = { navController.navigate("collections") },
+                    onOpenSettings = { navController.navigate("settings") },
                 )
             }
             composable("rate") {
@@ -214,6 +216,16 @@ fun YounekoNavHost() {
         }
     })
 }
+
+@StringRes
+private fun mainTopBarTitle(route: String?): Int = when (route) {
+    "rate" -> R.string.rate
+    "analyze" -> R.string.analyze
+    "stats" -> R.string.stats
+    "settings" -> R.string.settings
+    else -> R.string.app_name
+}
+
 @Composable
 private fun AudioQualityPlaceholder() {
 

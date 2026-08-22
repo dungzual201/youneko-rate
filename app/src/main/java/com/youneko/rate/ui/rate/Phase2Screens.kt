@@ -168,6 +168,7 @@ fun LibraryScreen(
     onAddAlbum: () -> Unit,
     onOpenAdvancedSearch: () -> Unit = {},
     onOpenCollections: () -> Unit = {},
+    onOpenSettings: () -> Unit = {},
     viewModel: LibraryViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -193,6 +194,9 @@ fun LibraryScreen(
         LargeTopAppBar(
             title = { Text(stringResource(R.string.library), maxLines = 1, overflow = TextOverflow.Ellipsis) },
             actions = {
+                IconButton(onClick = onOpenSettings) {
+                    Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.settings))
+                }
                 IconButton(onClick = { showFilters = true }) {
                     Icon(Icons.Default.FilterList, contentDescription = stringResource(R.string.filters))
                 }
