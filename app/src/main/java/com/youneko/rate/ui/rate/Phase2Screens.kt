@@ -19,6 +19,7 @@ import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
@@ -48,6 +49,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
@@ -140,6 +142,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.youneko.rate.R
 import com.youneko.rate.data.LibraryAlbum
 import com.youneko.rate.data.artwork.ArtworkStore
+import com.youneko.rate.data.artwork.coverDetailGradient
 import com.youneko.rate.data.local.entity.AlbumEntity
 import com.youneko.rate.data.local.entity.TrackEntity
 import com.youneko.rate.data.importer.LocalAudioTagReader
@@ -641,7 +644,12 @@ fun AlbumDetailScreen(
             AlbumDetailUiState.AlbumDeleted -> YounekoEmptyState(stringResource(R.string.confirm_delete_body), modifier = Modifier.fillMaxSize().padding(padding))
             is AlbumDetailUiState.Content -> {
             val value = (state as AlbumDetailUiState.Content).album
-            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(padding).padding(horizontal = 16.dp)) {
+            val palette by viewModel.palette.collectAsStateWithLifecycle()
+            val darkTheme = isSystemInDarkTheme()
+            val detailGradient = remember(value.album.id, palette, darkTheme) {
+                coverDetailGradient(palette, value.album.id, darkTheme)
+            }
+            Column(Modifier.fillMaxSize().background(detailGradient).verticalScroll(rememberScrollState()).padding(padding).padding(horizontal = 16.dp)) {
                 TopAppBar(
                     title = { Text(stringResource(R.string.album_detail), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.a11y_back), modifier = Modifier.size(YnDimens.iconMedium)) } },
@@ -659,7 +667,6 @@ fun AlbumDetailScreen(
                     },
                 )
                 Box(Modifier.fillMaxWidth().height(YnDimens.coverHeroHeight), contentAlignment = Alignment.Center) {
-                    CoverArtImage(value.album.coverUri, Modifier.fillMaxSize().blur(YnDimens.coverBlur).graphicsLayer { alpha = 0.18f }, placeholderSeed = value.album.id, placeholderLabel = value.album.title)
                     CoverArtImage(value.album.coverUri, Modifier.size(YnDimens.coverDetail).clickable(enabled = value.album.coverUri != null) { showFullCover = true }, placeholderSeed = value.album.id, placeholderLabel = value.album.title)
                 }
                 Text(value.album.title, style = MaterialTheme.typography.displaySmall, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = YnDimens.space3))

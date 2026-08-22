@@ -105,6 +105,70 @@ private fun CoverPalette.toEntity(albumId: String, coverUpdatedAt: Long?) = Albu
     generatedAt = System.currentTimeMillis(),
 )
 
+fun coverDetailGradient(palette: CoverPalette?, seed: String, darkTheme: Boolean): androidx.compose.ui.graphics.Brush {
+    val fallbackHue = (seed.hashCode().toUInt().toLong() % 360L).toFloat()
+    val fallback = Color.hsv(fallbackHue, 0.42f, if (darkTheme) 0.55f else 0.78f)
+    var top = when {
+        palette == null && darkTheme -> fallback
+        palette == null -> fallback
+        darkTheme -> palette.darkVibrant ?: palette.dominant
+        else -> palette.lightVibrant ?: palette.muted ?: palette.dominant
+    }
+    val foreground = if (darkTheme) Color.White else Color.Black
+    val original = top
+    var ratio = contrastRatio(top, foreground)
+    var attempts = 0
+    while (ratio < 4.5 && attempts < 6) {
+        val delta = if (darkTheme) -0.04f else 0.04f
+        top = adjustHslLightness(top, delta)
+        ratio = contrastRatio(top, foreground)
+        attempts++
+    }
+    android.util.Log.d("PALETTE", "album=$seed dominant=${original.toArgb()} adjustedTo=${top.toArgb()} ratio=${contrastRatio(top, foreground)}")
+    val alpha = if (darkTheme) 0.90f else 0.55f
+    return androidx.compose.ui.graphics.Brush.verticalGradient(
+        colorStops = arrayOf(
+            0.0f to top.copy(alpha = alpha),
+            0.35f to top.copy(alpha = alpha * 0.5f),
+            0.70f to if (darkTheme) Color(0xFF151118) else Color(0xFFFFF9FC),
+            1.0f to if (darkTheme) Color(0xFF151118) else Color(0xFFFFF9FC),
+        ),
+    )
+}
+
+fun adjustHslLightness(color: Color, delta: Float): Color {
+    val red = color.red.toDouble()
+    val green = color.green.toDouble()
+    val blue = color.blue.toDouble()
+    val max = maxOf(red, green, blue)
+    val min = minOf(red, green, blue)
+    val lightness = (max + min) / 2.0
+    if (max == min) {
+        val gray = (lightness + delta).coerceIn(0.0, 1.0)
+        return Color(gray.toFloat(), gray.toFloat(), gray.toFloat(), color.alpha)
+    }
+    val chroma = max - min
+    val saturation = chroma / (1.0 - kotlin.math.abs(2.0 * lightness - 1.0))
+    val hue = when (max) {
+        red -> ((green - blue) / chroma).let { if (it < 0) it + 6.0 else it }
+        green -> (blue - red) / chroma + 2.0
+        else -> (red - green) / chroma + 4.0
+    } / 6.0
+    val adjustedLightness = (lightness + delta).coerceIn(0.0, 1.0)
+    val c = (1.0 - kotlin.math.abs(2.0 * adjustedLightness - 1.0)) * saturation
+    val x = c * (1.0 - kotlin.math.abs((hue * 6.0) % 2.0 - 1.0))
+    val (r1, g1, b1) = when ((hue * 6.0).toInt()) {
+        0 -> Triple(c, x, 0.0)
+        1 -> Triple(x, c, 0.0)
+        2 -> Triple(0.0, c, x)
+        3 -> Triple(0.0, x, c)
+        4 -> Triple(x, 0.0, c)
+        else -> Triple(c, 0.0, x)
+    }
+    val m = adjustedLightness - c / 2.0
+    return Color((r1 + m).toFloat().coerceIn(0f, 1f), (g1 + m).toFloat().coerceIn(0f, 1f), (b1 + m).toFloat().coerceIn(0f, 1f), color.alpha)
+}
+
 fun contrastRatio(first: Color, second: Color): Double {
     fun channel(value: Float): Double {
         val v = value.toDouble()

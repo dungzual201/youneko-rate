@@ -7,6 +7,8 @@ import androidx.lifecycle.viewModelScope
 import com.youneko.rate.data.AlbumDraft
 import com.youneko.rate.data.AlbumRepository
 import com.youneko.rate.data.artwork.ArtworkStore
+import com.youneko.rate.data.artwork.CoverPalette
+import com.youneko.rate.data.artwork.CoverPaletteStore
 import com.youneko.rate.data.SettingsStore
 import com.youneko.rate.data.MediaScanStore
 import com.youneko.rate.data.scan.enqueueMediaScan
@@ -134,6 +136,7 @@ class AlbumDetailViewModel @Inject constructor(
     private val settings: SettingsStore,
     private val musicBrainzImportService: AlbumMetadataRefreshService,
     private val coverArtService: CoverArtService? = null,
+    private val coverPaletteStore: CoverPaletteStore,
     private val reviewRevisionDao: ReviewRevisionDao,
     private val albumTagDao: AlbumTagDao,
     private val listeningLogDao: ListeningLogDao,
@@ -149,6 +152,12 @@ class AlbumDetailViewModel @Inject constructor(
     val tags = albumTagDao.observeForAlbum(albumId).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val listeningLogs = listeningLogDao.observeForAlbum(albumId).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val reviewRevisions = reviewRevisionDao.observeRecent(albumId, null).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val palette: StateFlow<CoverPalette?> = albumData
+        .flatMapLatest { value ->
+            flow { emit(value?.let { coverPaletteStore.getOrCreate(it.album) }) }
+        }
+        .catch { emit(null) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
     val releaseUrl: StateFlow<String?> = albumData
         .map { value -> value?.album?.mbid?.let { "https://musicbrainz.org/release/$it" } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
