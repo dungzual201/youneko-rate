@@ -48,7 +48,7 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideMusicBrainzTokenBucket(): TokenBucket = TokenBucket(capacity = 5, refillMillis = 1_000L)
+    fun provideMusicBrainzTokenBucket(): TokenBucket = TokenBucket(capacity = 1, refillMillis = 1_000L)
 
     @Provides
     @Singleton
