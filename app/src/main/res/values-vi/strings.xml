@@ -496,6 +496,8 @@
     <string name="menu_search_cover_online">Tìm ảnh bìa trực tuyến</string>
     <string name="cover_search_title">Tìm ảnh bìa</string>
     <string name="cover_search_official_pending">Đang mở tích hợp ảnh bìa chính thức…</string>
+    <string name="cover_fallback_hint">Nếu trang nhúng không trả kết quả, hãy nhấn giữ ảnh bìa, lưu ảnh rồi nhập từ thư viện.</string>
+    <string name="cover_open_in_browser">Mở trang ảnh bìa chính thức</string>
     <string name="cover_search_artist">Nghệ sĩ</string>
     <string name="cover_search_album">Album</string>
     <string name="cover_search_sources">Nguồn</string>

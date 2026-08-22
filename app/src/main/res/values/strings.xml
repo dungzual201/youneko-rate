@@ -240,6 +240,8 @@
     <string name="menu_search_cover_online">Search cover online</string>
     <string name="cover_search_title">Find cover art</string>
     <string name="cover_search_official_pending">Opening the official cover integration…</string>
+    <string name="cover_fallback_hint">If the embedded page cannot return a result, hold the cover, save it, then import it from the gallery.</string>
+    <string name="cover_open_in_browser">Open official cover site</string>
     <string name="cover_search_artist">Artist</string>
     <string name="cover_search_album">Album</string>
     <string name="cover_search_sources">Sources</string>

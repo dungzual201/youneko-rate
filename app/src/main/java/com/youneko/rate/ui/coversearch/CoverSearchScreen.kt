@@ -1,17 +1,20 @@
 package com.youneko.rate.ui.coversearch
 
 import android.annotation.SuppressLint
-import android.content.Intent
 import android.net.Uri
 import android.webkit.JavascriptInterface
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -29,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -120,6 +124,11 @@ class CoverSearchViewModel @Inject constructor(
         }
     }
 
+    fun browserUrl(): String {
+        val current = _state.value
+        return "https://covers.musichoarders.xyz/?artist=${encode(current.artist)}&album=${encode(current.album)}&country=us&theme=dark"
+    }
+
     private fun encode(value: String): String = URLEncoder.encode(value, Charsets.UTF_8.name())
 }
 
@@ -149,6 +158,12 @@ fun CoverSearchScreen(onBack: () -> Unit, viewModel: CoverSearchViewModel = hilt
         },
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
+            Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Bottom) {
+                Text(stringResource(R.string.cover_fallback_hint), modifier = Modifier.padding(horizontal = 16.dp))
+                Button(onClick = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(viewModel.browserUrl())) }, modifier = Modifier.padding(16.dp)) {
+                    Text(stringResource(R.string.cover_open_in_browser))
+                }
+            }
             AndroidView(
                 factory = { viewContext ->
                     WebView(viewContext).apply {
@@ -162,8 +177,9 @@ fun CoverSearchScreen(onBack: () -> Unit, viewModel: CoverSearchViewModel = hilt
                             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                                 val uri = request.url
                                 if (uri.host == COVIT_HOST) return false
-                                context.startActivity(Intent(Intent.ACTION_VIEW, uri))
-                                return true
+                                                        CustomTabsIntent.Builder().build().launchUrl(context, uri)
+                        return true
+
                             }
                         }
                         loadUrl(officialUrl)
