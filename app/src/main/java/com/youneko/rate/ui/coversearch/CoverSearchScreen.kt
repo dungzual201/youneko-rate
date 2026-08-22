@@ -154,8 +154,15 @@ class CoverSearchViewModel @Inject constructor(
 
     fun setArtist(value: String) { _state.value = _state.value.copy(artist = value) }
     fun setAlbum(value: String) { _state.value = _state.value.copy(album = value) }
-    fun setCountry(value: String) { _state.value = _state.value.copy(country = value) }
+    fun setCountry(value: String) {
+        val catalog = _state.value.sourceInfo?.sources.orEmpty()
+        val selected = _state.value.sources.filter { sourceId -> catalog.firstOrNull { it.id == sourceId }?.let { isMusicHoardersSourceActive(it, value) } ?: true }
+        _state.value = _state.value.copy(country = value, sources = selected)
+    }
+    fun isSourceActive(sourceId: String): Boolean = _state.value.sourceInfo?.sources?.firstOrNull { it.id == sourceId }?.let { isMusicHoardersSourceActive(it, _state.value.country) } ?: false
+
     fun toggleSource(source: String) {
+        if (!isSourceActive(source)) return
         val selected = _state.value.sources.toMutableList()
         if (source in selected && selected.size == 1) return
         if (source in selected) selected.remove(source) else selected.add(source)
@@ -268,7 +275,7 @@ fun CoverSearchScreen(
                     OutlinedTextField(state.album, viewModel::setAlbum, label = { Text(stringResource(R.string.cover_search_album)) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
                     Text(stringResource(R.string.cover_search_sources), style = MaterialTheme.typography.titleSmall)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
-                        state.sourceInfo?.sources.orEmpty().forEach { source -> FilterChip(selected = source.id in state.sources, onClick = { viewModel.toggleSource(source.id) }, label = { Text(sourceLabel(source.id, state.sourceInfo?.sources.orEmpty())) }) }
+                        state.sourceInfo?.sources.orEmpty().forEach { source -> FilterChip(enabled = viewModel.isSourceActive(source.id), selected = source.id in state.sources, onClick = { viewModel.toggleSource(source.id) }, label = { Text(sourceLabel(source.id, state.sourceInfo?.sources.orEmpty())) }) }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
                         state.sources.forEach { source ->
@@ -344,6 +351,9 @@ private fun CoverResultCard(result: MusicHoardersCoverLine, onClick: () -> Unit)
         }
     }
 }
+
+fun isMusicHoardersSourceActive(source: MusicHoardersSourceInfo, country: String): Boolean =
+    (source.countries.any { it.equals(country, ignoreCase = true) } || source.countries.any { it.equals("xw", ignoreCase = true) }) && source.queries.any { it.equals("search", ignoreCase = true) }
 
 @Composable
 private fun sourceLabel(sourceId: String, catalog: List<MusicHoardersSourceInfo>): String = catalog.firstOrNull { it.id == sourceId }?.name?.takeIf { it.isNotBlank() } ?: sourceId
