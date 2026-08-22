@@ -1,7 +1,6 @@
 package com.youneko.rate.ui.analyze
 
 import android.graphics.Bitmap
-import android.graphics.Paint
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -25,9 +24,7 @@ import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.clipRect
-import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.withTransform
-import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.IntSize
@@ -171,7 +168,6 @@ private fun drawAxes(
     logarithmic: Boolean,
     outline: androidx.compose.ui.graphics.Color,
 ) = with(scope) {
-    val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = outline.toArgb(); textSize = 20f }
     val sampleRate = cached.metadata.spectrogram.sampleRate
     val nyquist = sampleRate / 2.0
     val frequencyTicks = listOf(0.0, 5_000.0, 10_000.0, 15_000.0, 20_000.0, nyquist).distinct().filter { it <= nyquist + 1 }
@@ -181,14 +177,12 @@ private fun drawAxes(
         }
         val y = bottom - (normalized * (bottom - top)).toFloat()
         drawLine(outline.copy(alpha = 0.35f), Offset(left, y), Offset(right, y), strokeWidth = 1f)
-        drawIntoCanvas { canvas -> canvas.nativeCanvas.drawText(if (frequency >= 1000) "${(frequency / 1000).roundToInt()} kHz" else "0", 2f, y + 6f, paint) }
     }
     val duration = cached.metadata.spectrogram.durationMs
     val timeTicks = 0..4
     timeTicks.forEach { tick ->
         val x = left + (right - left) * tick / 4f
         drawLine(outline.copy(alpha = 0.35f), Offset(x, top), Offset(x, bottom), strokeWidth = 1f)
-        drawIntoCanvas { canvas -> canvas.nativeCanvas.drawText(formatSpectrogramTime(duration * tick / 4), x - 18f, bottom + 24f, paint) }
     }
 }
 

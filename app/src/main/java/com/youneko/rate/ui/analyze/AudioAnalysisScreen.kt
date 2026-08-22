@@ -76,6 +76,7 @@ import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.core.content.FileProvider
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -587,6 +588,7 @@ private fun SpectrogramPanel(cached: CachedSpectrogram?, context: android.conten
                 }
                 Box(Modifier.fillMaxWidth().aspectRatio(16f / 10f)) {
                     SpectrogramView(cached, logarithmic, dbFloor, showAxes, resetToken = resetToken, modifier = Modifier.fillMaxSize(), onTooltip = { tooltip = it })
+                    if (showAxes) SpectrogramAxesOverlay(cached, logarithmic)
                     DbLegend(
                         dbFloor = dbFloor,
                         modifier = Modifier.align(Alignment.CenterEnd).padding(end = 6.dp, top = 8.dp, bottom = if (showAxes) 36.dp else 8.dp),
@@ -603,8 +605,43 @@ private fun SpectrogramPanel(cached: CachedSpectrogram?, context: android.conten
                     Text(stringResource(R.string.spectrogram_title), Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
                     IconButton(onClick = { fullscreen = false }) { Icon(Icons.Default.Close, contentDescription = stringResource(R.string.close), modifier = Modifier.size(24.dp)) }
                 }
-                SpectrogramView(cached, logarithmic, dbFloor, showAxes, resetToken = resetToken, modifier = Modifier.fillMaxWidth().aspectRatio(0.9f), onTooltip = { tooltip = it })
+                Box(Modifier.fillMaxWidth().aspectRatio(0.9f)) {
+                    SpectrogramView(cached, logarithmic, dbFloor, showAxes, resetToken = resetToken, modifier = Modifier.fillMaxSize(), onTooltip = { tooltip = it })
+                    if (showAxes) SpectrogramAxesOverlay(cached, logarithmic)
+                    DbLegend(dbFloor, Modifier.align(Alignment.CenterEnd).padding(end = 6.dp, top = 8.dp, bottom = if (showAxes) 36.dp else 8.dp))
+                }
             }
+        }
+    }
+}
+
+@Composable
+private fun SpectrogramAxesOverlay(cached: CachedSpectrogram, logarithmic: Boolean) {
+    val labelTextSize = with(LocalDensity.current) { 12.dp.toPx() }
+    val axisLabelColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f).toArgb()
+    Canvas(Modifier.fillMaxSize()) {
+        val left = 52f
+        val top = 12f
+        val right = size.width - 42f
+        val bottom = size.height - 34f
+        val sampleRate = cached.metadata.spectrogram.sampleRate
+        val nyquist = sampleRate / 2.0
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = axisLabelColor
+            textSize = labelTextSize
+        }
+        listOf(0.0, 5_000.0, 10_000.0, 15_000.0, 20_000.0, nyquist).distinct().filter { it <= nyquist + 1 }.forEach { frequency ->
+            val normalized = if (!logarithmic) frequency / nyquist else if (frequency <= 0.0) 0.0 else kotlin.math.ln(frequency / 20.0) / kotlin.math.ln(nyquist / 20.0)
+            val y = bottom - (normalized * (bottom - top)).toFloat()
+            val label = if (frequency >= 1000.0) String.format(java.util.Locale.getDefault(), "%.1f kHz", frequency / 1000.0) else "0 kHz"
+            drawIntoCanvas { canvas -> canvas.nativeCanvas.drawText(label, 2f, y + 4f, paint) }
+        }
+        val duration = cached.metadata.spectrogram.durationMs
+        (0..4).forEach { tick ->
+            val x = left + (right - left) * tick / 4f
+            val totalSeconds = (duration * tick / 4L) / 1000L
+            val label = String.format(java.util.Locale.getDefault(), "%d:%02d", totalSeconds / 60L, totalSeconds % 60L)
+            drawIntoCanvas { canvas -> canvas.nativeCanvas.drawText(label, x - 12f, size.height - 8f, paint) }
         }
     }
 }
