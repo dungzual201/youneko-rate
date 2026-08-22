@@ -23,7 +23,14 @@
     <string name="analyze_running">Analyzing (%1$d/%2$d)</string>
     <string name="audio_analysis_confidence">Confidence</string>
     <string name="audio_analysis_explanation_body">Cutoff is where spectral energy drops sharply. Rolloff describes the cutoff wall slope; dynamic range describes crest factor; true peak and clipping describe maximum amplitude. Verdict is a heuristic, not certification of the release source.</string>
-    <string name="audio_analysis_choose_file">Choose audio file</string>
+    <string name="audio_analysis_choose_file">Choose file</string>
+    <string name="analyze_choose_source">Choose analysis source</string>
+    <string name="analyze_from_library">Choose from library</string>
+    <string name="analyze_from_library_count">%1$d scanned tracks</string>
+    <string name="analyze_open_device">Open an audio file from this device</string>
+    <string name="analyze_recent_files">Analyze recent files</string>
+    <string name="analyze_recent_count">%1$d recent files</string>
+    <string name="analyze_library_search">Search library tracks</string>
     <string name="audio_analysis_running">Analyzing audio quality...</string>
     <string name="audio_analysis_empty">Choose a local audio file to begin.</string>
     <string name="audio_analysis_verdict">Quality verdict</string>

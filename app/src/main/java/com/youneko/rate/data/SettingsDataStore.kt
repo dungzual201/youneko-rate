@@ -176,6 +176,7 @@ class SettingsDataStore(private val context: Context) : SettingsStore {
         val spectrogramShowAxes = booleanPreferencesKey("spectrogram_show_axes")
         val coverSearchSources = stringPreferencesKey("cover_search_sources")
         val coverSearchCountry = stringPreferencesKey("cover_search_country")
+        val analyzeRecentUris = stringPreferencesKey("analyze_recent_uris")
     }
 
     override val offlineOnly: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.offlineOnly] ?: false }
@@ -202,6 +203,7 @@ class SettingsDataStore(private val context: Context) : SettingsStore {
     val spectrogramShowAxes: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.spectrogramShowAxes] ?: true }
     val coverSearchSources: Flow<String> = context.settingsDataStore.data.map { it[Keys.coverSearchSources] ?: "applemusic,spotify,tidal,deezer" }
     val coverSearchCountry: Flow<String> = context.settingsDataStore.data.map { it[Keys.coverSearchCountry] ?: "us" }
+    val analyzeRecentUris: Flow<List<String>> = context.settingsDataStore.data.map { it[Keys.analyzeRecentUris].orEmpty().split('|').filter { uri -> uri.isNotBlank() }.take(5) }
 
     override suspend fun setOfflineOnly(value: Boolean) { context.settingsDataStore.edit { it[Keys.offlineOnly] = value } }
     override suspend fun setRatingStep(value: Double) { context.settingsDataStore.edit { it[Keys.ratingStep] = value } }
@@ -227,6 +229,7 @@ class SettingsDataStore(private val context: Context) : SettingsStore {
     suspend fun setSpectrogramShowAxes(value: Boolean) { context.settingsDataStore.edit { it[Keys.spectrogramShowAxes] = value } }
     suspend fun setCoverSearchSources(value: String) { context.settingsDataStore.edit { it[Keys.coverSearchSources] = value } }
     suspend fun setCoverSearchCountry(value: String) { context.settingsDataStore.edit { it[Keys.coverSearchCountry] = value } }
+    suspend fun addAnalyzeRecentUri(uri: String) { context.settingsDataStore.edit { preferences -> preferences[Keys.analyzeRecentUris] = (listOf(uri) + preferences[Keys.analyzeRecentUris].orEmpty().split('|')).filter { it.isNotBlank() }.distinct().take(5).joinToString("|") } }
 }
 
 private object TokenCipher {

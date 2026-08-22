@@ -13,6 +13,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.draw.clip
 import android.graphics.Paint
 import androidx.compose.foundation.layout.Arrangement
@@ -35,6 +36,9 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.FilterChip
@@ -42,6 +46,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Button
@@ -52,6 +58,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -90,6 +97,7 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.ui.text.style.TextOverflow
@@ -110,9 +118,11 @@ import com.youneko.rate.data.audio.SpectrogramCache
 import com.youneko.rate.data.artwork.ArtworkStore
 import com.youneko.rate.data.SettingsDataStore
 import com.youneko.rate.data.local.dao.AudioAnalysisDao
+import com.youneko.rate.data.local.dao.TrackDao
 import com.youneko.rate.data.importer.AudioTag
 import com.youneko.rate.data.importer.LocalAudioTagReader
 import com.youneko.rate.data.local.entity.AudioAnalysisEntity
+import com.youneko.rate.data.local.entity.TrackEntity
 import com.youneko.rate.ui.components.YnBrandTitle
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -187,8 +197,13 @@ private fun WorkInfo?.toAnalyzeUiState(): AnalyzeUiState {
 class AudioAnalysisViewModel @Inject constructor(
     @ApplicationContext private val context: android.content.Context,
     dao: AudioAnalysisDao,
+    private val trackDao: TrackDao,
 ) : ViewModel() {
     private val workManager = WorkManager.getInstance(context)
+    private val settings = SettingsDataStore(context)
+    private val _libraryTracks = MutableStateFlow<List<TrackEntity>>(emptyList())
+    val libraryTracks = _libraryTracks.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val recentUris = settings.analyzeRecentUris.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     private val _events = Channel<AnalyzeEvent>(Channel.BUFFERED)
     val events = _events.receiveAsFlow()
     private var currentWorkId: UUID? = null
@@ -200,6 +215,9 @@ class AudioAnalysisViewModel @Inject constructor(
     val workInfos = workInfosFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     init {
+        viewModelScope.launch(Dispatchers.IO) {
+            _libraryTracks.value = trackDao.findAll().filter { !it.isMissing && !it.sourceUri.isNullOrBlank() }.take(500)
+        }
         viewModelScope.launch {
             workInfosFlow.collect { infos ->
                 val workId = currentWorkId ?: return@collect
@@ -222,6 +240,7 @@ class AudioAnalysisViewModel @Inject constructor(
 
     fun enqueue(uri: String) {
         viewModelScope.launch(Dispatchers.IO) {
+            settings.addAnalyzeRecentUri(uri)
             val parsedUri = Uri.parse(uri)
             val fileName = parsedUri.lastPathSegment.orEmpty().substringAfterLast('/').ifBlank { "audio" }
             val tag = runCatching { LocalAudioTagReader(context, ArtworkStore(context)).readAll(listOf(parsedUri)).tags.firstOrNull() }.getOrNull()
@@ -261,6 +280,11 @@ fun AudioAnalysisScreen(viewModel: AudioAnalysisViewModel = hiltViewModel()) {
         viewModel.enqueue(uri.toString())
     }
     val latest = analyses.firstOrNull()
+    val libraryTracks by viewModel.libraryTracks.collectAsStateWithLifecycle()
+    val recentUris by viewModel.recentUris.collectAsStateWithLifecycle()
+    val listState = rememberLazyListState()
+    var showSourceSheet by rememberSaveable { mutableStateOf(false) }
+    var libraryQuery by rememberSaveable { mutableStateOf("") }
     var cachedSpectrogram by remember { mutableStateOf<CachedSpectrogram?>(null) }
     LaunchedEffect(latest?.fileUriOrPath, latest?.fileHash, latest?.trackId) {
         cachedSpectrogram = latest?.let { analysis ->
@@ -298,31 +322,91 @@ fun AudioAnalysisScreen(viewModel: AudioAnalysisViewModel = hiltViewModel()) {
         },
         snackbarHost = { SnackbarHost(snackbarHostState, Modifier.navigationBarsPadding()) },
     ) { innerPadding ->
-        Column(
-            Modifier.fillMaxSize().padding(innerPadding).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            header?.let { selectedHeader ->
-                Text(selectedHeader.title, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text(
-                    listOfNotNull(selectedHeader.artist, selectedHeader.album?.takeUnless { it.equals(selectedHeader.title, ignoreCase = true) }, selectedHeader.format).joinToString(" · ").ifBlank { stringResource(R.string.audio_analysis_not_applicable) },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 3,
+        Box(Modifier.fillMaxSize()) {
+            LazyColumn(
+                state = listState,
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 20.dp, top = 12.dp, end = 20.dp, bottom = 168.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxSize().padding(innerPadding),
+            ) {
+                item {
+                    header?.let { selectedHeader ->
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(selectedHeader.title, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Text(
+                                listOfNotNull(selectedHeader.artist, selectedHeader.album?.takeUnless { it.equals(selectedHeader.title, ignoreCase = true) }, selectedHeader.format).joinToString(" · ").ifBlank { stringResource(R.string.audio_analysis_not_applicable) },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 3,
+                            )
+                        }
+                    }
+                }
+                item {
+                    when (val state = analyzeState) {
+                        is AnalyzeUiState.Running -> AnalyzeRunningCard(state, viewModel::onCancelClicked)
+                        is AnalyzeUiState.Failed -> YounekoErrorState("${state.fileName}: ${state.reason}", onRetry = { picker.launch(arrayOf("audio/*")) }, modifier = Modifier.fillMaxWidth())
+                        else -> Unit
+                    }
+                }
+                item {
+                    when {
+                        latest != null -> AnalysisCard(latest, cachedSpectrogram, context, onExplain = { explain = true })
+                        analyzeState is AnalyzeUiState.Failed -> Unit
+                        else -> YounekoEmptyState(stringResource(R.string.audio_analysis_empty), actionLabel = stringResource(R.string.audio_analysis_choose_file), onAction = { showSourceSheet = true }, modifier = Modifier.fillMaxWidth())
+                    }
+                }
+                item { Text(stringResource(R.string.analyze_decode_note), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            }
+            ExtendedFloatingActionButton(
+                text = { Text(stringResource(R.string.audio_analysis_choose_file)) },
+                icon = { Icon(Icons.Rounded.LibraryMusic, contentDescription = null) },
+                expanded = !listState.canScrollBackward,
+                onClick = { showSourceSheet = true },
+                modifier = Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 20.dp, bottom = 88.dp),
+            )
+        }
+    }
+    if (showSourceSheet) {
+        ModalBottomSheet(onDismissRequest = { showSourceSheet = false }) {
+            Column(Modifier.fillMaxWidth().navigationBarsPadding()) {
+                Text(stringResource(R.string.analyze_choose_source), style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.analyze_from_library)) },
+                    supportingContent = { Text(stringResource(R.string.analyze_from_library_count, libraryTracks.size)) },
+                    leadingContent = { Icon(Icons.Rounded.LibraryMusic, contentDescription = null) },
+                    modifier = Modifier.clickable { showSourceSheet = false },
                 )
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.audio_analysis_choose_file)) },
+                    supportingContent = { Text(stringResource(R.string.analyze_open_device)) },
+                    leadingContent = { Icon(Icons.Default.FolderOpen, contentDescription = null) },
+                    modifier = Modifier.clickable { showSourceSheet = false; picker.launch(arrayOf("audio/*")) },
+                )
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.analyze_recent_files)) },
+                    supportingContent = { Text(stringResource(R.string.analyze_recent_count, recentUris.size)) },
+                    leadingContent = { Icon(Icons.Default.Refresh, contentDescription = null) },
+                    modifier = Modifier.clickable { showSourceSheet = false },
+                )
+                if (libraryTracks.isNotEmpty()) {
+                    Text(stringResource(R.string.analyze_library_search), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+                    OutlinedTextField(libraryQuery, { libraryQuery = it }, label = { Text(stringResource(R.string.analyze_library_search)) }, modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp), singleLine = true)
+                    libraryTracks.filter { it.title.contains(libraryQuery, true) || it.fileName.orEmpty().contains(libraryQuery, true) }.take(20).forEach { track ->
+                        ListItem(
+                            headlineContent = { Text(track.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                            supportingContent = { Text(track.fileName.orEmpty(), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                            modifier = Modifier.clickable { track.sourceUri?.let(viewModel::enqueue); showSourceSheet = false },
+                        )
+                    }
+                }
+                if (recentUris.isNotEmpty()) {
+                    Text(stringResource(R.string.analyze_recent_files), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+                    recentUris.forEach { uri ->
+                        ListItem(headlineContent = { Text(displayFileName(Uri.parse(uri).lastPathSegment.orEmpty())) }, modifier = Modifier.clickable { viewModel.enqueue(uri); showSourceSheet = false })
+                    }
+                }
             }
-            when (val state = analyzeState) {
-                is AnalyzeUiState.Running -> AnalyzeRunningCard(state, viewModel::onCancelClicked)
-                is AnalyzeUiState.Failed -> YounekoErrorState("${state.fileName}: ${state.reason}", onRetry = { picker.launch(arrayOf("audio/*")) }, modifier = Modifier.fillMaxWidth())
-                else -> Unit
-            }
-            when {
-                latest != null -> AnalysisCard(latest, cachedSpectrogram, context, onExplain = { explain = true })
-                analyzeState is AnalyzeUiState.Failed -> Unit
-                else -> YounekoEmptyState(stringResource(R.string.audio_analysis_empty), actionLabel = stringResource(R.string.audio_analysis_choose_file), onAction = { picker.launch(arrayOf("audio/*")) }, modifier = Modifier.fillMaxWidth())
-            }
-            Text(stringResource(R.string.analyze_decode_note), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(YnDimens.navigationSafe))
         }
     }
     if (explain) {

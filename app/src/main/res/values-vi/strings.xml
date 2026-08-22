@@ -23,7 +23,14 @@
     <string name="analyze_running">Đang phân tích (%1$d/%2$d)</string>
     <string name="audio_analysis_confidence">Độ tin cậy</string>
     <string name="audio_analysis_explanation_body">Tần số cắt là nơi năng lượng phổ giảm mạnh. Độ dốc cắt mô tả độ dốc của vách cắt; dải động mô tả crest factor; true peak và clipping mô tả biên độ cực đại. Kết luận là heuristic, không phải chứng nhận nguồn phát hành.</string>
-    <string name="audio_analysis_choose_file">Chọn file nhạc</string>
+    <string name="audio_analysis_choose_file">Chọn tệp</string>
+    <string name="analyze_choose_source">Chọn nguồn phân tích</string>
+    <string name="analyze_from_library">Chọn từ thư viện</string>
+    <string name="analyze_from_library_count">%1$d bài đã quét</string>
+    <string name="analyze_open_device">Mở tệp âm thanh từ thiết bị</string>
+    <string name="analyze_recent_files">Phân tích bài gần đây</string>
+    <string name="analyze_recent_count">%1$d tệp gần đây</string>
+    <string name="analyze_library_search">Tìm bài trong thư viện</string>
     <string name="audio_analysis_running">Đang phân tích chất lượng audio...</string>
     <string name="audio_analysis_empty">Chọn một file audio local để bắt đầu.</string>
     <string name="audio_analysis_verdict">Kết luận chất lượng</string>
