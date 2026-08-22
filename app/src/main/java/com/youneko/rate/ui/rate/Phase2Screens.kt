@@ -201,10 +201,26 @@ fun LibraryScreen(
                 }
             },
         )
-        if (onlineMode) {
-            MusicBrainzSearchPanel(viewModel = onlineViewModel, onImported = onOpenAlbum, modifier = Modifier.weight(1f).fillMaxWidth())
-        } else if (state.gridView) {
-            LazyVerticalGrid(
+        LibraryListHeader(
+            state = state,
+            onlineMode = onlineMode,
+            searchActive = searchActive,
+            onSearchActiveChange = { searchActive = it },
+            onQueryChange = { query -> viewModel.setQuery(query); onlineViewModel.setQuery(query) },
+            onOnlineModeChange = { selectedOnline -> onlineMode = selectedOnline; onlineViewModel.setQuery(state.query) },
+            onOpenAdvancedSearch = onOpenAdvancedSearch,
+            onOpenCollections = onOpenCollections,
+            onRefresh = refresh,
+            onSort = viewModel::setSort,
+            modifier = Modifier.padding(horizontal = YnDimens.space4, vertical = YnDimens.space2),
+        )
+        when {
+            onlineMode -> MusicBrainzSearchPanel(
+                viewModel = onlineViewModel,
+                onImported = onOpenAlbum,
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+            )
+            state.gridView -> LazyVerticalGrid(
                 columns = GridCells.Adaptive(160.dp),
                 modifier = Modifier.weight(1f).pointerInput(Unit) {
                     var pulled = 0f
@@ -218,9 +234,6 @@ fun LibraryScreen(
                 horizontalArrangement = Arrangement.spacedBy(YnDimens.space3),
                 verticalArrangement = Arrangement.spacedBy(YnDimens.space3),
             ) {
-                item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
-                    LibraryListHeader(state, onlineMode, searchActive, { searchActive = it }, { query -> viewModel.setQuery(query); onlineViewModel.setQuery(query) }, { selectedOnline -> onlineMode = selectedOnline; if (selectedOnline) onlineViewModel.setQuery(state.query) }, onOpenAdvancedSearch, onOpenCollections, refresh, viewModel::setSort)
-                }
                 when {
                     state.error != null -> item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) { YounekoErrorState(state.error ?: stringResource(R.string.error_generic), onRetry = viewModel::clearError, modifier = Modifier.fillMaxWidth()) }
                     state.albums.isEmpty() -> item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) { EmptyLibrary(onAddAlbum, hasQuery = state.query.isNotBlank() || state.unfinishedOnly) }
@@ -228,8 +241,7 @@ fun LibraryScreen(
                     else -> items(state.albums, key = { stableAlbumKey(it.album.id) }) { item -> AlbumCard(item, onOpenAlbum) }
                 }
             }
-        } else {
-            LazyColumn(
+            else -> LazyColumn(
                 modifier = Modifier.weight(1f).pointerInput(Unit) {
                     var pulled = 0f
                     detectVerticalDragGestures(
@@ -241,7 +253,6 @@ fun LibraryScreen(
                 contentPadding = PaddingValues(start = YnDimens.space4, end = YnDimens.space4, top = YnDimens.space2, bottom = YnDimens.navigationSafe),
                 verticalArrangement = Arrangement.spacedBy(YnDimens.space3),
             ) {
-                item { LibraryListHeader(state, onlineMode, searchActive, { searchActive = it }, { query -> viewModel.setQuery(query); onlineViewModel.setQuery(query) }, { selectedOnline -> onlineMode = selectedOnline; if (selectedOnline) onlineViewModel.setQuery(state.query) }, onOpenAdvancedSearch, onOpenCollections, refresh, viewModel::setSort) }
                 when {
                     state.error != null -> item { YounekoErrorState(state.error ?: stringResource(R.string.error_generic), onRetry = viewModel::clearError, modifier = Modifier.fillMaxWidth()) }
                     state.albums.isEmpty() -> item { EmptyLibrary(onAddAlbum, hasQuery = state.query.isNotBlank() || state.unfinishedOnly) }
@@ -274,8 +285,9 @@ private fun LibraryListHeader(
     onOpenCollections: () -> Unit,
     onRefresh: () -> Unit,
     onSort: (LibrarySort) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(YnDimens.space2)) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(YnDimens.space2)) {
         SearchBar(
             query = state.query,
             onQueryChange = onQueryChange,
