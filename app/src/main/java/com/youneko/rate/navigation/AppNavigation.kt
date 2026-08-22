@@ -82,6 +82,7 @@ fun YounekoNavHost() {
     }
     val isSettings = currentDestination?.route == "settings"
     val isLibrary = currentDestination?.route == "library"
+    val isAnalyze = currentDestination?.route == "analyze"
     val isDetail = currentDestination?.route?.startsWith("album/") == true
     val isCredits = currentDestination?.route?.startsWith("credits/") == true
     val isEditor = currentDestination?.route == "addAlbum"
@@ -91,7 +92,7 @@ fun YounekoNavHost() {
     MediaAccessGate(content = {
         Scaffold(
         topBar = {
-            if (!isLibrary && !isDetail && !isCredits && !isEditor && !isImport && !isExport) {
+            if (!isLibrary && !isAnalyze && !isDetail && !isCredits && !isEditor && !isImport && !isExport) {
                 TopAppBar(
                     title = { Text(stringResource(mainTopBarTitle(currentDestination?.route))) },
                     actions = {

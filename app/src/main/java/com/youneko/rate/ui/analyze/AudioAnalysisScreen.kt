@@ -41,6 +41,8 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.LinearProgressIndicator
@@ -78,6 +80,7 @@ import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.ui.text.style.TextOverflow
@@ -232,6 +235,7 @@ class AudioAnalysisViewModel @Inject constructor(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AudioAnalysisScreen(viewModel: AudioAnalysisViewModel = hiltViewModel()) {
     val analyses by viewModel.analyses.collectAsStateWithLifecycle()
@@ -268,13 +272,24 @@ fun AudioAnalysisScreen(viewModel: AudioAnalysisViewModel = hiltViewModel()) {
     }
     Scaffold(
         modifier = Modifier.fillMaxSize(),
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.analyze), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                actions = {
+                    if (latest != null || analyzeState is AnalyzeUiState.Running || analyzeState is AnalyzeUiState.Failed) {
+                        IconButton(onClick = { picker.launch(arrayOf("audio/*")) }, enabled = analyzeState !is AnalyzeUiState.Running) {
+                            Icon(Icons.Default.FolderOpen, contentDescription = stringResource(R.string.audio_analysis_choose_file), modifier = Modifier.size(24.dp))
+                        }
+                    }
+                },
+            )
+        },
         snackbarHost = { SnackbarHost(snackbarHostState, Modifier.navigationBarsPadding()) },
     ) { innerPadding ->
         Column(
-            Modifier.fillMaxSize().padding(innerPadding).verticalScroll(rememberScrollState()).padding(20.dp),
+            Modifier.fillMaxSize().padding(innerPadding).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(stringResource(R.string.analyze), style = MaterialTheme.typography.headlineSmall)
             header?.let { selectedHeader ->
                 Text(selectedHeader.title, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(
@@ -283,17 +298,17 @@ fun AudioAnalysisScreen(viewModel: AudioAnalysisViewModel = hiltViewModel()) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 3,
                 )
-            } ?: Text(stringResource(R.string.analyze_choose_file_short), style = MaterialTheme.typography.bodyMedium)
-            Button(enabled = analyzeState !is AnalyzeUiState.Running, onClick = { picker.launch(arrayOf("audio/*")) }) {
-                Text(stringResource(R.string.audio_analysis_choose_file))
             }
             when (val state = analyzeState) {
                 is AnalyzeUiState.Running -> AnalyzeRunningCard(state, viewModel::onCancelClicked)
                 is AnalyzeUiState.Failed -> YounekoErrorState("${state.fileName}: ${state.reason}", onRetry = { picker.launch(arrayOf("audio/*")) }, modifier = Modifier.fillMaxWidth())
                 else -> Unit
             }
-            latest?.let { AnalysisCard(it, cachedSpectrogram, context, onExplain = { explain = true }) }
-                ?: YounekoEmptyState(stringResource(R.string.audio_analysis_empty), actionLabel = stringResource(R.string.audio_analysis_choose_file), onAction = { picker.launch(arrayOf("audio/*")) }, modifier = Modifier.fillMaxWidth())
+            when {
+                latest != null -> AnalysisCard(latest, cachedSpectrogram, context, onExplain = { explain = true })
+                analyzeState is AnalyzeUiState.Failed -> Unit
+                else -> YounekoEmptyState(stringResource(R.string.audio_analysis_empty), actionLabel = stringResource(R.string.audio_analysis_choose_file), onAction = { picker.launch(arrayOf("audio/*")) }, modifier = Modifier.fillMaxWidth())
+            }
             Text(stringResource(R.string.analyze_decode_note), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
