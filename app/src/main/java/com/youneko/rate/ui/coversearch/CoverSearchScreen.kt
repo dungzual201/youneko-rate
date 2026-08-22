@@ -54,9 +54,13 @@ import androidx.lifecycle.viewModelScope
 import coil.compose.AsyncImage
 import com.youneko.rate.R
 import com.youneko.rate.data.AlbumRepository
-import com.youneko.rate.data.musicbrainz.CoverCandidate
 import com.youneko.rate.data.musicbrainz.ItunesCoverApi
 import com.youneko.rate.data.musicbrainz.PublicCoverProviders
+import com.youneko.rate.data.artwork.CoverApplyService
+import com.youneko.rate.data.artwork.CoverDownloadResult
+import com.youneko.rate.data.artwork.CoverDownloadService
+import com.youneko.rate.data.artwork.FailureReason
+import com.youneko.rate.data.musicbrainz.CoverCandidate
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -76,6 +80,9 @@ data class NativeCoverUiState(
     val candidates: List<CoverCandidate> = emptyList(),
     val sourceErrors: List<String> = emptyList(),
     val selectedUrl: String? = null,
+    val applying: Boolean = false,
+    val applyError: FailureReason? = null,
+    val applied: Boolean = false,
 )
 
 @HiltViewModel
@@ -84,6 +91,8 @@ class CoverSearchViewModel @Inject constructor(
     private val repository: AlbumRepository,
     private val itunesApi: ItunesCoverApi,
     private val publicCoverProviders: PublicCoverProviders,
+    private val downloader: CoverDownloadService,
+    private val applier: CoverApplyService,
 ) : ViewModel() {
     private val albumId: String = checkNotNull(savedStateHandle["albumId"])
     private val _state = MutableStateFlow(NativeCoverUiState())
@@ -141,8 +150,17 @@ class CoverSearchViewModel @Inject constructor(
         _state.value = _state.value.copy(phase = CoverSearchPhase.IDLE, candidates = emptyList())
     }
 
-    fun select(candidate: CoverCandidate) {
-        _state.value = _state.value.copy(selectedUrl = candidate.url)
+    fun applyCandidate(candidate: CoverCandidate) {
+        if (_state.value.applying) return
+        _state.value = _state.value.copy(selectedUrl = candidate.url, applying = true, applyError = null)
+        viewModelScope.launch {
+            when (val downloaded = downloader.download(albumId, candidate.url, candidate.sourceProvider) {}) {
+                is CoverDownloadResult.Failure -> _state.value = _state.value.copy(applying = false, applyError = downloaded.reason)
+                is CoverDownloadResult.Success -> applier.apply(albumId, downloaded.cover)
+                    .onSuccess { _state.value = _state.value.copy(applying = false, applied = true) }
+                    .onFailure { _state.value = _state.value.copy(applying = false, applyError = FailureReason.WRITE_FAILED) }
+            }
+        }
     }
 
     private suspend fun searchItunes(artist: String, album: String): List<CoverCandidate> = try {
@@ -216,6 +234,7 @@ class CoverSearchViewModel @Inject constructor(
 @Composable
 fun CoverSearchScreen(onBack: () -> Unit, viewModel: CoverSearchViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    LaunchedEffect(state.applied) { if (state.applied) onBack() }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -233,6 +252,15 @@ fun CoverSearchScreen(onBack: () -> Unit, viewModel: CoverSearchViewModel = hilt
                 Button(onClick = viewModel::search, enabled = state.phase != CoverSearchPhase.LOADING) { Icon(Icons.Default.Refresh, contentDescription = null); Spacer(Modifier.height(1.dp)); Text(stringResource(R.string.cover_search_retry)) }
                 if (state.phase == CoverSearchPhase.LOADING) TextButton(onClick = viewModel::cancelSearch) { Text(stringResource(R.string.cover_search_cancel)) }
             }
+            if (state.applying) LinearProgressIndicator(Modifier.fillMaxWidth())
+            state.applyError?.let { reason ->
+                val message = when (reason) {
+                    FailureReason.HOTLINK_BLOCKED -> stringResource(R.string.cover_error_hotlink)
+                    FailureReason.NETWORK -> stringResource(R.string.cover_error_network)
+                    else -> stringResource(R.string.cover_error_apply)
+                }
+                Text(message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            }
             when (state.phase) {
                 CoverSearchPhase.LOADING -> {
                     LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -248,7 +276,7 @@ fun CoverSearchScreen(onBack: () -> Unit, viewModel: CoverSearchViewModel = hilt
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     items(state.candidates, key = { "${it.sourceProvider}:${it.url}" }) { candidate ->
-                        CoverResultCard(candidate, selected = candidate.url == state.selectedUrl, onClick = { viewModel.select(candidate) })
+                        CoverResultCard(candidate, selected = candidate.url == state.selectedUrl, onClick = { viewModel.applyCandidate(candidate) })
                     }
                 }
                 CoverSearchPhase.IDLE -> Text(stringResource(R.string.cover_search_ready))

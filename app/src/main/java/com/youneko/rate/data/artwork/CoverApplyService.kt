@@ -36,7 +36,7 @@ class CoverApplyService @Inject constructor(
         val updated = album.album.copy(
             coverUri = finalOriginal.absolutePath,
             coverThumbUri = finalThumbnail.absolutePath,
-            coverSource = "covers.musichoarders.xyz:${downloaded.source}",
+            coverSource = downloaded.source,
             coverWidth = downloaded.width,
             coverHeight = downloaded.height,
             coverUpdatedAt = System.currentTimeMillis(),
