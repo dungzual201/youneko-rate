@@ -51,7 +51,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.LinearProgressIndicator
@@ -123,7 +122,7 @@ import com.youneko.rate.data.importer.AudioTag
 import com.youneko.rate.data.importer.LocalAudioTagReader
 import com.youneko.rate.data.local.entity.AudioAnalysisEntity
 import com.youneko.rate.data.local.entity.TrackEntity
-import com.youneko.rate.ui.components.YnBrandTitle
+import com.youneko.rate.ui.components.YnSharedTopAppBar
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
@@ -313,8 +312,8 @@ fun AudioAnalysisScreen(initialUri: String? = null, viewModel: AudioAnalysisView
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         topBar = {
-            TopAppBar(
-                title = { YnBrandTitle() },
+            YnSharedTopAppBar(
+                screenName = "Analyze",
                 actions = {
                     if (analyzeState is AnalyzeUiState.Idle || analyzeState is AnalyzeUiState.Running || analyzeState is AnalyzeUiState.Failed || latest != null) {
                         TooltipBox(

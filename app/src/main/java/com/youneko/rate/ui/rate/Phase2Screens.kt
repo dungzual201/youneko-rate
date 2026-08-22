@@ -174,7 +174,7 @@ import com.youneko.rate.data.lyrics.toPlainText
 import com.youneko.rate.data.lyrics.LyricLine
 import com.youneko.rate.ui.artwork.CoverArtImage
 import com.youneko.rate.ui.components.YnAlbumCard
-import com.youneko.rate.ui.components.YnBrandTitle
+import com.youneko.rate.ui.components.YnSharedTopAppBar
 import com.youneko.rate.ui.components.YnSkeleton
 import com.youneko.rate.domain.usecase.ScoreMode
 import com.youneko.rate.domain.usecase.RatingScale
@@ -220,8 +220,8 @@ fun LibraryScreen(
     var onlineMode by rememberSaveable { mutableStateOf(false) }
     var searchActive by rememberSaveable { mutableStateOf(false) }
     Column(modifier = Modifier.fillMaxSize()) {
-        TopAppBar(
-            title = { YnBrandTitle() },
+        YnSharedTopAppBar(
+            screenName = "Library",
             actions = {
                 IconButton(onClick = onOpenSettings) { Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.settings), modifier = Modifier.size(YnDimens.iconMedium)) }
                 IconButton(onClick = { showFilters = true }) { Icon(Icons.Default.FilterList, contentDescription = stringResource(R.string.filters), modifier = Modifier.size(YnDimens.iconMedium)) }
@@ -233,7 +233,7 @@ fun LibraryScreen(
         Text(
             stringResource(R.string.library),
             style = MaterialTheme.typography.headlineMedium,
-            modifier = Modifier.padding(horizontal = YnDimens.space4, vertical = YnDimens.space2),
+            modifier = Modifier.padding(horizontal = YnDimens.space4, vertical = 0.dp).padding(top = YnDimens.space2, bottom = YnDimens.space3),
         )
         LibraryListHeader(
             state = state,

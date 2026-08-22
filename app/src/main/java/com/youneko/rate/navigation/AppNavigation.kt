@@ -21,7 +21,6 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -44,7 +43,7 @@ import com.youneko.rate.ui.rate.AlbumEditorScreen
 import com.youneko.rate.ui.importer.ImportScreen
 import com.youneko.rate.ui.rate.LibraryScreen
 import com.youneko.rate.ui.rate.RateScreen
-import com.youneko.rate.ui.components.YnBrandTitle
+import com.youneko.rate.ui.components.YnSharedTopAppBar
 import com.youneko.rate.ui.rate.SettingsScreen
 import com.youneko.rate.ui.analyze.AudioAnalysisScreen
 import com.youneko.rate.ui.credits.CreditsScreen
@@ -96,8 +95,8 @@ fun YounekoNavHost() {
         Scaffold(
         topBar = {
             if (!isLibrary && !isAnalyze && !isDetail && !isCredits && !isEditor && !isImport && !isExport && !isCoverSearch) {
-                TopAppBar(
-                    title = { YnBrandTitle() },
+                YnSharedTopAppBar(
+                    screenName = if (currentDestination?.route == "rate") "Rate" else "Stats",
                     actions = {
                         if (!isSettings) IconButton(onClick = { navController.navigate("settings") }) {
                             Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.settings), modifier = Modifier.size(24.dp))

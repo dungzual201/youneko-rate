@@ -1,5 +1,6 @@
 package com.youneko.rate.ui.components
 
+import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -23,6 +24,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -53,6 +55,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -94,6 +97,29 @@ import com.youneko.rate.ui.YnDimens
 import com.youneko.rate.ui.YnMotion
 import com.youneko.rate.ui.rememberReducedMotion
 import com.youneko.rate.ui.artwork.CoverArtImage
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+fun YnSharedTopAppBar(
+    screenName: String,
+    title: @Composable () -> Unit = { YnBrandTitle() },
+    actions: @Composable RowScope.() -> Unit = {},
+) {
+    androidx.compose.runtime.LaunchedEffect(screenName) {
+        Log.d("HEADER", "screen=$screenName barHeight=64dp topPadding=0dp")
+    }
+    TopAppBar(
+        title = title,
+        modifier = Modifier.height(64.dp).padding(horizontal = 16.dp),
+        actions = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(YnDimens.space1),
+                content = actions,
+            )
+        },
+    )
+}
 
 @Composable
 fun YnBrandTitle() {
