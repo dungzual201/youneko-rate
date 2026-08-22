@@ -129,6 +129,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -179,6 +180,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import kotlin.math.abs
+
+private fun androidx.compose.ui.graphics.Color.toHex(): String = "#%08X".format(toArgb())
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -680,6 +683,9 @@ fun AlbumDetailScreen(
             val darkTheme = isSystemInDarkTheme()
             val dominantColor = palette?.dominant ?: androidx.compose.ui.graphics.Color(0xFF403A46)
             val onGradientColor = if (contrastRatio(dominantColor, androidx.compose.ui.graphics.Color.Black) >= contrastRatio(dominantColor, androidx.compose.ui.graphics.Color.White)) androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color.White
+            val topBarContrast = contrastRatio(dominantColor, onGradientColor)
+            val topBarScrim = if (topBarContrast < 4.5) androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.30f) else androidx.compose.ui.graphics.Color.Transparent
+            android.util.Log.d("CONTRAST", "album=${value.album.id} bg=${dominantColor.toHex()} text=${onGradientColor.toHex()} ratio=$topBarContrast")
             val view = LocalView.current
             SideEffect {
                 (context as? Activity)?.window?.let { window ->
@@ -693,7 +699,7 @@ fun AlbumDetailScreen(
                 TopAppBar(
                     title = { Text(stringResource(R.string.album_detail), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.a11y_back), modifier = Modifier.size(YnDimens.iconMedium)) } },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = androidx.compose.ui.graphics.Color.Transparent, scrolledContainerColor = androidx.compose.ui.graphics.Color.Transparent, titleContentColor = onGradientColor, navigationIconContentColor = onGradientColor, actionIconContentColor = onGradientColor),
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = topBarScrim, scrolledContainerColor = topBarScrim, titleContentColor = onGradientColor, navigationIconContentColor = onGradientColor, actionIconContentColor = onGradientColor),
                     actions = {
                         Box {
                             IconButton(onClick = { menuExpanded = true }) { Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.edit_album), modifier = Modifier.size(YnDimens.iconMedium)) }
