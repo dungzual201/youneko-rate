@@ -22,7 +22,7 @@ Youneko Rate! dành cho người nghe nhạc theo album và muốn lưu lại c�
 
 | Khu vực | Hành vi đã triển khai |
 |---|---|
-| Quét thư viện | MediaStore nhiều volume, `READ_MEDIA_AUDIO`/`READ_EXTERNAL_STORAGE`, SAF tree, incremental generation/`DATE_MODIFIED`, ContentObserver debounce và PeriodicWorkManager. Scan có pha cursor/batch để hiện album sớm và pha enrichment nền giới hạn song song. |
+| Quét thư viện | MediaStore nhiều volume, `READ_MEDIA_AUDIO`/`READ_EXTERNAL_STORAGE`, SAF tree, incremental generation/`DATE_MODIFIED`, ContentObserver debounce và PeriodicWorkManager. Scan có hai pha sẵn có: metadata rồi artwork/enrichment. Banner tiến trình cấp app chiếm trọn hàng header, hiển thị pha, số đếm và nút huỷ; khi xong header trở lại. |
 | Metadata và artwork | Đọc tag local; artwork ưu tiên embedded picture, ảnh cùng thư mục và MediaStore albumart; cache tại `filesDir/covers/{albumId}.jpg`. Scan không gọi mạng để lấy cover. |
 | Rate và review | Thang 5 sao/10 điểm/100 điểm với canonical storage 5 sao, điểm album simple/weighted/manual, review autosave, tags và listening log. |
 | Lyrics | Đọc ID3 `USLT`/`SYLT`, Vorbis `LYRICS`, atom `©lyr`, sidecar `.lrc`/`.ttml`; TTML dùng `XmlPullParser`, `WordTiming`, agent và offset-time. Ứng dụng không crawl lyrics web. |
@@ -30,6 +30,8 @@ Youneko Rate! dành cho người nghe nhạc theo album và muốn lưu lại c�
 | Audio analysis | Decode-only bằng `MediaExtractor`/`MediaCodec`, FFT 4096 điểm với cửa sổ Hann, thông tin codec/bitrate/sample rate/bit depth/channel/cutoff/slope/clipping/true peak/dynamic range/crest factor khi dữ liệu có sẵn. Verdict lossless/lossy là heuristic. |
 | Sao lưu và khôi phục | Định dạng `.younekorate` là ZIP có manifest, database checkpoint WAL, covers, settings an toàn và CSV/JSON UTF-8 BOM; hỗ trợ import preview, replace có rollback, merge stable-key, remap cover và auto-backup SAF giữ 5 bản. ZIP không chứa file nhạc hoặc API token. |
 | Stats/collection | Code hiện có module thống kê, chia sẻ ảnh qua FileProvider, collection, tìm kiếm nâng cao và trang nghệ sĩ; mức hoàn thiện chính thức phải đối chiếu `docs/PROGRESS.md`. |
+
+Bốn tab chính là **Library**, **Rate**, **Analyze** và **Stats**. Library và Rate phục vụ quản lý/chấm điểm; Analyze chỉ giải mã để đo chất lượng; Stats tổng hợp dữ liệu đã lưu.
 
 ## Bảo toàn dữ liệu người dùng
 
@@ -114,7 +116,7 @@ Bản build phát hành được đăng tại [GitHub Releases](https://github.c
 
 ## Nguồn dữ liệu online
 
-Một số luồng online có thể dùng [MusicBrainz](https://musicbrainz.org), [Cover Art Archive](https://coverartarchive.org), [Discogs](https://www.discogs.com), [Genius](https://genius.com), [Deezer](https://www.deezer.com) và [iTunes Search](https://developer.apple.com/library/archive/documentation/AudioVideo/Conceptual/iTuneSearchAPI/). Người dùng cần tôn trọng điều khoản và giới hạn tốc độ của từng dịch vụ. Luồng scan MediaStore local và lyrics parser không gọi các dịch vụ này.
+Các nguồn online hiện có gồm [iTunes Search](https://developer.apple.com/library/archive/documentation/AudioVideo/Conceptual/iTuneSearchAPI/), [MusicBrainz](https://musicbrainz.org) và [Cover Art Archive](https://coverartarchive.org) cho cover, cùng các provider credits theo code như [Discogs](https://www.discogs.com), [Genius](https://genius.com) và [Deezer](https://www.deezer.com). Các request có giới hạn tối đa 1 request/giây ở luồng tương ứng và User-Agent định danh hợp lệ. COV chỉ mở bằng trình duyệt ngoài để người dùng xem; ứng dụng không gọi API nội bộ của COV. Người dùng cần tôn trọng điều khoản sử dụng và giới hạn tốc độ của từng dịch vụ. Luồng scan MediaStore local và lyrics parser không gọi các dịch vụ này.
 
 ## Giấy phép
 
