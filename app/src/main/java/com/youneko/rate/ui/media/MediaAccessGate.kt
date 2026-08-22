@@ -46,6 +46,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.res.stringResource
@@ -201,7 +202,7 @@ private fun ScanProgressBanner(state: ScanState, onCancel: () -> Unit) {
         Modifier
             .fillMaxWidth()
             .statusBarsPadding()
-            .background(MaterialTheme.colorScheme.surface),
+            .background(Color(0xFF1B1224)),
     ) {
         Row(
             Modifier
@@ -217,15 +218,15 @@ private fun ScanProgressBanner(state: ScanState, onCancel: () -> Unit) {
                     ScanPhase.ARTWORK -> R.string.scan_phase_artwork
                 },
             )
-            Text(phaseLabel, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelLarge)
-            if (state.total > 0) Text("${state.done}/${state.total}", style = MaterialTheme.typography.labelMedium)
+            Text(phaseLabel, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelLarge, color = Color.White)
+            if (state.total > 0) Text("${state.done}/${state.total}", style = MaterialTheme.typography.labelMedium, color = Color.White)
             IconButton(onClick = onCancel, modifier = Modifier.size(48.dp)) {
-                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.cancel), modifier = Modifier.size(YnDimens.iconMedium))
+                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.cancel), tint = Color.White, modifier = Modifier.size(YnDimens.iconMedium))
             }
         }
         state.fraction?.let { fraction ->
-            LinearProgressIndicator(progress = { fraction }, modifier = Modifier.fillMaxWidth().height(3.dp))
-        } ?: LinearProgressIndicator(modifier = Modifier.fillMaxWidth().height(3.dp))
+            LinearProgressIndicator(progress = { fraction }, color = MaterialTheme.colorScheme.primary, trackColor = Color.Transparent, modifier = Modifier.fillMaxWidth().height(3.dp))
+        } ?: LinearProgressIndicator(color = MaterialTheme.colorScheme.primary, trackColor = Color.Transparent, modifier = Modifier.fillMaxWidth().height(3.dp))
     }
 }
 
