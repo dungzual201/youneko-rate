@@ -1,6 +1,7 @@
 package com.youneko.rate
 
 import androidx.lifecycle.SavedStateHandle
+import androidx.test.core.app.ApplicationProvider
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import com.youneko.rate.data.AlbumDraft
 import com.youneko.rate.data.AlbumRepository
@@ -16,6 +17,9 @@ import com.youneko.rate.data.local.entity.TrackEntity
 import com.youneko.rate.data.local.dao.ReviewRevisionDao
 import com.youneko.rate.data.local.dao.AlbumTagDao
 import com.youneko.rate.data.local.dao.ListeningLogDao
+import com.youneko.rate.data.local.dao.AlbumPaletteDao
+import com.youneko.rate.data.local.entity.AlbumPaletteEntity
+import com.youneko.rate.data.artwork.CoverPaletteStore
 import com.youneko.rate.data.local.entity.ReviewRevisionEntity
 import com.youneko.rate.data.local.entity.AlbumTagEntity
 import com.youneko.rate.data.local.entity.ListeningLogEntity
@@ -73,10 +77,16 @@ class AlbumNavigationHotfixTest {
             object : AlbumMetadataRefreshService {
                 override suspend fun refreshMetadata(album: AlbumEntity): Resource<Unit> = Resource.Success(Unit)
             },
-            null,
-            FakeReviewRevisionDao(),
-            FakeAlbumTagDao(),
-            FakeListeningLogDao(),
+            coverArtService = null,
+            coverPaletteStore = CoverPaletteStore(ApplicationProvider.getApplicationContext(), object : AlbumPaletteDao {
+                override suspend fun findByAlbumId(albumId: String): AlbumPaletteEntity? = null
+                override fun observeByAlbumId(albumId: String): Flow<AlbumPaletteEntity?> = emptyFlow()
+                override suspend fun upsert(palette: AlbumPaletteEntity) = Unit
+                override suspend fun deleteForAlbum(albumId: String) = Unit
+            }),
+            reviewRevisionDao = FakeReviewRevisionDao(),
+            albumTagDao = FakeAlbumTagDao(),
+            listeningLogDao = FakeListeningLogDao(),
         )
         viewModel.state.first { it is AlbumDetailUiState.Content }
         val event = async { viewModel.events.first() }
