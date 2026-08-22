@@ -17,6 +17,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
 @Serializable
@@ -61,6 +62,14 @@ sealed interface CoverSearchEvent {
     data class Error(val code: Int? = null, val message: String? = null) : CoverSearchEvent
 }
 
+object MusicHoardersSession {
+    @Volatile private var session: String? = null
+
+    fun value(): String = session ?: synchronized(this) {
+        session ?: UUID.randomUUID().toString().replace("-", "").also { session = it }
+    }
+}
+
 class MusicHoardersApi(
     private val client: OkHttpClient,
     private val json: Json,
@@ -96,7 +105,13 @@ class MusicHoardersApi(
         val request = Request.Builder()
             .url(endpoint)
             .header("Content-Type", "application/json")
-            .header("User-Agent", "YounekoRate/${BuildConfig.VERSION_NAME} (https://github.com/dungzual201/youneko-rate)")
+            .header("X-Session", MusicHoardersSession.value())
+            .header("X-Page-Referrer", "")
+            .header("X-Page-Query", "")
+            .header("Accept", "application/x-ndjson")
+            .header("Referer", "https://covers.musichoarders.xyz/")
+            .header("Origin", "https://covers.musichoarders.xyz")
+            .header("User-Agent", "YounekoRate/${BuildConfig.VERSION_NAME} (Android; personal library use)")
             .post(requestJson.toRequestBody(JSON_MEDIA_TYPE))
             .build()
         val call = client.newCall(request)
