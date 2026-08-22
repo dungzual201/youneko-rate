@@ -30,6 +30,10 @@ interface CoverArtApi {
     suspend fun groupFront250(@Path("mbid") mbid: String): Response<ResponseBody>
 
     @Streaming
+    @GET("release/{mbid}/front")
+    suspend fun front(@Path("mbid") mbid: String): Response<ResponseBody>
+
+    @Streaming
     @GET("release/{mbid}/front-1200")
     suspend fun front1200(@Path("mbid") mbid: String): Response<ResponseBody>
 

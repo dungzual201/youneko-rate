@@ -200,7 +200,7 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideCoverArtApi(@Named("coverArt") client: OkHttpClient, json: Json): CoverArtApi = Retrofit.Builder()
+    fun provideCoverArtApi(@Named("coverSearch") client: OkHttpClient, json: Json): CoverArtApi = Retrofit.Builder()
         .baseUrl("https://coverartarchive.org/")
         .client(client)
         .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
