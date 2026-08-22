@@ -40,7 +40,7 @@ private const val CHANNEL_ID = "media_scan"
 private const val SCAN_TAG = "SCAN"
 private const val NOTIFICATION_ID = 4101
 private const val UNIQUE_PERIODIC = "media_scan_periodic"
-private const val UNIQUE_ON_RESUME = "media_scan_on_resume"
+const val UNIQUE_ON_RESUME = "media_scan_on_resume"
 
 @EntryPoint
 @InstallIn(SingletonComponent::class)
