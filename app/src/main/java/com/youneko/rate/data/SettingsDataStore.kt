@@ -171,6 +171,9 @@ class SettingsDataStore(private val context: Context) : SettingsStore {
         val creditSourceOrder = stringPreferencesKey("credits_source_order")
         val activeCreditSources = stringPreferencesKey("credits_active_sources")
         val creditsMergeMode = booleanPreferencesKey("credits_merge_mode")
+        val spectrogramDbFloor = longPreferencesKey("spectrogram_db_floor")
+        val spectrogramLogarithmic = booleanPreferencesKey("spectrogram_logarithmic")
+        val spectrogramShowAxes = booleanPreferencesKey("spectrogram_show_axes")
     }
 
     override val offlineOnly: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.offlineOnly] ?: false }
@@ -192,6 +195,9 @@ class SettingsDataStore(private val context: Context) : SettingsStore {
     override val creditSourceOrder: Flow<String> = context.settingsDataStore.data.map { it[Keys.creditSourceOrder] ?: "FILE_TAG,GENIUS,DISCOGS,MUSICBRAINZ,DEEZER,ITUNES" }
     override val activeCreditSources: Flow<String> = context.settingsDataStore.data.map { it[Keys.activeCreditSources] ?: "FILE_TAG,MUSICBRAINZ" }
     override val creditsMergeMode: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.creditsMergeMode] ?: false }
+    val spectrogramDbFloor: Flow<Int> = context.settingsDataStore.data.map { (it[Keys.spectrogramDbFloor] ?: -120L).toInt().coerceIn(-120, -60) }
+    val spectrogramLogarithmic: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.spectrogramLogarithmic] ?: false }
+    val spectrogramShowAxes: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.spectrogramShowAxes] ?: true }
 
     override suspend fun setOfflineOnly(value: Boolean) { context.settingsDataStore.edit { it[Keys.offlineOnly] = value } }
     override suspend fun setRatingStep(value: Double) { context.settingsDataStore.edit { it[Keys.ratingStep] = value } }
@@ -212,6 +218,9 @@ class SettingsDataStore(private val context: Context) : SettingsStore {
     override suspend fun setCreditSourceOrder(value: String) { context.settingsDataStore.edit { it[Keys.creditSourceOrder] = value } }
     override suspend fun setActiveCreditSources(value: String) { context.settingsDataStore.edit { it[Keys.activeCreditSources] = value } }
     override suspend fun setCreditsMergeMode(value: Boolean) { context.settingsDataStore.edit { it[Keys.creditsMergeMode] = value } }
+    suspend fun setSpectrogramDbFloor(value: Int) { context.settingsDataStore.edit { it[Keys.spectrogramDbFloor] = value.coerceIn(-120, -60).toLong() } }
+    suspend fun setSpectrogramLogarithmic(value: Boolean) { context.settingsDataStore.edit { it[Keys.spectrogramLogarithmic] = value } }
+    suspend fun setSpectrogramShowAxes(value: Boolean) { context.settingsDataStore.edit { it[Keys.spectrogramShowAxes] = value } }
 }
 
 private object TokenCipher {

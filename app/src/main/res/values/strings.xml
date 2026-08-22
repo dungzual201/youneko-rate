@@ -90,6 +90,7 @@
     <string name="spectrogram_show_axes">Show axes</string>
     <string name="spectrogram_db_range">dB range: %1$d</string>
     <string name="spectrogram_db_range_short">%1$d…0 dB</string>
+    <string name="spectrogram_db_sheet_title">Choose dB range</string>
     <string name="spectrogram_db_zero">0 dB</string>
     <string name="spectrogram_db_mid">-60 dB</string>
     <string name="spectrogram_db_floor">%1$d dB</string>

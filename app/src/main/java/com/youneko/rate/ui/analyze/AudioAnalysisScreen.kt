@@ -106,6 +106,7 @@ import com.youneko.rate.data.audio.AudioAnalysisWorker
 import com.youneko.rate.data.audio.CachedSpectrogram
 import com.youneko.rate.data.audio.SpectrogramCache
 import com.youneko.rate.data.artwork.ArtworkStore
+import com.youneko.rate.data.SettingsDataStore
 import com.youneko.rate.data.local.dao.AudioAnalysisDao
 import com.youneko.rate.data.importer.AudioTag
 import com.youneko.rate.data.importer.LocalAudioTagReader
@@ -553,8 +554,18 @@ private fun SpectrogramPanel(cached: CachedSpectrogram?, context: android.conten
     var dbFloor by rememberSaveable(cached?.metadata?.stableKey) { mutableStateOf(-120f) }
     var resetToken by rememberSaveable(cached?.metadata?.stableKey) { mutableStateOf(0) }
     var fullscreen by rememberSaveable(cached?.metadata?.stableKey) { mutableStateOf(false) }
+    var showDbSheet by rememberSaveable(cached?.metadata?.stableKey) { mutableStateOf(false) }
     var tooltip by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+    val settings = remember(context) { SettingsDataStore(context) }
+    val storedDbFloor by settings.spectrogramDbFloor.collectAsStateWithLifecycle(initialValue = -120)
+    val storedLogarithmic by settings.spectrogramLogarithmic.collectAsStateWithLifecycle(initialValue = false)
+    val storedShowAxes by settings.spectrogramShowAxes.collectAsStateWithLifecycle(initialValue = true)
+    LaunchedEffect(cached?.metadata?.stableKey, storedDbFloor, storedLogarithmic, storedShowAxes) {
+        dbFloor = storedDbFloor.toFloat()
+        logarithmic = storedLogarithmic
+        showAxes = storedShowAxes
+    }
     Card(Modifier.fillMaxWidth().navigationBarsPadding()) {
         Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -584,10 +595,9 @@ private fun SpectrogramPanel(cached: CachedSpectrogram?, context: android.conten
                     Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    FilterChip(selected = !logarithmic, onClick = { logarithmic = false }, label = { Text(stringResource(R.string.spectrogram_linear_short)) }, modifier = Modifier.height(32.dp))
-                    FilterChip(selected = logarithmic, onClick = { logarithmic = true }, label = { Text(stringResource(R.string.spectrogram_log_short)) }, modifier = Modifier.height(32.dp))
-                    FilterChip(selected = showAxes, onClick = { showAxes = !showAxes }, label = { Text(if (showAxes) stringResource(R.string.spectrogram_hide_axes) else stringResource(R.string.spectrogram_show_axes)) }, modifier = Modifier.height(32.dp))
-                    FilterChip(selected = false, onClick = { dbFloor = if (dbFloor <= -100f) -90f else if (dbFloor <= -90f) -100f else -120f }, label = { Text(stringResource(R.string.spectrogram_db_range_short, dbFloor.toInt())) }, modifier = Modifier.height(32.dp))
+                    FilterChip(selected = logarithmic, onClick = { val next = !logarithmic; logarithmic = next; scope.launch { settings.setSpectrogramLogarithmic(next) } }, label = { Text(stringResource(R.string.spectrogram_log_short)) }, modifier = Modifier.height(32.dp))
+                    FilterChip(selected = !showAxes, onClick = { val next = !showAxes; showAxes = next; scope.launch { settings.setSpectrogramShowAxes(next) } }, label = { Text(stringResource(R.string.spectrogram_hide_axes)) }, modifier = Modifier.height(32.dp))
+                    AssistChip(onClick = { showDbSheet = true }, label = { Text(stringResource(R.string.spectrogram_db_range_short, dbFloor.toInt())) }, modifier = Modifier.height(32.dp))
                     FilterChip(selected = false, onClick = { resetToken++ }, label = { Text(stringResource(R.string.spectrogram_reset_zoom)) }, modifier = Modifier.height(32.dp))
                 }
                 Box(Modifier.fillMaxWidth().aspectRatio(16f / 10f)) {
@@ -599,6 +609,16 @@ private fun SpectrogramPanel(cached: CachedSpectrogram?, context: android.conten
                     )
                 }
                 tooltip?.let { Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary) }
+            }
+        }
+    }
+    if (showDbSheet) {
+        ModalBottomSheet(onDismissRequest = { showDbSheet = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), modifier = Modifier.navigationBarsPadding()) {
+            Column(Modifier.fillMaxWidth().padding(16.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(stringResource(R.string.spectrogram_db_sheet_title), style = MaterialTheme.typography.titleLarge)
+                listOf(-120, -90, -60).forEach { floor ->
+                    AssistChip(onClick = { dbFloor = floor.toFloat(); showDbSheet = false; scope.launch { settings.setSpectrogramDbFloor(floor) } }, label = { Text(stringResource(R.string.spectrogram_db_range_short, floor)) }, modifier = Modifier.fillMaxWidth().height(32.dp))
+                }
             }
         }
     }
@@ -617,6 +637,12 @@ private fun SpectrogramPanel(cached: CachedSpectrogram?, context: android.conten
             }
         }
     }
+}
+
+private fun nextDbFloor(value: Float): Float = when {
+    value <= -100f -> -90f
+    value <= -90f -> -60f
+    else -> -120f
 }
 
 @Composable
