@@ -3,6 +3,7 @@ package com.youneko.rate
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
@@ -27,6 +28,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         mediaScanCoordinator.attach(this)
         lifecycleScope.launch { reconcilePendingRestore(applicationContext, database, mediaStoreScanner) }
         setContent {

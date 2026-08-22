@@ -11,6 +11,7 @@ import com.youneko.rate.ui.rememberReducedMotion
 import com.youneko.rate.ui.younekoSpring
 import com.youneko.rate.ui.stableAlbumKey
 
+import android.app.Activity
 import android.content.Intent
 import androidx.compose.animation.animateContentSize
 import android.net.Uri
@@ -108,6 +109,7 @@ import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -130,6 +132,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 import com.youneko.rate.data.SettingsDataStore
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.pluralStringResource
@@ -149,6 +153,7 @@ import com.youneko.rate.R
 import com.youneko.rate.data.LibraryAlbum
 import com.youneko.rate.data.artwork.ArtworkStore
 import com.youneko.rate.data.artwork.CoverPalette
+import com.youneko.rate.data.artwork.contrastRatio
 import com.youneko.rate.data.artwork.coverDetailGradient
 import com.youneko.rate.ui.components.YnPaletteSwatches
 import com.youneko.rate.data.local.entity.AlbumEntity
@@ -658,6 +663,14 @@ fun AlbumDetailScreen(
             val value = (state as AlbumDetailUiState.Content).album
             val palette = albumPalette
             val darkTheme = isSystemInDarkTheme()
+            val dominantColor = palette?.dominant ?: androidx.compose.ui.graphics.Color(0xFF403A46)
+            val onGradientColor = if (contrastRatio(dominantColor, androidx.compose.ui.graphics.Color.Black) >= contrastRatio(dominantColor, androidx.compose.ui.graphics.Color.White)) androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color.White
+            val view = LocalView.current
+            SideEffect {
+                (context as? Activity)?.window?.let { window ->
+                    WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = onGradientColor == androidx.compose.ui.graphics.Color.Black
+                }
+            }
             val detailGradient = remember(value.album.id, palette, darkTheme) {
                 coverDetailGradient(palette, value.album.id, darkTheme)
             }
@@ -665,7 +678,7 @@ fun AlbumDetailScreen(
                 TopAppBar(
                     title = { Text(stringResource(R.string.album_detail), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.a11y_back), modifier = Modifier.size(YnDimens.iconMedium)) } },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = androidx.compose.ui.graphics.Color.Transparent, scrolledContainerColor = androidx.compose.ui.graphics.Color.Transparent),
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = androidx.compose.ui.graphics.Color.Transparent, scrolledContainerColor = androidx.compose.ui.graphics.Color.Transparent, titleContentColor = onGradientColor, navigationIconContentColor = onGradientColor, actionIconContentColor = onGradientColor),
                     actions = {
                         Box {
                             IconButton(onClick = { menuExpanded = true }) { Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.edit_album), modifier = Modifier.size(YnDimens.iconMedium)) }
