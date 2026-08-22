@@ -254,7 +254,7 @@ fun LibraryScreen(
             state.gridView -> LazyVerticalGrid(
                 columns = GridCells.Adaptive(160.dp),
                 modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(start = YnDimens.space4, end = YnDimens.space4, top = YnDimens.space2, bottom = YnDimens.navigationSafe),
+                contentPadding = PaddingValues(start = YnDimens.space4, end = YnDimens.space4, top = 0.dp, bottom = YnDimens.navigationSafe),
                 horizontalArrangement = Arrangement.spacedBy(YnDimens.space3),
                 verticalArrangement = Arrangement.spacedBy(YnDimens.space3),
             ) {
@@ -267,7 +267,7 @@ fun LibraryScreen(
             }
             else -> LazyColumn(
                 modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(start = YnDimens.space4, end = YnDimens.space4, top = YnDimens.space2, bottom = YnDimens.navigationSafe),
+                contentPadding = PaddingValues(start = YnDimens.space4, end = YnDimens.space4, top = 0.dp, bottom = YnDimens.navigationSafe),
                 verticalArrangement = Arrangement.spacedBy(YnDimens.space3),
             ) {
                 when {
