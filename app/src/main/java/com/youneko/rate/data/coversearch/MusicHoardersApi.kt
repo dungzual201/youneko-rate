@@ -25,6 +25,23 @@ import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
 @Serializable
+data class MusicHoardersSourceInfo(
+    val id: String,
+    val name: String? = null,
+    val countries: List<String> = emptyList(),
+    val queries: List<String> = emptyList(),
+)
+
+@Serializable
+data class MusicHoardersInfo(
+    val activeSourceLimit: Int = 9,
+    val maximumPage: Int = 5,
+    val countries: List<String> = emptyList(),
+    val sources: List<MusicHoardersSourceInfo> = emptyList(),
+    val serverPatterns: List<String> = emptyList(),
+)
+
+@Serializable
 data class MusicHoardersSearchRequest(
     val artist: String,
     val album: String,
@@ -106,9 +123,40 @@ class MusicHoardersApi(
     private val json: Json,
     private val endpoint: String = ENDPOINT,
 ) {
+    private val infoEndpoint: String = if (endpoint == ENDPOINT) INFO_ENDPOINT else endpoint.substringBeforeLast("/api/search") + "/api/info"
     private data class CacheEntry(val expiresAtMillis: Long, val events: List<CoverSearchEvent>)
 
     private val cache = ConcurrentHashMap<String, CacheEntry>()
+    @Volatile private var infoCache: Pair<Long, MusicHoardersInfo>? = null
+
+    suspend fun info(): Result<MusicHoardersInfo> {
+        val cached = infoCache
+        if (cached != null && cached.first > System.currentTimeMillis()) return Result.success(cached.second)
+        return kotlinx.coroutines.withContext(Dispatchers.IO) {
+            val request = Request.Builder()
+                .url(infoEndpoint)
+                .header("X-Session", MusicHoardersSession.value())
+                .header("X-Page-Referrer", "")
+                .header("X-Page-Query", "")
+                .header("Accept", "application/json")
+                .header("Referer", "https://covers.musichoarders.xyz/")
+                .header("Origin", "https://covers.musichoarders.xyz")
+                .header("User-Agent", "YounekoRate/${BuildConfig.VERSION_NAME} (Android; personal library use)")
+                .get()
+                .build()
+            runCatching {
+                client.newCall(request).execute().use { response ->
+                    val body = response.body?.string().orEmpty()
+                    if (!response.isSuccessful) {
+                        runCatching { android.util.Log.e("CoverSearch", "HTTP info ${response.code} ${response.message}; body=$body") }
+                        error("MusicHoarders info HTTP ${response.code}: ${body.ifBlank { response.message }}")
+                    }
+                    json.decodeFromString<MusicHoardersInfo>(body).also { infoCache = System.currentTimeMillis() + INFO_CACHE_TTL_MILLIS to it }
+                }
+            }
+        }
+    }
+
     fun search(
         artist: String,
         album: String,
@@ -203,7 +251,9 @@ class MusicHoardersApi(
 
     companion object {
         const val ENDPOINT = "https://covers.musichoarders.xyz/api/search"
+        const val INFO_ENDPOINT = "https://covers.musichoarders.xyz/api/info"
         private const val CACHE_TTL_MILLIS = 10 * 60 * 1000L
+        private const val INFO_CACHE_TTL_MILLIS = 24 * 60 * 60 * 1000L
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
     }
 }

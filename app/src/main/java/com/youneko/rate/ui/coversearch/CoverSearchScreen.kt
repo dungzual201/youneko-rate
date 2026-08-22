@@ -68,6 +68,8 @@ import com.youneko.rate.data.artwork.CoverDownloadService
 import com.youneko.rate.data.coversearch.CoverSearchEvent
 import com.youneko.rate.data.coversearch.MusicHoardersApi
 import com.youneko.rate.data.coversearch.MusicHoardersCoverLine
+import com.youneko.rate.data.coversearch.MusicHoardersInfo
+import com.youneko.rate.data.coversearch.MusicHoardersSourceInfo
 import com.youneko.rate.ui.YounekoEmptyState
 import com.youneko.rate.ui.YounekoErrorState
 import com.youneko.rate.ui.rate.CoverArtFullscreenDialog
@@ -81,15 +83,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import javax.inject.Inject
 
-private val DEFAULT_SOURCES = listOf("applemusic", "spotify", "tidal", "deezer")
-private val ALL_SOURCES = listOf("applemusic", "spotify", "tidal", "deezer", "qobuz", "bandcamp", "itunes", "musicbrainz", "discogs", "lastfm")
-private val COUNTRIES = listOf("us", "gb", "jp", "kr", "vn")
-
 data class CoverSearchUiState(
     val artist: String = "",
     val album: String = "",
-    val sources: List<String> = DEFAULT_SOURCES,
+    val sources: List<String> = emptyList(),
     val country: String = "us",
+    val sourceInfo: MusicHoardersInfo? = null,
+    val infoLoading: Boolean = false,
+    val infoError: String? = null,
     val results: List<MusicHoardersCoverLine> = emptyList(),
     val sourceStatus: Map<String, String> = emptyMap(),
     val searching: Boolean = false,
@@ -123,13 +124,31 @@ class CoverSearchViewModel @Inject constructor(
             val album = repository.observeAlbum(albumId).first()
             originalArtist = album?.artist?.name.orEmpty()
             originalAlbum = album?.album?.title.orEmpty()
-            val savedSources = settings.coverSearchSources.first().split(',').filter { it in ALL_SOURCES }
+            val savedSources = settings.coverSearchSources.first().split(',').filter { it.isNotBlank() }
             _state.value = _state.value.copy(
                 artist = originalArtist,
                 album = originalAlbum,
-                sources = savedSources.ifEmpty { DEFAULT_SOURCES },
+                sources = savedSources,
                 country = settings.coverSearchCountry.first().ifBlank { "us" },
             )
+        }
+        loadInfo()
+    }
+
+    fun loadInfo() {
+        viewModelScope.launch {
+            _state.value = _state.value.copy(infoLoading = true, infoError = null)
+            api.info().onSuccess { info ->
+                val available = info.sources.map { it.id }.toSet()
+                val selected = _state.value.sources.filter { it in available }
+                _state.value = _state.value.copy(
+                    sourceInfo = info,
+                    sources = selected.ifEmpty { info.sources.map { it.id }.take(4) },
+                    infoLoading = false,
+                )
+            }.onFailure { error ->
+                _state.value = _state.value.copy(infoLoading = false, infoError = error.message)
+            }
         }
     }
 
@@ -249,7 +268,7 @@ fun CoverSearchScreen(
                     OutlinedTextField(state.album, viewModel::setAlbum, label = { Text(stringResource(R.string.cover_search_album)) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
                     Text(stringResource(R.string.cover_search_sources), style = MaterialTheme.typography.titleSmall)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
-                        ALL_SOURCES.forEach { source -> FilterChip(selected = source in state.sources, onClick = { viewModel.toggleSource(source) }, label = { Text(sourceLabel(source)) }) }
+                        state.sourceInfo?.sources.orEmpty().forEach { source -> FilterChip(selected = source.id in state.sources, onClick = { viewModel.toggleSource(source.id) }, label = { Text(sourceLabel(source.id, state.sourceInfo?.sources.orEmpty())) }) }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
                         state.sources.forEach { source ->
@@ -263,11 +282,13 @@ fun CoverSearchScreen(
                             )
                         }
                     }
+                    if (state.infoLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
+                    state.infoError?.let { message -> YounekoErrorState(message, onRetry = viewModel::loadInfo, modifier = Modifier.fillMaxWidth()) }
                     Box {
                         OutlinedTextField(state.country, {}, readOnly = true, label = { Text(stringResource(R.string.cover_search_country)) }, modifier = Modifier.fillMaxWidth())
                         Box(Modifier.matchParentSize().clickable { countryExpanded = true })
                         DropdownMenu(expanded = countryExpanded, onDismissRequest = { countryExpanded = false }) {
-                            COUNTRIES.forEach { value -> DropdownMenuItem(text = { Text(value.uppercase()) }, onClick = { viewModel.setCountry(value); countryExpanded = false }) }
+                            (state.sourceInfo?.countries?.ifEmpty { listOf("us") } ?: listOf("us")).forEach { value -> DropdownMenuItem(text = { Text(value.uppercase()) }, onClick = { viewModel.setCountry(value); countryExpanded = false }) }
                         }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -292,7 +313,7 @@ fun CoverSearchScreen(
                 val sourceResults = state.results.filter { it.source == source }
                 if (sourceResults.isNotEmpty()) {
                     item(span = { GridItemSpan(maxLineSpan) }) {
-                        Text("${sourceLabel(source)} — ${sourceResults.size}", style = MaterialTheme.typography.titleSmall)
+                        Text("${sourceLabel(source, state.sourceInfo?.sources.orEmpty())} — ${sourceResults.size}", style = MaterialTheme.typography.titleSmall)
                     }
                     items(sourceResults, key = { it.bigCoverUrl.orEmpty() }) { result ->
                         CoverResultCard(result, onClick = { preview = result })
@@ -325,21 +346,7 @@ private fun CoverResultCard(result: MusicHoardersCoverLine, onClick: () -> Unit)
 }
 
 @Composable
-private fun sourceLabel(source: String): String = stringResource(
-    when (source) {
-        "applemusic" -> R.string.cover_source_applemusic
-        "spotify" -> R.string.cover_source_spotify
-        "tidal" -> R.string.cover_source_tidal
-        "deezer" -> R.string.cover_source_deezer
-        "qobuz" -> R.string.cover_source_qobuz
-        "bandcamp" -> R.string.cover_source_bandcamp
-        "itunes" -> R.string.cover_source_itunes
-        "musicbrainz" -> R.string.cover_source_musicbrainz
-        "discogs" -> R.string.cover_source_discogs
-        "lastfm" -> R.string.cover_source_lastfm
-        else -> R.string.cover_source_musicbrainz
-    },
-)
+private fun sourceLabel(sourceId: String, catalog: List<MusicHoardersSourceInfo>): String = catalog.firstOrNull { it.id == sourceId }?.name?.takeIf { it.isNotBlank() } ?: sourceId
 
 @Composable
 private fun statusLabel(status: String?, count: Int): String = when {
