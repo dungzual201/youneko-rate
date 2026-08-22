@@ -24,6 +24,7 @@
     <string name="audio_analysis_confidence">Độ tin cậy</string>
     <string name="audio_analysis_explanation_body">Tần số cắt là nơi năng lượng phổ giảm mạnh. Độ dốc cắt mô tả độ dốc của vách cắt; dải động mô tả crest factor; true peak và clipping mô tả biên độ cực đại. Kết luận là heuristic, không phải chứng nhận nguồn phát hành.</string>
     <string name="audio_analysis_choose_file">Chọn tệp</string>
+    <string name="audio_analysis_choose_another">Phân tích bài khác</string>
     <string name="analyze_choose_source">Chọn nguồn phân tích</string>
     <string name="analyze_from_library">Chọn từ thư viện</string>
     <string name="analyze_from_library_count">%1$d bài đã quét</string>

@@ -46,7 +46,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.CircularProgressIndicator
@@ -319,7 +318,7 @@ fun AudioAnalysisScreen(initialUri: String? = null, viewModel: AudioAnalysisView
             TopAppBar(
                 title = { YnBrandTitle() },
                 actions = {
-                    if (latest != null || analyzeState is AnalyzeUiState.Running || analyzeState is AnalyzeUiState.Failed) {
+                    if (analyzeState is AnalyzeUiState.Idle || analyzeState is AnalyzeUiState.Running || analyzeState is AnalyzeUiState.Failed || latest != null) {
                         TooltipBox(
                             positionProvider = androidx.compose.material3.TooltipDefaults.rememberPlainTooltipPositionProvider(),
                             tooltip = { PlainTooltip { Text(stringResource(R.string.audio_analysis_choose_file)) } },
@@ -375,14 +374,18 @@ fun AudioAnalysisScreen(initialUri: String? = null, viewModel: AudioAnalysisView
                         Spacer(Modifier.height(YnDimens.navigationSafe))
                     }
                 }
+                if (latest != null) {
+                    item {
+                        androidx.compose.material3.OutlinedButton(
+                            onClick = { sourceMode = null; showSourceSheet = true },
+                            modifier = Modifier.fillMaxWidth().padding(bottom = YnDimens.navigationSafe),
+                        ) {
+                            Icon(Icons.Rounded.LibraryMusic, contentDescription = null)
+                            Text(stringResource(R.string.audio_analysis_choose_another))
+                        }
+                    }
+                }
             }
-            ExtendedFloatingActionButton(
-                text = { Text(stringResource(R.string.audio_analysis_choose_file)) },
-                icon = { Icon(Icons.Rounded.LibraryMusic, contentDescription = null) },
-                expanded = !listState.canScrollBackward,
-                onClick = { sourceMode = null; showSourceSheet = true },
-                modifier = Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 20.dp, bottom = 88.dp),
-            )
         }
     }
     if (showSourceSheet) {

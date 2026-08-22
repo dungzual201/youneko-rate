@@ -24,6 +24,7 @@
     <string name="audio_analysis_confidence">Confidence</string>
     <string name="audio_analysis_explanation_body">Cutoff is where spectral energy drops sharply. Rolloff describes the cutoff wall slope; dynamic range describes crest factor; true peak and clipping describe maximum amplitude. Verdict is a heuristic, not certification of the release source.</string>
     <string name="audio_analysis_choose_file">Choose file</string>
+    <string name="audio_analysis_choose_another">Analyze another track</string>
     <string name="analyze_choose_source">Choose analysis source</string>
     <string name="analyze_from_library">Choose from library</string>
     <string name="analyze_from_library_count">%1$d scanned tracks</string>
