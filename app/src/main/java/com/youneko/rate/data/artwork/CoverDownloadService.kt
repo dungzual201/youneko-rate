@@ -3,6 +3,7 @@ package com.youneko.rate.data.artwork
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.net.Uri
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -35,6 +36,37 @@ class CoverDownloadService @Inject constructor(
     @ApplicationContext private val context: Context,
     @Named("coverArt") private val client: OkHttpClient,
 ) {
+    suspend fun importFromUri(
+        albumId: String,
+        uri: Uri,
+        source: String = "manual",
+    ): CoverDownloadResult = withContext(Dispatchers.IO) {
+        val directory = File(context.filesDir, "covers").apply { mkdirs() }
+        val temp = File(directory, "$albumId.import")
+        try {
+            context.contentResolver.openInputStream(uri)?.use { input -> temp.outputStream().use(input::copyTo) }
+                ?: return@withContext CoverDownloadResult.Failure(FailureReason.INVALID_IMAGE)
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeFile(temp.absolutePath, bounds)
+            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return@withContext CoverDownloadResult.Failure(FailureReason.INVALID_IMAGE)
+            if (bounds.outWidth < MIN_DIMENSION || bounds.outHeight < MIN_DIMENSION) return@withContext CoverDownloadResult.Failure(FailureReason.TOO_SMALL)
+            val bitmap = BitmapFactory.decodeFile(temp.absolutePath) ?: return@withContext CoverDownloadResult.Failure(FailureReason.INVALID_IMAGE)
+            val original = File(directory, "${albumId}.import_orig.jpg")
+            val thumbnail = File(directory, "${albumId}.import.jpg")
+            original.outputStream().use { output -> check(bitmap.compress(Bitmap.CompressFormat.JPEG, 90, output)) }
+            writeThumbnail(bitmap, thumbnail)
+            bitmap.recycle()
+            temp.delete()
+            CoverDownloadResult.Success(DownloadedCover(albumId, original, thumbnail, bounds.outWidth, bounds.outHeight, source))
+        } catch (_: IOException) {
+            temp.delete()
+            CoverDownloadResult.Failure(FailureReason.NETWORK)
+        } catch (_: SecurityException) {
+            temp.delete()
+            CoverDownloadResult.Failure(FailureReason.WRITE_FAILED)
+        }
+    }
+
     suspend fun download(
         albumId: String,
         url: String,

@@ -1,6 +1,10 @@
 package com.youneko.rate.ui.coversearch
 
+import android.net.Uri
 import android.util.Log
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -69,6 +73,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
+import java.net.URLEncoder
 import javax.inject.Inject
 
 enum class CoverSearchPhase { IDLE, LOADING, RESULTS, EMPTY, ERROR }
@@ -150,6 +155,24 @@ class CoverSearchViewModel @Inject constructor(
         _state.value = _state.value.copy(phase = CoverSearchPhase.IDLE, candidates = emptyList())
     }
 
+    fun browserUrl(): String {
+        val current = _state.value
+        return "https://covers.musichoarders.xyz/?artist=${encode(current.artist)}&album=${encode(current.album)}&country=us&theme=dark"
+    }
+
+    fun importUri(uri: Uri) {
+        if (_state.value.applying) return
+        _state.value = _state.value.copy(applying = true, applyError = null)
+        viewModelScope.launch {
+            when (val imported = downloader.importFromUri(albumId, uri, "manual")) {
+                is CoverDownloadResult.Failure -> _state.value = _state.value.copy(applying = false, applyError = imported.reason)
+                is CoverDownloadResult.Success -> applier.apply(albumId, imported.cover)
+                    .onSuccess { _state.value = _state.value.copy(applying = false, applied = true) }
+                    .onFailure { _state.value = _state.value.copy(applying = false, applyError = FailureReason.WRITE_FAILED) }
+            }
+        }
+    }
+
     fun applyCandidate(candidate: CoverCandidate) {
         if (_state.value.applying) return
         _state.value = _state.value.copy(selectedUrl = candidate.url, applying = true, applyError = null)
@@ -224,6 +247,8 @@ class CoverSearchViewModel @Inject constructor(
         return common / maxOf(a.length, b.length)
     }
 
+    private fun encode(value: String): String = URLEncoder.encode(value, Charsets.UTF_8.name())
+
     private fun Throwable.displayMessage(): String = when (this) {
         is HttpException -> "HTTP ${code()}: ${message()}"
         else -> message?.takeIf { it.isNotBlank() } ?: javaClass.simpleName
@@ -234,6 +259,8 @@ class CoverSearchViewModel @Inject constructor(
 @Composable
 fun CoverSearchScreen(onBack: () -> Unit, viewModel: CoverSearchViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> uri?.let(viewModel::importUri) }
     LaunchedEffect(state.applied) { if (state.applied) onBack() }
     Scaffold(
         topBar = {
@@ -251,6 +278,10 @@ fun CoverSearchScreen(onBack: () -> Unit, viewModel: CoverSearchViewModel = hilt
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Button(onClick = viewModel::search, enabled = state.phase != CoverSearchPhase.LOADING) { Icon(Icons.Default.Refresh, contentDescription = null); Spacer(Modifier.height(1.dp)); Text(stringResource(R.string.cover_search_retry)) }
                 if (state.phase == CoverSearchPhase.LOADING) TextButton(onClick = viewModel::cancelSearch) { Text(stringResource(R.string.cover_search_cancel)) }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(viewModel.browserUrl())) }) { Text(stringResource(R.string.cover_open_in_browser)) }
+                TextButton(onClick = { picker.launch("image/*") }) { Text(stringResource(R.string.cover_pick_from_gallery)) }
             }
             if (state.applying) LinearProgressIndicator(Modifier.fillMaxWidth())
             state.applyError?.let { reason ->

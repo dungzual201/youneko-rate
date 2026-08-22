@@ -242,7 +242,8 @@
     <string name="cover_search_title">Find cover art</string>
     <string name="cover_search_official_pending">Opening the official cover integration…</string>
     <string name="cover_fallback_hint">If the embedded page cannot return a result, hold the cover, save it, then import it from the gallery.</string>
-    <string name="cover_open_in_browser">Open official cover site</string>
+    <string name="cover_open_in_browser">Open COV in browser</string>
+    <string name="cover_pick_from_gallery">Choose image from gallery</string>
     <string name="cover_remote_text">Choose cover art for %1$s – %2$s</string>
     <string name="cover_error_hotlink">The selected source blocks direct downloads. Save the image and import it from your gallery.</string>
     <string name="cover_error_network">The cover could not be downloaded. Check your connection and try again.</string>
