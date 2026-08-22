@@ -110,7 +110,11 @@ class MediaStoreScanner @Inject constructor(
     private val tagReader: LocalAudioTagReader,
     private val artworkStore: ArtworkStore,
 ) {
-    suspend fun scan(forceFull: Boolean = false, onProgress: (done: Int, total: Int) -> Unit = { _, _ -> }): MediaScanResult {
+    suspend fun scan(
+        forceFull: Boolean = false,
+        onProgress: (done: Int, total: Int) -> Unit = { _, _ -> },
+        onPhaseChanged: (ScanPhase) -> Unit = {},
+    ): MediaScanResult {
         val scanStartedAt = System.currentTimeMillis()
         Log.i(
             SCAN_TAG,
@@ -126,6 +130,7 @@ class MediaStoreScanner @Inject constructor(
             return MediaScanResult(0, 0, 0, 0, skipped = true)
         }
         Log.i(SCAN_TAG, "SCAN: gen stored=${checkpoint.lastGeneration} current=$generation decision=run")
+        onPhaseChanged(ScanPhase.METADATA)
         val full = MediaScanPolicy.requiresFull(forceFull, checkpoint, generation)
         val rows = queryRows(MediaScanPolicy.changedAfter(checkpoint, forceFull, generation))
         if (rows.isEmpty()) {
@@ -213,6 +218,7 @@ class MediaStoreScanner @Inject constructor(
         val phase1Duration = System.currentTimeMillis() - phase1StartedAt
         Log.i(SCAN_TAG, "SCAN: phase1 durationMs=$phase1Duration rows=${rows.size}")
         Log.i(SCAN_TAG, "SCAN: inserted=${inserts.size} updated=${updates.size} albums=${albumDao.findAll().size}")
+        onPhaseChanged(ScanPhase.ARTWORK)
         val phase2StartedAt = System.currentTimeMillis()
         val enriched = enrichRows(rows, onProgress)
         Log.i(SCAN_TAG, "SCAN: phase2 durationMs=${System.currentTimeMillis() - phase2StartedAt} enriched=$enriched")

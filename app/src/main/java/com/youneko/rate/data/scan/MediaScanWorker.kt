@@ -42,6 +42,17 @@ private const val NOTIFICATION_ID = 4101
 private const val UNIQUE_PERIODIC = "media_scan_periodic"
 const val UNIQUE_ON_RESUME = "media_scan_on_resume"
 
+enum class ScanPhase { METADATA, ARTWORK }
+
+data class ScanState(
+    val phase: ScanPhase,
+    val done: Int,
+    val total: Int,
+) {
+    val fraction: Float?
+        get() = total.takeIf { it > 0 }?.let { (done.toFloat() / it).coerceIn(0f, 1f) }
+}
+
 @EntryPoint
 @InstallIn(SingletonComponent::class)
 interface MediaScanWorkerEntryPoint {
@@ -59,12 +70,21 @@ class MediaStoreScanWorker(appContext: Context, params: WorkerParameters) : Coro
         setForeground(createForegroundInfo(0, 0))
         return runCatching {
             val forceFull = inputData.getBoolean(KEY_FORCE_FULL, false)
-            val result = scanner.scan(forceFull) { done, total ->
-                setProgressAsync(Data.Builder().putInt(KEY_DONE, done).putInt(KEY_TOTAL, total).build())
-                setForegroundAsync(createForegroundInfo(done, total))
-            }
+            var phase = ScanPhase.METADATA
+            setProgressAsync(progressData(phase, 0, 0))
+            val result = scanner.scan(
+                forceFull,
+                onProgress = { done, total ->
+                    setProgressAsync(progressData(phase, done, total))
+                    setForegroundAsync(createForegroundInfo(done, total))
+                },
+                onPhaseChanged = { nextPhase ->
+                    phase = nextPhase
+                    setProgressAsync(progressData(phase, 0, 0))
+                },
+            )
             val safResult = scanner.scanSafRoots { done, total ->
-                setProgressAsync(Data.Builder().putInt(KEY_DONE, done).putInt(KEY_TOTAL, total).build())
+                setProgressAsync(progressData(phase, done, total))
                 setForegroundAsync(createForegroundInfo(done, total))
             }
             Log.i(SCAN_TAG, "SCAN: WorkInfo.State=SUCCEEDED exception=null")
@@ -75,6 +95,13 @@ class MediaStoreScanWorker(appContext: Context, params: WorkerParameters) : Coro
             if (runAttemptCount < 2) Result.retry() else Result.failure(workDataOf(KEY_ERROR to throwable.message.orEmpty()))
         }
     }
+
+    private fun progressData(phase: ScanPhase, done: Int, total: Int): Data =
+        Data.Builder()
+            .putString(KEY_PHASE, phase.name)
+            .putInt(KEY_DONE, done)
+            .putInt(KEY_TOTAL, total)
+            .build()
 
     private fun hasPermission(): Boolean {
         val permission = if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_AUDIO else Manifest.permission.READ_EXTERNAL_STORAGE
@@ -97,6 +124,7 @@ class MediaStoreScanWorker(appContext: Context, params: WorkerParameters) : Coro
 
     companion object {
         const val KEY_FORCE_FULL = "force_full"
+        const val KEY_PHASE = "phase"
         const val KEY_DONE = "done"
         const val KEY_TOTAL = "total"
         const val KEY_SCANNED = "scanned"

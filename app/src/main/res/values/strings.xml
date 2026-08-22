@@ -316,6 +316,8 @@
     <string name="media_scan_channel">Media library scan</string>
     <string name="media_scan_notification_title">Scanning local audio</string>
     <string name="media_scan_progress">Scanning %1$d/%2$d</string>
+    <string name="scan_phase_metadata">Reading music file info...</string>
+    <string name="scan_phase_artwork">Extracting artwork...</string>
     <string name="import_title">Import music files</string>
     <string name="import_body">Choose one file or a folder to read local tags. Audio is not decoded in this phase.</string>
     <string name="import_file">Choose file</string>

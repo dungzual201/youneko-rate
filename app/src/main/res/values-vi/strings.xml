@@ -253,6 +253,8 @@
     <string name="media_scan_channel">Quét thư viện media</string>
     <string name="media_scan_notification_title">Đang quét file nhạc cục bộ</string>
     <string name="media_scan_progress">Đang quét %1$d/%2$d</string>
+    <string name="scan_phase_metadata">Đang lấy thông tin file nhạc...</string>
+    <string name="scan_phase_artwork">Đang trích xuất hình ảnh...</string>
     <string name="import_title">Nhập file nhạc</string>
     <string name="import_body">Chọn một file hoặc cả thư mục để đọc thẻ trên máy. Âm thanh chưa được giải mã ở giai đoạn này.</string>
     <string name="import_file">Chọn file</string>

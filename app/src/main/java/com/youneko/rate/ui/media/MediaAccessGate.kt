@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -33,6 +34,10 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -42,6 +47,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -50,14 +56,19 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.youneko.rate.R
+import com.youneko.rate.ui.YnDimens
 import com.youneko.rate.data.local.dao.ScanRootDao
 import com.youneko.rate.data.local.entity.ScanRootEntity
 import com.youneko.rate.data.scan.MediaStoreScanWorker
 import com.youneko.rate.data.scan.UNIQUE_ON_RESUME
+import com.youneko.rate.data.scan.ScanPhase
+import com.youneko.rate.data.scan.ScanState
 import com.youneko.rate.data.scan.enqueueMediaScan
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import androidx.work.WorkInfo
@@ -70,8 +81,26 @@ fun hasAudioPermission(context: Context): Boolean = ContextCompat.checkSelfPermi
 @HiltViewModel
 class MediaAccessViewModel @Inject constructor(
     private val scanRootDao: ScanRootDao,
+    @ApplicationContext context: Context,
 ) : ViewModel() {
+    private val workManager = WorkManager.getInstance(context)
     val scanRoots = scanRootDao.observeAll().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val scanState = workManager.getWorkInfosForUniqueWorkFlow(UNIQUE_ON_RESUME)
+        .map { infos ->
+            val info = infos.firstOrNull()
+            if (info == null || info.state !in setOf(WorkInfo.State.ENQUEUED, WorkInfo.State.RUNNING)) {
+                null
+            } else {
+                ScanState(
+                    phase = info.progress.getString(MediaStoreScanWorker.KEY_PHASE)?.let { runCatching { ScanPhase.valueOf(it) }.getOrNull() } ?: ScanPhase.METADATA,
+                    done = info.progress.getInt(MediaStoreScanWorker.KEY_DONE, 0),
+                    total = info.progress.getInt(MediaStoreScanWorker.KEY_TOTAL, 0),
+                )
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    fun cancelScan() = workManager.cancelUniqueWork(UNIQUE_ON_RESUME)
 
     fun addScanRoot(uri: Uri, displayName: String?) {
         viewModelScope.launch {
@@ -91,8 +120,7 @@ fun MediaAccessGate(
 ) {
     val context = LocalContext.current
     val roots by viewModel.scanRoots.collectAsStateWithLifecycle()
-    val scanInfos by remember(context) { WorkManager.getInstance(context).getWorkInfosForUniqueWorkFlow(UNIQUE_ON_RESUME) }.collectAsStateWithLifecycle(initialValue = emptyList())
-    val scanInfo = scanInfos.firstOrNull()
+    val scanState by viewModel.scanState.collectAsStateWithLifecycle()
     var permissionGranted by rememberSaveable { mutableStateOf(hasAudioPermission(context)) }
     var showEducation by rememberSaveable { mutableStateOf(!permissionGranted) }
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
@@ -113,18 +141,13 @@ fun MediaAccessGate(
     LaunchedEffect(Unit) { permissionGranted = hasAudioPermission(context) }
     Box {
         content()
-        if (permissionGranted && scanInfo?.state in setOf(WorkInfo.State.ENQUEUED, WorkInfo.State.RUNNING)) {
-            val done = scanInfo?.progress?.getInt(MediaStoreScanWorker.KEY_DONE, 0) ?: 0
-            val total = scanInfo?.progress?.getInt(MediaStoreScanWorker.KEY_TOTAL, 0) ?: 0
-            Column(Modifier.align(Alignment.TopCenter).fillMaxWidth().background(MaterialTheme.colorScheme.surface)) {
-                Row(Modifier.fillMaxWidth().height(48.dp).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(stringResource(R.string.media_scan_progress, done, total), modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelSmall)
-                    IconButton(onClick = { WorkManager.getInstance(context).cancelUniqueWork(UNIQUE_ON_RESUME) }) {
-                        Icon(Icons.Default.Close, contentDescription = stringResource(R.string.cancel), modifier = Modifier.size(20.dp))
-                    }
-                }
-                LinearProgressIndicator(progress = { if (total > 0) (done.toFloat() / total).coerceIn(0f, 1f) else 0f }, modifier = Modifier.fillMaxWidth())
-            }
+        AnimatedVisibility(
+            visible = permissionGranted && scanState != null,
+            enter = fadeIn(tween(150)),
+            exit = fadeOut(tween(150)),
+            modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth(),
+        ) {
+            scanState?.let { current -> ScanProgressBanner(current, onCancel = viewModel::cancelScan) }
         }
         if (!permissionGranted) {
             Card(
@@ -169,6 +192,40 @@ fun MediaAccessGate(
             },
             dismissButton = { TextButton(onClick = { showEducation = false }) { Text(stringResource(R.string.cancel)) } },
         )
+    }
+}
+
+@Composable
+private fun ScanProgressBanner(state: ScanState, onCancel: () -> Unit) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .statusBarsPadding()
+            .background(MaterialTheme.colorScheme.surface),
+    ) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .height(64.dp)
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(YnDimens.space1),
+        ) {
+            val phaseLabel = stringResource(
+                when (state.phase) {
+                    ScanPhase.METADATA -> R.string.scan_phase_metadata
+                    ScanPhase.ARTWORK -> R.string.scan_phase_artwork
+                },
+            )
+            Text(phaseLabel, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelLarge)
+            if (state.total > 0) Text("${state.done}/${state.total}", style = MaterialTheme.typography.labelMedium)
+            IconButton(onClick = onCancel, modifier = Modifier.size(48.dp)) {
+                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.cancel), modifier = Modifier.size(YnDimens.iconMedium))
+            }
+        }
+        state.fraction?.let { fraction ->
+            LinearProgressIndicator(progress = { fraction }, modifier = Modifier.fillMaxWidth().height(3.dp))
+        } ?: LinearProgressIndicator(modifier = Modifier.fillMaxWidth().height(3.dp))
     }
 }
 
