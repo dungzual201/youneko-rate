@@ -3,7 +3,6 @@ package com.youneko.rate.di
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import com.youneko.rate.BuildConfig
 import com.youneko.rate.data.musicbrainz.MusicBrainzApi
-import com.youneko.rate.data.coversearch.MusicHoardersApi
 import com.youneko.rate.data.discogs.DiscogsApi
 import com.youneko.rate.data.musicbrainz.MusicBrainzReleaseGroupApi
 import com.youneko.rate.data.musicbrainz.CoverArtApi
@@ -68,30 +67,6 @@ object NetworkModule {
         }
         return builder.build()
     }
-
-    @Provides
-    @Singleton
-    @Named("musicHoarders")
-    fun provideMusicHoardersClient(): OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(120, TimeUnit.SECONDS)
-        .writeTimeout(15, TimeUnit.SECONDS)
-        .callTimeout(0, TimeUnit.MILLISECONDS)
-        .followRedirects(true)
-        .followSslRedirects(true)
-        .addInterceptor { chain ->
-            chain.proceed(
-                chain.request().newBuilder()
-                    .header("User-Agent", "YounekoRate/${BuildConfig.VERSION_NAME} (https://github.com/dungzual201/youneko-rate)")
-                    .build(),
-            )
-        }
-        .build()
-
-    @Provides
-    @Singleton
-    fun provideMusicHoardersApi(@Named("musicHoarders") client: OkHttpClient, json: Json): MusicHoardersApi =
-        MusicHoardersApi(client = client, json = json)
 
     @Provides
     @Singleton

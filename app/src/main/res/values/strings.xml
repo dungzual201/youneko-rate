@@ -239,6 +239,7 @@
     <string name="a11y_palette_swatch">Color %1$s, hold to view code</string>
     <string name="menu_search_cover_online">Search cover online</string>
     <string name="cover_search_title">Find cover art</string>
+    <string name="cover_search_official_pending">Opening the official cover integration…</string>
     <string name="cover_search_artist">Artist</string>
     <string name="cover_search_album">Album</string>
     <string name="cover_search_sources">Sources</string>
