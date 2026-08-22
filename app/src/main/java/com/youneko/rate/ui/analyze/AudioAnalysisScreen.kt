@@ -632,7 +632,6 @@ private fun SpectrogramPanel(cached: CachedSpectrogram?, context: android.conten
                 Box(Modifier.fillMaxWidth().aspectRatio(0.9f)) {
                     SpectrogramView(cached, logarithmic, dbFloor, showAxes, resetToken = resetToken, modifier = Modifier.fillMaxSize(), onTooltip = { tooltip = it })
                     if (showAxes) SpectrogramAxesOverlay(cached, logarithmic)
-                    DbLegend(dbFloor, Modifier.align(Alignment.CenterEnd).padding(end = 6.dp, top = 8.dp, bottom = if (showAxes) 36.dp else 8.dp))
                 }
             }
         }
