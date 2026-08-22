@@ -221,7 +221,7 @@ private suspend fun mergeSnapshot(context: Context, database: YounekoDatabase, s
                 candidate.mbid == value.mbid && !value.mbid.isNullOrBlank() ||
                     (candidate.title.equals(value.title, true) && candidate.artistId == artistId && candidate.releaseYear == value.releaseYear)
             }
-            val target = AlbumEntity(value.id, value.title, artistId, value.releaseYear, null, null, value.genreTags, value.albumType, value.label, value.catalogNumber, value.barcode, value.country, value.listenedDate, value.manualScoreOverride, value.reviewText, value.mbid, value.releaseGroupMbid, value.discogsReleaseId, value.deezerId, value.sourceProvider, value.coverSource, value.coverWidth, value.coverUpdatedAt, value.metadataFetchedAt, value.createdAt, value.updatedAt)
+            val target = AlbumEntity(value.id, value.title, artistId, value.releaseYear, null, null, value.genreTags, value.albumType, value.label, value.catalogNumber, value.barcode, value.country, value.listenedDate, value.manualScoreOverride, value.reviewText, value.mbid, value.releaseGroupMbid, value.discogsReleaseId, value.deezerId, value.sourceProvider, value.coverSource, value.coverWidth, null, value.coverUpdatedAt, value.metadataFetchedAt, value.createdAt, value.updatedAt)
             if (existing == null) { database.albumDao().insert(target); currentAlbums[target.id] = target; inserted++ } else {
                 val review = mergeText(existing.reviewText, value.reviewText)
                 val newer = if (value.updatedAt > existing.updatedAt) target.copy(id = existing.id, coverUri = existing.coverUri, coverThumbUri = existing.coverThumbUri, reviewText = review) else existing.copy(reviewText = review)

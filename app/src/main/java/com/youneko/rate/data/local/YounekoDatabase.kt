@@ -17,6 +17,7 @@ import com.youneko.rate.data.local.dao.RemoteMetadataCacheDao
 import com.youneko.rate.data.local.dao.SearchHistoryDao
 import com.youneko.rate.data.local.dao.TrackDao
 import com.youneko.rate.data.local.entity.AlbumEntity
+import com.youneko.rate.data.local.entity.AlbumPaletteEntity
 import com.youneko.rate.data.local.entity.CollectionAlbumEntity
 import com.youneko.rate.data.local.entity.CollectionEntity
 import com.youneko.rate.data.local.entity.ArtistEntity
@@ -51,8 +52,9 @@ import com.youneko.rate.data.local.entity.TrackEntity
         CollectionEntity::class,
         CollectionAlbumEntity::class,
         ScanRootEntity::class,
+        AlbumPaletteEntity::class,
     ],
-    version = 19,
+    version = 20,
     exportSchema = true,
 )
 @TypeConverters(YounekoTypeConverters::class)
@@ -73,6 +75,7 @@ abstract class YounekoDatabase : RoomDatabase() {
     abstract fun importSessionDao(): ImportSessionDao
     abstract fun collectionDao(): CollectionDao
     abstract fun scanRootDao(): ScanRootDao
+    abstract fun albumPaletteDao(): com.youneko.rate.data.local.dao.AlbumPaletteDao
 
     companion object {
         val MIGRATION_14_15: Migration = object : Migration(14, 15) {
@@ -109,6 +112,13 @@ abstract class YounekoDatabase : RoomDatabase() {
                 addColumnIfMissing(db, "audio_analysis", "cutoffRetries", "INTEGER NOT NULL DEFAULT 0")
                 addColumnIfMissing(db, "audio_analysis", "formatVerdict", "TEXT")
                 addColumnIfMissing(db, "audio_analysis", "transcodeVerdict", "TEXT")
+            }
+        }
+
+        val MIGRATION_19_20: Migration = object : Migration(19, 20) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                addColumnIfMissing(db, "albums", "coverHeight", "INTEGER")
+                db.execSQL("CREATE TABLE IF NOT EXISTS album_palette (albumId TEXT NOT NULL PRIMARY KEY, dominantArgb INTEGER NOT NULL, vibrantArgb INTEGER, darkVibrantArgb INTEGER, mutedArgb INTEGER, darkMutedArgb INTEGER, lightVibrantArgb INTEGER, onDominantArgb INTEGER NOT NULL, coverUpdatedAt INTEGER, generatedAt INTEGER NOT NULL)")
             }
         }
 

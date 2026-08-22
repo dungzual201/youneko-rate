@@ -79,6 +79,23 @@ class DatabaseMigrationTest {
     }
 
     @Test
+    fun migrate19To20AddsCoverHeightAndPaletteCache() {
+        val databaseName = "migration-palette-test"
+        helper.createDatabase(databaseName, 19).apply {
+            execSQL("INSERT INTO artists (id, name, createdAt, updatedAt) VALUES ('artist-1', 'Artist', 1, 1)")
+            execSQL("INSERT INTO albums (id, title, artistId, genreTags, albumType, coverWidth, createdAt, updatedAt) VALUES ('album-1', 'Album', 'artist-1', '[]', 'ALBUM', 3000, 1, 1)")
+            close()
+        }
+        val migrated = helper.runMigrationsAndValidate(databaseName, 20, true, YounekoDatabase.MIGRATION_19_20)
+        assertTrue(tableColumns(migrated, "albums").contains("coverHeight"))
+        assertTrue(tableColumns(migrated, "album_palette").containsAll(setOf("albumId", "dominantArgb", "onDominantArgb", "coverUpdatedAt")))
+        assertEquals(1, countRows(migrated, "albums", "id = 'album-1' AND coverWidth = 3000"))
+        YounekoDatabase.MIGRATION_19_20.migrate(migrated)
+        assertEquals(1, countRows(migrated, "albums", "id = 'album-1'"))
+        migrated.close()
+    }
+
+    @Test
     fun openingVersion16DatabaseWithoutMigrationDoesNotCrash() {
         val databaseName = "migration-v16-open-test"
         helper.createDatabase(databaseName, 16).close()

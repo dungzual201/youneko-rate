@@ -54,10 +54,25 @@ data class AlbumEntity(
     val sourceProvider: String? = null,
     val coverSource: String? = null,
     val coverWidth: Int? = null,
+    val coverHeight: Int? = null,
     val coverUpdatedAt: Long? = null,
     val metadataFetchedAt: Long? = null,
     val createdAt: Long,
     val updatedAt: Long,
+)
+
+@Entity(tableName = "album_palette")
+data class AlbumPaletteEntity(
+    @PrimaryKey val albumId: String,
+    val dominantArgb: Int,
+    val vibrantArgb: Int? = null,
+    val darkVibrantArgb: Int? = null,
+    val mutedArgb: Int? = null,
+    val darkMutedArgb: Int? = null,
+    val lightVibrantArgb: Int? = null,
+    val onDominantArgb: Int,
+    val coverUpdatedAt: Long? = null,
+    val generatedAt: Long,
 )
 
 @Entity(

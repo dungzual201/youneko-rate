@@ -49,8 +49,23 @@ interface AlbumDao {
     @Query("SELECT COUNT(*) FROM albums")
     fun observeCount(): Flow<Int>
 
-    @Query("UPDATE albums SET coverUri = NULL, coverThumbUri = NULL, coverSource = NULL, coverWidth = NULL, coverUpdatedAt = NULL WHERE LOWER(COALESCE(coverSource, '')) != 'manual'")
+    @Query("UPDATE albums SET coverUri = NULL, coverThumbUri = NULL, coverSource = NULL, coverWidth = NULL, coverHeight = NULL, coverUpdatedAt = NULL WHERE LOWER(COALESCE(coverSource, '')) != 'manual'")
     suspend fun clearAutomaticCovers()
+}
+
+@Dao
+interface AlbumPaletteDao {
+    @Query("SELECT * FROM album_palette WHERE albumId = :albumId LIMIT 1")
+    suspend fun findByAlbumId(albumId: String): com.youneko.rate.data.local.entity.AlbumPaletteEntity?
+
+    @Query("SELECT * FROM album_palette WHERE albumId = :albumId LIMIT 1")
+    fun observeByAlbumId(albumId: String): Flow<com.youneko.rate.data.local.entity.AlbumPaletteEntity?>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(palette: com.youneko.rate.data.local.entity.AlbumPaletteEntity)
+
+    @Query("DELETE FROM album_palette WHERE albumId = :albumId")
+    suspend fun deleteForAlbum(albumId: String)
 }
 
 @Dao
