@@ -1189,6 +1189,9 @@ fun SettingsScreen(onOpenExport: () -> Unit = {}, viewModel: ScoreSettingsViewMo
         Text(stringResource(R.string.reduce_motion_body), style = MaterialTheme.typography.bodySmall)
         SettingsSectionHeader(stringResource(R.string.data_sources), Icons.Default.Settings)
         MediaScanRootManager()
+        SettingsSectionHeader(stringResource(R.string.batch_cover_search_title), Icons.Default.Settings)
+        Button(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.batch_cover_search_not_implemented)) }
+        Text(stringResource(R.string.batch_cover_search_reason), style = MaterialTheme.typography.bodySmall)
         FilterChip(
             selected = offlineOnly,
             onClick = { viewModel.setOfflineOnly(!offlineOnly) },
