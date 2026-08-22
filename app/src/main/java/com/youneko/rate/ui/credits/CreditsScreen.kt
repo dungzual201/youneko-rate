@@ -36,6 +36,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -298,12 +299,11 @@ fun CreditsScreen(
     val openUrl: (String) -> Unit = { url -> context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
     Scaffold(
         topBar = {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.cancel)) }
-                Text(stringResource(R.string.credits_title), style = MaterialTheme.typography.titleLarge)
-                Spacer(Modifier.weight(1f))
-                IconButton(onClick = viewModel::reloadAll) { Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.credits_reload)) }
-            }
+            TopAppBar(
+                title = { Text(stringResource(R.string.credits_title), maxLines = 1) },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.a11y_back)) } },
+                actions = { IconButton(onClick = viewModel::reloadAll) { Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.credits_reload)) } },
+            )
         },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)) {

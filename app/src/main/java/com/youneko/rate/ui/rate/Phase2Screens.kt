@@ -637,37 +637,22 @@ fun AlbumDetailScreen(
             is AlbumDetailUiState.Content -> {
             val value = (state as AlbumDetailUiState.Content).album
             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(padding).padding(horizontal = 16.dp)) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.cancel)) }
-                    Text(stringResource(R.string.album_detail), style = MaterialTheme.typography.titleLarge)
-                    Spacer(Modifier.weight(1f))
-                    Box {
-                        IconButton(onClick = { menuExpanded = true }) { Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.edit_album)) }
-                        DropdownMenu(menuExpanded, { menuExpanded = false }) {
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.refresh_metadata), maxLines = 3, overflow = TextOverflow.Ellipsis) },
-                                onClick = { menuExpanded = false; viewModel.refreshMetadata() },
-                            )
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.reload_cover), maxLines = 3, overflow = TextOverflow.Ellipsis) },
-                                onClick = { menuExpanded = false; viewModel.reloadCover() },
-                            )
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.choose_manual_cover), maxLines = 3, overflow = TextOverflow.Ellipsis) },
-                                onClick = { menuExpanded = false; manualCoverPicker.launch(arrayOf("image/*")) },
-                            )
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.view_credits), maxLines = 3, overflow = TextOverflow.Ellipsis) },
-                                onClick = { menuExpanded = false; onViewCredits(value.album.id, null, value.album.mbid) },
-                            )
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.delete_album), maxLines = 3, overflow = TextOverflow.Ellipsis) },
-                                onClick = { menuExpanded = false; showDelete = true },
-                                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
-                            )
+                TopAppBar(
+                    title = { Text(stringResource(R.string.album_detail), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.a11y_back), modifier = Modifier.size(YnDimens.iconMedium)) } },
+                    actions = {
+                        Box {
+                            IconButton(onClick = { menuExpanded = true }) { Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.edit_album), modifier = Modifier.size(YnDimens.iconMedium)) }
+                            DropdownMenu(menuExpanded, { menuExpanded = false }) {
+                                DropdownMenuItem(text = { Text(stringResource(R.string.refresh_metadata), maxLines = 3, overflow = TextOverflow.Ellipsis) }, onClick = { menuExpanded = false; viewModel.refreshMetadata() })
+                                DropdownMenuItem(text = { Text(stringResource(R.string.reload_cover), maxLines = 3, overflow = TextOverflow.Ellipsis) }, onClick = { menuExpanded = false; viewModel.reloadCover() })
+                                DropdownMenuItem(text = { Text(stringResource(R.string.choose_manual_cover), maxLines = 3, overflow = TextOverflow.Ellipsis) }, onClick = { menuExpanded = false; manualCoverPicker.launch(arrayOf("image/*")) })
+                                DropdownMenuItem(text = { Text(stringResource(R.string.view_credits), maxLines = 3, overflow = TextOverflow.Ellipsis) }, onClick = { menuExpanded = false; onViewCredits(value.album.id, null, value.album.mbid) })
+                                DropdownMenuItem(text = { Text(stringResource(R.string.delete_album), maxLines = 3, overflow = TextOverflow.Ellipsis) }, onClick = { menuExpanded = false; showDelete = true }, leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) })
+                            }
                         }
-                    }
-                }
+                    },
+                )
                 Box(Modifier.fillMaxWidth().height(YnDimens.coverHeroHeight), contentAlignment = Alignment.Center) {
                     CoverArtImage(value.album.coverUri, Modifier.fillMaxSize().blur(YnDimens.coverBlur).graphicsLayer { alpha = 0.18f }, placeholderSeed = value.album.id, placeholderLabel = value.album.title)
                     CoverArtImage(value.album.coverUri, Modifier.size(YnDimens.coverDetail).clickable(enabled = value.album.coverUri != null) { showFullCover = true }, placeholderSeed = value.album.id, placeholderLabel = value.album.title)

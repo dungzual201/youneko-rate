@@ -95,6 +95,8 @@
     <string name="spectrogram_db_zero">0 dB</string>
     <string name="spectrogram_db_mid">-60 dB</string>
     <string name="spectrogram_db_floor">%1$d dB</string>
+    <string name="spectrogram_frequency_zero">0 kHz</string>
+    <string name="spectrogram_frequency_khz">%1$.1f kHz</string>
     <string name="spectrogram_export_png">Xuất PNG</string>
     <string name="spectrogram_fullscreen">Mở phổ toàn màn hình</string>
     <string name="spectrogram_share">Chia sẻ phổ spectrogram</string>

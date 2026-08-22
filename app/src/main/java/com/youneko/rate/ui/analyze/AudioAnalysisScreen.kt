@@ -649,22 +649,25 @@ private fun nextDbFloor(value: Float): Float = when {
 private fun SpectrogramAxesOverlay(cached: CachedSpectrogram, logarithmic: Boolean) {
     val labelTextSize = with(LocalDensity.current) { 12.dp.toPx() }
     val axisLabelColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f).toArgb()
+    val sampleRate = cached.metadata.spectrogram.sampleRate
+    val nyquist = sampleRate / 2.0
+    val frequencies = listOf(0.0, 5_000.0, 10_000.0, 15_000.0, 20_000.0, nyquist).distinct().filter { it <= nyquist + 1 }
+    val frequencyLabels = frequencies.map { frequency ->
+        if (frequency >= 1000.0) stringResource(R.string.spectrogram_frequency_khz, frequency / 1000.0) else stringResource(R.string.spectrogram_frequency_zero)
+    }
     Canvas(Modifier.fillMaxSize()) {
         val left = 52f
         val top = 12f
         val right = size.width - 42f
         val bottom = size.height - 34f
-        val sampleRate = cached.metadata.spectrogram.sampleRate
-        val nyquist = sampleRate / 2.0
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = axisLabelColor
             textSize = labelTextSize
         }
-        listOf(0.0, 5_000.0, 10_000.0, 15_000.0, 20_000.0, nyquist).distinct().filter { it <= nyquist + 1 }.forEach { frequency ->
+        frequencies.forEachIndexed { index, frequency ->
             val normalized = if (!logarithmic) frequency / nyquist else if (frequency <= 0.0) 0.0 else kotlin.math.ln(frequency / 20.0) / kotlin.math.ln(nyquist / 20.0)
             val y = bottom - (normalized * (bottom - top)).toFloat()
-            val label = if (frequency >= 1000.0) String.format(java.util.Locale.getDefault(), "%.1f kHz", frequency / 1000.0) else "0 kHz"
-            drawIntoCanvas { canvas -> canvas.nativeCanvas.drawText(label, 2f, y + 4f, paint) }
+            drawIntoCanvas { canvas -> canvas.nativeCanvas.drawText(frequencyLabels[index], 2f, y + 4f, paint) }
         }
         val duration = cached.metadata.spectrogram.durationMs
         (0..4).forEach { tick ->
