@@ -16,6 +16,7 @@ import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import com.youneko.rate.R
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 
 private val BrandLightColors = lightColorScheme(
     primary = Color(0xFF7456B8),
@@ -61,18 +62,18 @@ private val YounekoTypography = Typography().let { base ->
     base.copy(
         displayLarge = base.displayLarge.copy(fontFamily = AppFont, fontWeight = FontWeight.SemiBold),
         displayMedium = base.displayMedium.copy(fontFamily = AppFont, fontWeight = FontWeight.SemiBold),
-        displaySmall = base.displaySmall.copy(fontFamily = AppFont, fontWeight = FontWeight.SemiBold),
+        displaySmall = base.displaySmall.copy(fontFamily = AppFont, fontWeight = FontWeight.SemiBold, fontSize = 30.sp, lineHeight = 38.sp, letterSpacing = (-0.2).sp),
         headlineLarge = base.headlineLarge.copy(fontFamily = AppFont, fontWeight = FontWeight.SemiBold),
-        headlineMedium = base.headlineMedium.copy(fontFamily = AppFont, fontWeight = FontWeight.SemiBold),
-        headlineSmall = base.headlineSmall.copy(fontFamily = AppFont, fontWeight = FontWeight.Medium),
-        titleLarge = base.titleLarge.copy(fontFamily = AppFont, fontWeight = FontWeight.Medium),
-        titleMedium = base.titleMedium.copy(fontFamily = AppFont, fontWeight = FontWeight.Medium),
-        bodyLarge = base.bodyLarge.copy(fontFamily = AppFont, fontWeight = FontWeight.Normal),
-        bodyMedium = base.bodyMedium.copy(fontFamily = AppFont, fontWeight = FontWeight.Normal),
+        headlineMedium = base.headlineMedium.copy(fontFamily = AppFont, fontWeight = FontWeight.SemiBold, fontSize = 26.sp, lineHeight = 32.sp, letterSpacing = (-0.2).sp),
+        headlineSmall = base.headlineSmall.copy(fontFamily = AppFont, fontWeight = FontWeight.Medium, fontSize = 22.sp, lineHeight = 28.sp, letterSpacing = 0.sp),
+        titleLarge = base.titleLarge.copy(fontFamily = AppFont, fontWeight = FontWeight.Medium, fontSize = 20.sp, lineHeight = 26.sp, letterSpacing = 0.sp),
+        titleMedium = base.titleMedium.copy(fontFamily = AppFont, fontWeight = FontWeight.Medium, fontSize = 16.sp, lineHeight = 22.sp, letterSpacing = 0.1.sp),
+        bodyLarge = base.bodyLarge.copy(fontFamily = AppFont, fontWeight = FontWeight.Normal, fontSize = 16.sp, lineHeight = 24.sp, letterSpacing = 0.15.sp),
+        bodyMedium = base.bodyMedium.copy(fontFamily = AppFont, fontWeight = FontWeight.Normal, fontSize = 14.sp, lineHeight = 20.sp, letterSpacing = 0.15.sp),
         bodySmall = base.bodySmall.copy(fontFamily = AppFont, fontWeight = FontWeight.Normal),
-        labelLarge = base.labelLarge.copy(fontFamily = AppFont, fontWeight = FontWeight.Medium),
+        labelLarge = base.labelLarge.copy(fontFamily = AppFont, fontWeight = FontWeight.Medium, fontSize = 14.sp, lineHeight = 18.sp, letterSpacing = 0.1.sp),
         labelMedium = base.labelMedium.copy(fontFamily = AppFont, fontWeight = FontWeight.Medium),
-        labelSmall = base.labelSmall.copy(fontFamily = AppFont, fontWeight = FontWeight.Normal),
+        labelSmall = base.labelSmall.copy(fontFamily = AppFont, fontWeight = FontWeight.Normal, fontSize = 12.sp, lineHeight = 16.sp, letterSpacing = 0.3.sp),
     )
 }
 

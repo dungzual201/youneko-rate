@@ -276,7 +276,7 @@ fun AudioAnalysisScreen(viewModel: AudioAnalysisViewModel = hiltViewModel()) {
         ) {
             Text(stringResource(R.string.analyze), style = MaterialTheme.typography.headlineSmall)
             header?.let { selectedHeader ->
-                Text(selectedHeader.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(selectedHeader.title, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(
                     listOfNotNull(selectedHeader.artist, selectedHeader.album?.takeUnless { it.equals(selectedHeader.title, ignoreCase = true) }, selectedHeader.format).joinToString(" · ").ifBlank { stringResource(R.string.audio_analysis_not_applicable) },
                     style = MaterialTheme.typography.bodySmall,
@@ -380,7 +380,7 @@ private fun AnalysisHero(analysis: AudioAnalysisEntity) {
         analysis.bitDepth?.let { "$it-bit" },
     ).joinToString(" · ")
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(stringResource(R.string.audio_analysis_verdict), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Text(stringResource(R.string.audio_analysis_verdict), style = MaterialTheme.typography.titleLarge, )
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 AssistChip(onClick = {}, label = { Text(groupLabel) }, colors = androidx.compose.material3.AssistChipDefaults.assistChipColors(containerColor = chipColor))
@@ -436,7 +436,7 @@ private fun AnalysisDetailsCard(analysis: AudioAnalysisEntity) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.animateContentSize()) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(stringResource(R.string.audio_analysis_raw_metrics), Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.audio_analysis_raw_metrics), Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, )
                 IconButton(onClick = { expanded = !expanded }) { Icon(if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore, contentDescription = stringResource(R.string.audio_analysis_expand_details)) }
             }
             if (expanded) {
@@ -517,7 +517,7 @@ private fun SpectrogramPanel(cached: CachedSpectrogram?, context: android.conten
     Card(Modifier.fillMaxWidth().navigationBarsPadding()) {
         Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(stringResource(R.string.spectrogram_title), Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.spectrogram_title), Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, )
                 IconButton(onClick = { fullscreen = true }) { Icon(Icons.Default.Fullscreen, contentDescription = stringResource(R.string.spectrogram_fullscreen)) }
                 IconButton(onClick = {
                     cached?.let { value ->

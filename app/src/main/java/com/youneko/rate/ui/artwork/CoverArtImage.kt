@@ -103,6 +103,6 @@ private fun CoverArtPlaceholder(
     val foreground = if ((first.red * 0.299f + first.green * 0.587f + first.blue * 0.114f) > 0.58f) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.inverseOnSurface
     Box(modifier.background(Brush.linearGradient(listOf(first, second))), contentAlignment = Alignment.Center) {
         Icon(Icons.Default.Pets, contentDescription = null, tint = foreground.copy(alpha = 0.08f), modifier = Modifier.fillMaxSize(0.72f))
-        Text(letter, color = foreground, style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
+        Text(letter, color = foreground, style = MaterialTheme.typography.displaySmall)
     }
 }

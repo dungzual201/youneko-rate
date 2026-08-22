@@ -1024,7 +1024,7 @@ class StandaloneViewModel @javax.inject.Inject constructor(
 private fun SettingsSectionHeader(title: String, icon: ImageVector) {
     Row(Modifier.fillMaxWidth().padding(top = YnDimens.space3), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(YnDimens.space2)) {
         Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(YnDimens.minTouchTarget).padding(YnDimens.space2))
-        Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+        Text(title, style = MaterialTheme.typography.titleLarge, )
     }
 }
 

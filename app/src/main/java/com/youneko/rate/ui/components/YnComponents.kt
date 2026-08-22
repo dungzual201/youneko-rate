@@ -86,7 +86,7 @@ fun YnRatingBadge(score: Double?, modifier: Modifier = Modifier, large: Boolean 
         color = color,
         tonalElevation = YnDimens.cardElevation,
     ) {
-        Text(label, modifier = Modifier.padding(horizontal = if (large) YnDimens.space3 else YnDimens.space2, vertical = YnDimens.space1), style = if (large) MaterialTheme.typography.titleLarge else MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+        Text(label, modifier = Modifier.padding(horizontal = if (large) YnDimens.space3 else YnDimens.space2, vertical = YnDimens.space1), style = if (large) MaterialTheme.typography.titleLarge else MaterialTheme.typography.labelLarge)
     }
 }
 
@@ -124,7 +124,7 @@ fun YnStatCard(value: String, label: String, icon: @Composable () -> Unit, modif
     Card(modifier, shape = RoundedCornerShape(YnDimens.radiusMd), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
         Row(Modifier.fillMaxWidth().padding(YnDimens.space4), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(YnDimens.space3)) {
             Box(Modifier.size(YnDimens.space7), contentAlignment = Alignment.Center) { icon() }
-            Column { Text(value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold); Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            Column { Text(value, style = MaterialTheme.typography.headlineSmall); Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
     }
 }
@@ -133,7 +133,7 @@ fun YnStatCard(value: String, label: String, icon: @Composable () -> Unit, modif
 fun YnEmptyState(title: String, body: String, actionLabel: String? = null, onAction: (() -> Unit)? = null, modifier: Modifier = Modifier) {
     Column(modifier.fillMaxWidth().padding(YnDimens.space7), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(YnDimens.space3)) {
         Icon(Icons.Default.Star, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(YnDimens.coverSmall))
-        Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Text(title, style = MaterialTheme.typography.titleLarge)
         Text(body, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         if (actionLabel != null && onAction != null) Button(onClick = onAction) { Text(actionLabel) }
     }
@@ -160,7 +160,7 @@ fun YnSkeleton(modifier: Modifier = Modifier, lines: Int = 2) {
 @Composable
 fun YnSectionHeader(title: String, actionLabel: String? = null, onAction: (() -> Unit)? = null) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+        Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
         if (actionLabel != null && onAction != null) TextButton(onClick = onAction) { Text(actionLabel) }
     }
 }
@@ -201,7 +201,7 @@ fun YnMetricRow(label: String, value: String, onHelp: () -> Unit, warning: Boole
     Row(Modifier.fillMaxWidth().padding(vertical = YnDimens.space1), verticalAlignment = Alignment.CenterVertically) {
         Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
         IconButton(onClick = onHelp, modifier = Modifier.size(YnDimens.minTouchTarget)) { Icon(Icons.Default.HelpOutline, contentDescription = stringResource(R.string.audio_analysis_help)) }
-        Text(value, color = if (warning) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface, fontWeight = if (warning) FontWeight.Bold else FontWeight.Normal)
+        Text(value, color = if (warning) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface, fontWeight = if (warning) FontWeight.Bold else FontWeight.Medium)
     }
 }
 
