@@ -84,9 +84,12 @@
     <string name="spectrogram_waiting">Đang dựng phổ toàn bài…</string>
     <string name="spectrogram_linear">Dùng trục tần số tuyến tính</string>
     <string name="spectrogram_log">Dùng trục tần số log</string>
+    <string name="spectrogram_linear_short">Trục tuyến tính</string>
+    <string name="spectrogram_log_short">Trục log</string>
     <string name="spectrogram_hide_axes">Ẩn trục</string>
     <string name="spectrogram_show_axes">Hiện trục</string>
     <string name="spectrogram_db_range">Dải dB: %1$d</string>
+    <string name="spectrogram_db_range_short">%1$d…0 dB</string>
     <string name="spectrogram_db_zero">0 dB</string>
     <string name="spectrogram_db_mid">-60 dB</string>
     <string name="spectrogram_db_floor">%1$d dB</string>

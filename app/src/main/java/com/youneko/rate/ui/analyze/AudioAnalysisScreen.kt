@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
@@ -579,12 +580,15 @@ private fun SpectrogramPanel(cached: CachedSpectrogram?, context: android.conten
                     Text(stringResource(R.string.spectrogram_waiting), style = MaterialTheme.typography.bodySmall)
                 }
             } else {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    FilterChip(selected = !logarithmic, onClick = { logarithmic = false }, label = { Text(stringResource(R.string.spectrogram_linear)) })
-                    FilterChip(selected = logarithmic, onClick = { logarithmic = true }, label = { Text(stringResource(R.string.spectrogram_log)) })
-                    FilterChip(selected = showAxes, onClick = { showAxes = !showAxes }, label = { Text(if (showAxes) stringResource(R.string.spectrogram_hide_axes) else stringResource(R.string.spectrogram_show_axes)) })
-                    FilterChip(selected = false, onClick = { dbFloor = if (dbFloor <= -100f) -90f else if (dbFloor <= -90f) -100f else -120f }, label = { Text(stringResource(R.string.spectrogram_db_range, dbFloor.toInt())) })
-                    FilterChip(selected = false, onClick = { resetToken++ }, label = { Text(stringResource(R.string.spectrogram_reset_zoom)) })
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    FilterChip(selected = !logarithmic, onClick = { logarithmic = false }, label = { Text(stringResource(R.string.spectrogram_linear_short)) }, modifier = Modifier.height(32.dp))
+                    FilterChip(selected = logarithmic, onClick = { logarithmic = true }, label = { Text(stringResource(R.string.spectrogram_log_short)) }, modifier = Modifier.height(32.dp))
+                    FilterChip(selected = showAxes, onClick = { showAxes = !showAxes }, label = { Text(if (showAxes) stringResource(R.string.spectrogram_hide_axes) else stringResource(R.string.spectrogram_show_axes)) }, modifier = Modifier.height(32.dp))
+                    FilterChip(selected = false, onClick = { dbFloor = if (dbFloor <= -100f) -90f else if (dbFloor <= -90f) -100f else -120f }, label = { Text(stringResource(R.string.spectrogram_db_range_short, dbFloor.toInt())) }, modifier = Modifier.height(32.dp))
+                    FilterChip(selected = false, onClick = { resetToken++ }, label = { Text(stringResource(R.string.spectrogram_reset_zoom)) }, modifier = Modifier.height(32.dp))
                 }
                 Box(Modifier.fillMaxWidth().aspectRatio(16f / 10f)) {
                     SpectrogramView(cached, logarithmic, dbFloor, showAxes, resetToken = resetToken, modifier = Modifier.fillMaxSize(), onTooltip = { tooltip = it })
