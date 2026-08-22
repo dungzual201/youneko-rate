@@ -15,6 +15,8 @@ import com.youneko.rate.data.musicbrainz.TokenBucketInterceptor
 import dagger.hilt.android.qualifiers.ApplicationContext
 import android.content.Context
 import coil.ImageLoader
+import coil.disk.DiskCache
+import coil.memory.MemoryCache
 import coil.request.CachePolicy
 import dagger.Module
 import dagger.Provides
@@ -170,7 +172,10 @@ object NetworkModule {
         @Named("coverArt") client: OkHttpClient,
     ): ImageLoader = ImageLoader.Builder(context)
         .okHttpClient(client)
-        .crossfade(true)
+        .memoryCache { MemoryCache.Builder(context).maxSizePercent(0.25).build() }
+        .diskCache { DiskCache.Builder().directory(context.cacheDir.resolve("image_cache")).maxSizeBytes(256L * 1024L * 1024L).build() }
+        .crossfade(150)
+        .allowHardware(true)
         .memoryCachePolicy(CachePolicy.ENABLED)
         .diskCachePolicy(CachePolicy.ENABLED)
         .build()

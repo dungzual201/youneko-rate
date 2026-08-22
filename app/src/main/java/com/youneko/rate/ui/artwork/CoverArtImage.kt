@@ -70,7 +70,7 @@ fun CoverArtImage(
         CoverArtPlaceholder(clipped, placeholderSeed, placeholderLabel, placeholder)
     } else {
         AsyncImage(
-            model = ImageRequest.Builder(context).data(model).size(512).crossfade(220).build(),
+            model = ImageRequest.Builder(context).data(model).size(512).memoryCacheKey("album_${placeholderSeed}_${placeholderLabel.orEmpty()}_$model").allowHardware(true).crossfade(150).build(),
             imageLoader = imageLoader,
             contentDescription = null,
             modifier = clipped,
