@@ -51,24 +51,28 @@ private val BrandDarkColors = darkColorScheme(
     outline = Color(0xFF968D98),
 )
 
-private val DisplayFont = FontFamily(Font(R.font.youneko_display, FontWeight.Normal), Font(R.font.youneko_display, FontWeight.Bold))
-private val BodyFont = FontFamily(Font(R.font.youneko_body, FontWeight.Normal), Font(R.font.youneko_body, FontWeight.Medium), Font(R.font.youneko_body, FontWeight.Bold))
+private val AppFont = FontFamily(
+    Font(R.font.bevietnampro_regular, FontWeight.Normal),
+    Font(R.font.bevietnampro_medium, FontWeight.Medium),
+    Font(R.font.bevietnampro_semibold, FontWeight.SemiBold),
+)
 
 private val YounekoTypography = Typography().let { base ->
     base.copy(
-        displayLarge = base.displayLarge.copy(fontFamily = DisplayFont, fontWeight = FontWeight.Bold),
-        displayMedium = base.displayMedium.copy(fontFamily = DisplayFont, fontWeight = FontWeight.Bold),
-        displaySmall = base.displaySmall.copy(fontFamily = DisplayFont, fontWeight = FontWeight.Bold),
-        headlineLarge = base.headlineLarge.copy(fontFamily = DisplayFont, fontWeight = FontWeight.Bold),
-        headlineMedium = base.headlineMedium.copy(fontFamily = DisplayFont, fontWeight = FontWeight.Bold),
-        headlineSmall = base.headlineSmall.copy(fontFamily = DisplayFont, fontWeight = FontWeight.Bold),
-        titleLarge = base.titleLarge.copy(fontFamily = DisplayFont, fontWeight = FontWeight.Bold),
-        bodyLarge = base.bodyLarge.copy(fontFamily = BodyFont),
-        bodyMedium = base.bodyMedium.copy(fontFamily = BodyFont),
-        bodySmall = base.bodySmall.copy(fontFamily = BodyFont),
-        labelLarge = base.labelLarge.copy(fontFamily = BodyFont),
-        labelMedium = base.labelMedium.copy(fontFamily = BodyFont),
-        labelSmall = base.labelSmall.copy(fontFamily = BodyFont),
+        displayLarge = base.displayLarge.copy(fontFamily = AppFont, fontWeight = FontWeight.SemiBold),
+        displayMedium = base.displayMedium.copy(fontFamily = AppFont, fontWeight = FontWeight.SemiBold),
+        displaySmall = base.displaySmall.copy(fontFamily = AppFont, fontWeight = FontWeight.SemiBold),
+        headlineLarge = base.headlineLarge.copy(fontFamily = AppFont, fontWeight = FontWeight.SemiBold),
+        headlineMedium = base.headlineMedium.copy(fontFamily = AppFont, fontWeight = FontWeight.SemiBold),
+        headlineSmall = base.headlineSmall.copy(fontFamily = AppFont, fontWeight = FontWeight.Medium),
+        titleLarge = base.titleLarge.copy(fontFamily = AppFont, fontWeight = FontWeight.Medium),
+        titleMedium = base.titleMedium.copy(fontFamily = AppFont, fontWeight = FontWeight.Medium),
+        bodyLarge = base.bodyLarge.copy(fontFamily = AppFont, fontWeight = FontWeight.Normal),
+        bodyMedium = base.bodyMedium.copy(fontFamily = AppFont, fontWeight = FontWeight.Normal),
+        bodySmall = base.bodySmall.copy(fontFamily = AppFont, fontWeight = FontWeight.Normal),
+        labelLarge = base.labelLarge.copy(fontFamily = AppFont, fontWeight = FontWeight.Medium),
+        labelMedium = base.labelMedium.copy(fontFamily = AppFont, fontWeight = FontWeight.Medium),
+        labelSmall = base.labelSmall.copy(fontFamily = AppFont, fontWeight = FontWeight.Normal),
     )
 }
 
