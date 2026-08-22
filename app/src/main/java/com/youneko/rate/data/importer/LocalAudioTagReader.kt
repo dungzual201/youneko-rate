@@ -195,10 +195,18 @@ class LocalAudioTagReader @Inject constructor(
     }
 
     fun extractArtwork(uri: Uri, albumId: String, mediaStoreAlbumId: Long?): ArtworkStore.CachedArtwork? {
+        var thumbnail = false
         var embedded = false
         var folder = false
         var mediaStore = false
         val candidates = buildList {
+            if (Build.VERSION.SDK_INT >= 29) {
+                runCatching { context.contentResolver.loadThumbnail(uri, Size(512, 512), null) }
+                    .onFailure { Log.w("Artwork", "Thumbnail read failed for $uri", it) }
+                    .getOrNull()
+                    ?.let { bitmapCandidate(it, "thumbnail") }
+                    ?.let { thumbnail = true; add(it) }
+            }
             runCatching {
                 val retriever = MediaMetadataRetriever()
                 try {
@@ -219,17 +227,9 @@ class LocalAudioTagReader @Inject constructor(
                     ?.let { artworkCandidate(it, "mediastore-albumart") }
                     ?.let { mediaStore = true; add(it) }
             }
-            if (Build.VERSION.SDK_INT >= 29) {
-                runCatching {
-                    context.contentResolver.loadThumbnail(uri, Size(1000, 1000), null)
-                }.onFailure { Log.w("Artwork", "Thumbnail fallback failed for $uri", it) }
-                    .getOrNull()
-                    ?.let { bitmapCandidate(it, "thumbnail") }
-                    ?.let(::add)
-            }
         }
         val selected = candidates.firstOrNull()
-        Log.i("Artwork", "COVER: album=$albumId embedded=$embedded/folder=$folder/mediastore=$mediaStore/none=${selected == null}")
+        Log.i("Artwork", "COVER: album=$albumId thumbnail=$thumbnail/embedded=$embedded/folder=$folder/mediastore=$mediaStore/none=${selected == null}")
         return selected?.let { artworkStore.persistAlbumArtwork(albumId, it.path, it.source) }
     }
 

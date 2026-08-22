@@ -32,8 +32,8 @@ class ArtworkStore @Inject constructor(
     fun persistBitmap(albumId: String, bitmap: Bitmap, source: String): CachedArtwork? {
         val maxDimension = maxOf(bitmap.width, bitmap.height)
         if (maxDimension < 300) return null
-        val scaled = if (maxDimension > 1000) {
-            val ratio = 1000f / maxDimension.toFloat()
+        val scaled = if (maxDimension > 512) {
+            val ratio = 512f / maxDimension.toFloat()
             Bitmap.createScaledBitmap(bitmap, (bitmap.width * ratio).toInt().coerceAtLeast(1), (bitmap.height * ratio).toInt().coerceAtLeast(1), true)
         } else {
             bitmap
@@ -41,7 +41,7 @@ class ArtworkStore @Inject constructor(
         val directory = File(context.filesDir, "covers").apply { mkdirs() }
         val output = File(directory, "$albumId.jpg")
         output.outputStream().use { stream ->
-            if (!scaled.compress(Bitmap.CompressFormat.JPEG, 92, stream)) return null
+            if (!scaled.compress(Bitmap.CompressFormat.JPEG, 85, stream)) return null
         }
         val outputWidth = scaled.width
         if (scaled !== bitmap) scaled.recycle()
