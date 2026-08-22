@@ -62,6 +62,9 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.PlainTooltip
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
@@ -268,7 +271,7 @@ class AudioAnalysisViewModel @Inject constructor(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AudioAnalysisScreen(viewModel: AudioAnalysisViewModel = hiltViewModel()) {
+fun AudioAnalysisScreen(initialUri: String? = null, viewModel: AudioAnalysisViewModel = hiltViewModel()) {
     val analyses by viewModel.analyses.collectAsStateWithLifecycle()
     val workInfos by viewModel.workInfos.collectAsStateWithLifecycle()
     val header by viewModel.header.collectAsStateWithLifecycle()
@@ -283,7 +286,11 @@ fun AudioAnalysisScreen(viewModel: AudioAnalysisViewModel = hiltViewModel()) {
     val libraryTracks by viewModel.libraryTracks.collectAsStateWithLifecycle()
     val recentUris by viewModel.recentUris.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
+    LaunchedEffect(initialUri) {
+        initialUri?.takeIf { it.isNotBlank() }?.let(viewModel::enqueue)
+    }
     var showSourceSheet by rememberSaveable { mutableStateOf(false) }
+    var sourceMode by rememberSaveable { mutableStateOf<String?>(null) }
     var libraryQuery by rememberSaveable { mutableStateOf("") }
     var cachedSpectrogram by remember { mutableStateOf<CachedSpectrogram?>(null) }
     LaunchedEffect(latest?.fileUriOrPath, latest?.fileHash, latest?.trackId) {
@@ -313,8 +320,14 @@ fun AudioAnalysisScreen(viewModel: AudioAnalysisViewModel = hiltViewModel()) {
                 title = { YnBrandTitle() },
                 actions = {
                     if (latest != null || analyzeState is AnalyzeUiState.Running || analyzeState is AnalyzeUiState.Failed) {
-                        IconButton(onClick = { picker.launch(arrayOf("audio/*")) }, enabled = analyzeState !is AnalyzeUiState.Running) {
-                            Icon(Icons.Default.FolderOpen, contentDescription = stringResource(R.string.audio_analysis_choose_file), modifier = Modifier.size(24.dp))
+                        TooltipBox(
+                            positionProvider = androidx.compose.material3.TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                            tooltip = { PlainTooltip { Text(stringResource(R.string.audio_analysis_choose_file)) } },
+                            state = rememberTooltipState(),
+                        ) {
+                            IconButton(onClick = { picker.launch(arrayOf("audio/*")) }, enabled = analyzeState !is AnalyzeUiState.Running) {
+                                Icon(Icons.Default.FolderOpen, contentDescription = stringResource(R.string.audio_analysis_choose_file), modifier = Modifier.size(24.dp))
+                            }
                         }
                     }
                 },
@@ -353,16 +366,21 @@ fun AudioAnalysisScreen(viewModel: AudioAnalysisViewModel = hiltViewModel()) {
                     when {
                         latest != null -> AnalysisCard(latest, cachedSpectrogram, context, onExplain = { explain = true })
                         analyzeState is AnalyzeUiState.Failed -> Unit
-                        else -> YounekoEmptyState(stringResource(R.string.audio_analysis_empty), actionLabel = stringResource(R.string.audio_analysis_choose_file), onAction = { showSourceSheet = true }, modifier = Modifier.fillMaxWidth())
+                        else -> YounekoEmptyState(stringResource(R.string.audio_analysis_empty), actionLabel = stringResource(R.string.audio_analysis_choose_file), onAction = { sourceMode = null; showSourceSheet = true }, modifier = Modifier.fillMaxWidth())
                     }
                 }
-                item { Text(stringResource(R.string.analyze_decode_note), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                item {
+                    Column {
+                        Text(stringResource(R.string.analyze_decode_note), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(YnDimens.navigationSafe))
+                    }
+                }
             }
             ExtendedFloatingActionButton(
                 text = { Text(stringResource(R.string.audio_analysis_choose_file)) },
                 icon = { Icon(Icons.Rounded.LibraryMusic, contentDescription = null) },
                 expanded = !listState.canScrollBackward,
-                onClick = { showSourceSheet = true },
+                onClick = { sourceMode = null; showSourceSheet = true },
                 modifier = Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 20.dp, bottom = 88.dp),
             )
         }
@@ -375,21 +393,22 @@ fun AudioAnalysisScreen(viewModel: AudioAnalysisViewModel = hiltViewModel()) {
                     headlineContent = { Text(stringResource(R.string.analyze_from_library)) },
                     supportingContent = { Text(stringResource(R.string.analyze_from_library_count, libraryTracks.size)) },
                     leadingContent = { Icon(Icons.Rounded.LibraryMusic, contentDescription = null) },
-                    modifier = Modifier.clickable { showSourceSheet = false },
+                    modifier = Modifier.clickable { sourceMode = "library" },
                 )
                 ListItem(
                     headlineContent = { Text(stringResource(R.string.audio_analysis_choose_file)) },
                     supportingContent = { Text(stringResource(R.string.analyze_open_device)) },
                     leadingContent = { Icon(Icons.Default.FolderOpen, contentDescription = null) },
-                    modifier = Modifier.clickable { showSourceSheet = false; picker.launch(arrayOf("audio/*")) },
+                    modifier = Modifier.clickable { showSourceSheet = false; sourceMode = null; picker.launch(arrayOf("audio/*")) },
                 )
                 ListItem(
                     headlineContent = { Text(stringResource(R.string.analyze_recent_files)) },
                     supportingContent = { Text(stringResource(R.string.analyze_recent_count, recentUris.size)) },
                     leadingContent = { Icon(Icons.Default.Refresh, contentDescription = null) },
-                    modifier = Modifier.clickable { showSourceSheet = false },
+                    modifier = Modifier.clickable { sourceMode = "recent" },
                 )
-                if (libraryTracks.isNotEmpty()) {
+                if (sourceMode != null) TextButton(onClick = { sourceMode = null }) { Text(stringResource(R.string.analyze_back_to_sources)) }
+                if (sourceMode == "library" && libraryTracks.isNotEmpty()) {
                     Text(stringResource(R.string.analyze_library_search), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
                     OutlinedTextField(libraryQuery, { libraryQuery = it }, label = { Text(stringResource(R.string.analyze_library_search)) }, modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp), singleLine = true)
                     libraryTracks.filter { it.title.contains(libraryQuery, true) || it.fileName.orEmpty().contains(libraryQuery, true) }.take(20).forEach { track ->
@@ -400,7 +419,7 @@ fun AudioAnalysisScreen(viewModel: AudioAnalysisViewModel = hiltViewModel()) {
                         )
                     }
                 }
-                if (recentUris.isNotEmpty()) {
+                if (sourceMode == "recent" && recentUris.isNotEmpty()) {
                     Text(stringResource(R.string.analyze_recent_files), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
                     recentUris.forEach { uri ->
                         ListItem(headlineContent = { Text(displayFileName(Uri.parse(uri).lastPathSegment.orEmpty())) }, modifier = Modifier.clickable { viewModel.enqueue(uri); showSourceSheet = false })

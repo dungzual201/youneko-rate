@@ -136,6 +136,10 @@ fun YounekoNavHost() {
                     onOpenAdvancedSearch = { navController.navigate("advancedSearch") },
                     onOpenCollections = { navController.navigate("collections") },
                     onOpenSettings = { navController.navigate("settings") },
+                    onAnalyzeTrack = { uri ->
+                        navController.currentBackStackEntry?.savedStateHandle?.set("analyzeUri", uri)
+                        navController.navigate("analyze") { launchSingleTop = true }
+                    },
                 )
             }
             composable("rate") {
@@ -150,7 +154,10 @@ fun YounekoNavHost() {
                     onOpenAlbum = { navController.navigate("album/$it") },
                 )
             }
-            composable("analyze") { AudioAnalysisScreen() }
+            composable("analyze") {
+                val initialUri = navController.previousBackStackEntry?.savedStateHandle?.get<String>("analyzeUri")
+                AudioAnalysisScreen(initialUri = initialUri)
+            }
             composable("stats") { StatsScreen() }
             composable("settings") { SettingsScreen(onOpenExport = { navController.navigate("export") }) }
             composable("export") { ExportScreen(onBack = { navController.popBackStack() }) }

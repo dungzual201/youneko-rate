@@ -31,8 +31,9 @@
     <string name="analyze_recent_files">Analyze recent files</string>
     <string name="analyze_recent_count">%1$d recent files</string>
     <string name="analyze_library_search">Search library tracks</string>
+    <string name="analyze_back_to_sources">Back to sources</string>
     <string name="audio_analysis_running">Analyzing audio quality...</string>
-    <string name="audio_analysis_empty">Choose a local audio file to begin.</string>
+    <string name="audio_analysis_empty">No tracks analyzed yet</string>
     <string name="audio_analysis_verdict">Quality verdict</string>
     <string name="verdict_lossless">Lossless</string>
     <string name="verdict_hires">Hi-Res</string>

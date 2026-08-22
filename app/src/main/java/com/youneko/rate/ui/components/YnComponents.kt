@@ -13,6 +13,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -61,6 +62,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
@@ -207,8 +209,15 @@ fun YnRatingBadge(score: Double?, modifier: Modifier = Modifier, large: Boolean 
 }
 
 @Composable
-fun YnAlbumCard(item: LibraryAlbum, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Card(onClick = onClick, modifier = modifier, shape = RoundedCornerShape(YnDimens.radiusMd), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+fun YnAlbumCard(item: LibraryAlbum, onClick: () -> Unit, onLongClick: (() -> Unit)? = null, modifier: Modifier = Modifier) {
+    val gestureModifier = if (onLongClick == null) {
+        modifier
+    } else {
+        modifier.pointerInput(item.album.id) {
+            detectTapGestures(onTap = { onClick() }, onLongPress = { onLongClick() })
+        }
+    }
+    Card(onClick = if (onLongClick == null) onClick else ({}), modifier = gestureModifier, shape = RoundedCornerShape(YnDimens.radiusMd), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
         Column(Modifier.padding(YnDimens.space3), verticalArrangement = Arrangement.spacedBy(YnDimens.space2)) {
             Box(Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(YnDimens.radiusSm))) {
                 CoverArtImage(item.album.coverUri, Modifier.fillMaxSize(), placeholderSeed = item.album.id, placeholderLabel = item.album.title)

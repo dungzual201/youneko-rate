@@ -25,6 +25,7 @@ import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
@@ -85,6 +86,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -123,6 +125,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
@@ -185,6 +188,7 @@ fun LibraryScreen(
     onOpenAdvancedSearch: () -> Unit = {},
     onOpenCollections: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
+    onAnalyzeTrack: (String) -> Unit = {},
     viewModel: LibraryViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -259,7 +263,7 @@ fun LibraryScreen(
                     state.error != null -> item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) { YounekoErrorState(state.error ?: stringResource(R.string.error_generic), onRetry = viewModel::clearError, modifier = Modifier.fillMaxWidth()) }
                     state.albums.isEmpty() -> item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) { EmptyLibrary(onAddAlbum, hasQuery = state.query.isNotBlank() || state.unfinishedOnly) }
                     refreshing -> items(6, key = { "skeleton-$it" }) { YnSkeleton(Modifier.padding(YnDimens.space2)) }
-                    else -> items(state.albums, key = { stableAlbumKey(it.album.id) }) { item -> AlbumCard(item, onOpenAlbum) }
+                    else -> items(state.albums, key = { stableAlbumKey(it.album.id) }) { item -> AlbumCard(item, onOpenAlbum, onAnalyzeTrack) }
                 }
             }
             else -> LazyColumn(
@@ -277,7 +281,7 @@ fun LibraryScreen(
                 when {
                     state.error != null -> item { YounekoErrorState(state.error ?: stringResource(R.string.error_generic), onRetry = viewModel::clearError, modifier = Modifier.fillMaxWidth()) }
                     state.albums.isEmpty() -> item { EmptyLibrary(onAddAlbum, hasQuery = state.query.isNotBlank() || state.unfinishedOnly) }
-                    else -> items(state.albums, key = { stableAlbumKey(it.album.id) }) { item -> AlbumListRow(item, onOpenAlbum) }
+                    else -> items(state.albums, key = { stableAlbumKey(it.album.id) }) { item -> AlbumListRow(item, onOpenAlbum, onAnalyzeTrack) }
                 }
             }
         }
@@ -398,13 +402,16 @@ private fun EmptyLibrary(onAdd: () -> Unit, hasQuery: Boolean) {
 }
 
 @Composable
-private fun AlbumCard(item: LibraryAlbum, onOpen: (String) -> Unit) {
-    YnAlbumCard(item, onClick = { onOpen(item.album.id) }, modifier = Modifier.animateContentSize(animationSpec = younekoSpring(rememberReducedMotion())))
+private fun AlbumCard(item: LibraryAlbum, onOpen: (String) -> Unit, onAnalyzeTrack: (String) -> Unit = {}) {
+    var showTrackMenu by rememberSaveable(item.album.id) { mutableStateOf(false) }
+    YnAlbumCard(item, onClick = { onOpen(item.album.id) }, onLongClick = { showTrackMenu = true }, modifier = Modifier.animateContentSize(animationSpec = younekoSpring(rememberReducedMotion())))
+    if (showTrackMenu) AlbumAnalyzeSheet(item, onDismiss = { showTrackMenu = false }, onAnalyzeTrack = onAnalyzeTrack)
 }
 
 @Composable
-private fun AlbumListRow(item: LibraryAlbum, onOpen: (String) -> Unit) {
-    Card(onClick = { onOpen(item.album.id) }, shape = RoundedCornerShape(YounekoRadius.lg), modifier = Modifier.fillMaxWidth().animateContentSize(animationSpec = younekoSpring(rememberReducedMotion()))) {
+private fun AlbumListRow(item: LibraryAlbum, onOpen: (String) -> Unit, onAnalyzeTrack: (String) -> Unit = {}) {
+    var showTrackMenu by rememberSaveable(item.album.id) { mutableStateOf(false) }
+    Card(shape = RoundedCornerShape(YounekoRadius.lg), modifier = Modifier.fillMaxWidth().combinedClickable(onClick = { onOpen(item.album.id) }, onLongClick = { showTrackMenu = true })) {
         Row(Modifier.padding(YounekoSpacing.md), verticalAlignment = Alignment.CenterVertically) {
             CoverArtImage(item.album.coverUri, Modifier.size(64.dp), placeholderSeed = item.album.id, placeholderLabel = item.album.title)
             Column(Modifier.weight(1f).padding(start = YounekoSpacing.md)) {
@@ -412,6 +419,28 @@ private fun AlbumListRow(item: LibraryAlbum, onOpen: (String) -> Unit) {
                 Text(item.artist?.name.orEmpty(), style = MaterialTheme.typography.bodySmall)
                 ScoreLine(item)
             }
+        }
+    }
+    if (showTrackMenu) AlbumAnalyzeSheet(item, onDismiss = { showTrackMenu = false }, onAnalyzeTrack = onAnalyzeTrack)
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AlbumAnalyzeSheet(item: LibraryAlbum, onDismiss: () -> Unit, onAnalyzeTrack: (String) -> Unit) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(bottom = YounekoSpacing.md)) {
+            Text(stringResource(R.string.analyze_from_library), style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = YounekoSpacing.md, vertical = YounekoSpacing.sm))
+            item.tracks.forEach { track ->
+                ListItem(
+                    headlineContent = { Text(track.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+                    supportingContent = { Text(track.fileName.orEmpty(), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    modifier = Modifier.heightIn(min = 56.dp).clickable {
+                        track.sourceUri?.let(onAnalyzeTrack)
+                        onDismiss()
+                    },
+                )
+            }
+            if (item.tracks.isEmpty()) Text(stringResource(R.string.empty_tracks), modifier = Modifier.padding(YounekoSpacing.md))
         }
     }
 }
@@ -694,7 +723,17 @@ fun AlbumDetailScreen(
                     },
                 )
                 Box(Modifier.fillMaxWidth().height(YnDimens.coverHeroHeight), contentAlignment = Alignment.Center) {
-                    CoverArtImage(value.album.coverUri, Modifier.size(YnDimens.coverDetail).clickable(enabled = value.album.coverUri != null) { showFullCover = true }, placeholderSeed = value.album.id, placeholderLabel = value.album.title)
+                    CoverArtImage(
+                        value.album.coverUri,
+                        Modifier.size(YnDimens.coverDetail)
+                            .aspectRatio(1f)
+                            .clip(RoundedCornerShape(16.dp))
+                            .shadow(12.dp, RoundedCornerShape(16.dp))
+                            .clickable(enabled = value.album.coverUri != null) { showFullCover = true },
+                        contentScale = ContentScale.Fit,
+                        placeholderSeed = value.album.id,
+                        placeholderLabel = value.album.title,
+                    )
                 }
                 if (palette != null) {
                     Text(stringResource(R.string.palette_title), style = MaterialTheme.typography.labelLarge)

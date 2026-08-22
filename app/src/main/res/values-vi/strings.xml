@@ -31,8 +31,9 @@
     <string name="analyze_recent_files">Phân tích bài gần đây</string>
     <string name="analyze_recent_count">%1$d tệp gần đây</string>
     <string name="analyze_library_search">Tìm bài trong thư viện</string>
+    <string name="analyze_back_to_sources">Quay lại chọn nguồn</string>
     <string name="audio_analysis_running">Đang phân tích chất lượng audio...</string>
-    <string name="audio_analysis_empty">Chọn một file audio local để bắt đầu.</string>
+    <string name="audio_analysis_empty">Chưa có bài nào được phân tích</string>
     <string name="audio_analysis_verdict">Kết luận chất lượng</string>
     <string name="verdict_lossless">Lossless</string>
     <string name="verdict_hires">Hi-Res</string>
