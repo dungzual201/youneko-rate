@@ -36,7 +36,7 @@ class CoverApplyService @Inject constructor(
         val updated = album.album.copy(
             coverUri = finalOriginal.absolutePath,
             coverThumbUri = finalThumbnail.absolutePath,
-            coverSource = "musichoarders:${downloaded.source}",
+            coverSource = "covers.musichoarders.xyz:${downloaded.source}",
             coverWidth = downloaded.width,
             coverHeight = downloaded.height,
             coverUpdatedAt = System.currentTimeMillis(),
@@ -45,6 +45,7 @@ class CoverApplyService @Inject constructor(
         repository.updateAlbum(updated)
         paletteDao.deleteForAlbum(albumId)
         evictCoil(oldCacheKey)
+        android.util.Log.d("COVER", "applied album=${albumId} source=${updated.coverSource} path=${finalThumbnail.absolutePath}")
         Result.success(AppliedCover(album, updated, previous, System.currentTimeMillis() + UNDO_WINDOW_MILLIS))
     }
 
