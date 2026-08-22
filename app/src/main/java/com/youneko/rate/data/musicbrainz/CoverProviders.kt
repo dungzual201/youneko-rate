@@ -23,7 +23,8 @@ interface ItunesCoverApi {
     suspend fun searchAlbums(
         @Query("term") term: String,
         @Query("entity") entity: String = "album",
-        @Query("limit") limit: Int = 5,
+        @Query("limit") limit: Int = 25,
+        @Query("country") country: String = "us",
     ): ItunesSearchResponse
 }
 

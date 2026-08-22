@@ -276,7 +276,7 @@ class CoverArtService @Inject constructor(
         }.getOrElse { candidate.bitmap.recycle(); CoverResult.Error(it) }
     }
 
-    private object EmptyItunesApi : ItunesCoverApi { override suspend fun searchAlbums(term: String, entity: String, limit: Int) = ItunesSearchResponse() }
+    private object EmptyItunesApi : ItunesCoverApi { override suspend fun searchAlbums(term: String, entity: String, limit: Int, country: String) = ItunesSearchResponse() }
     private object EmptyDeezerApi : DeezerCoverApi { override suspend fun searchAlbums(query: String, limit: Int) = DeezerSearchResponse() }
     private object EmptyDiscogsProvider : CoverDiscogsProvider { override suspend fun loadCover(albumId: String, title: String, artist: String): String? = null }
     private data class DownloadedCover(val bitmap: Bitmap, val width: Int, val sourceProvider: String)

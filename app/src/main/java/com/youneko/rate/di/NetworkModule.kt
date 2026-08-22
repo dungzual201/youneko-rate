@@ -137,6 +137,24 @@ object NetworkModule {
 
     @Provides
     @Singleton
+    @Named("coverSearchBucket")
+    fun provideCoverSearchBucket(): TokenBucket = TokenBucket(capacity = 1, refillMillis = 1_000L)
+
+    @Provides
+    @Singleton
+    @Named("coverSearch")
+    fun provideCoverSearchClient(@Named("coverSearchBucket") bucket: TokenBucket): OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .writeTimeout(15, TimeUnit.SECONDS)
+        .addInterceptor { chain ->
+            chain.proceed(chain.request().newBuilder().header("User-Agent", "YounekoRate/${BuildConfig.VERSION_NAME}").build())
+        }
+        .addInterceptor(TokenBucketInterceptor(bucket))
+        .build()
+
+    @Provides
+    @Singleton
     @Named("coverArt")
     fun provideCoverArtClient(@ApplicationContext context: Context): OkHttpClient = OkHttpClient.Builder()
         .followRedirects(true)
@@ -149,7 +167,7 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideItunesCoverApi(@Named("coverArt") client: OkHttpClient, json: Json): ItunesCoverApi = Retrofit.Builder()
+    fun provideItunesCoverApi(@Named("coverSearch") client: OkHttpClient, json: Json): ItunesCoverApi = Retrofit.Builder()
         .baseUrl("https://itunes.apple.com/")
         .client(client)
         .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
