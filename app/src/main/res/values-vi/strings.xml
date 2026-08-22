@@ -490,6 +490,7 @@
     <string name="cover_search_artist">Nghệ sĩ</string>
     <string name="cover_search_album">Album</string>
     <string name="cover_search_sources">Nguồn</string>
+    <string name="cover_sources_limit">Đã chọn %1$d / %2$d nguồn</string>
     <string name="cover_search_country">Quốc gia</string>
     <string name="cover_search_none">Không tìm thấy ảnh bìa nào.</string>
     <string name="cover_use_this">Dùng ảnh này</string>

@@ -234,6 +234,7 @@
     <string name="cover_search_artist">Artist</string>
     <string name="cover_search_album">Album</string>
     <string name="cover_search_sources">Sources</string>
+    <string name="cover_sources_limit">%1$d / %2$d sources selected</string>
     <string name="cover_search_country">Country</string>
     <string name="cover_search_none">No covers found.</string>
     <string name="cover_use_this">Use this cover</string>

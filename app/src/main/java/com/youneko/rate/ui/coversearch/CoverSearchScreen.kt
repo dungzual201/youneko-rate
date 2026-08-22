@@ -83,6 +83,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import javax.inject.Inject
 
+private val VN_FRIENDLY_PRESET = listOf("applemusic", "itunes", "spotify", "musicbrainz", "lastfm", "discogs", "soulseek", "bandcamp", "tidal")
+
 data class CoverSearchUiState(
     val artist: String = "",
     val album: String = "",
@@ -91,6 +93,7 @@ data class CoverSearchUiState(
     val sourceInfo: MusicHoardersInfo? = null,
     val infoLoading: Boolean = false,
     val infoError: String? = null,
+    val activeSourceLimit: Int = 9,
     val results: List<MusicHoardersCoverLine> = emptyList(),
     val sourceStatus: Map<String, String> = emptyMap(),
     val searching: Boolean = false,
@@ -143,7 +146,8 @@ class CoverSearchViewModel @Inject constructor(
                 val selected = _state.value.sources.filter { it in available }
                 _state.value = _state.value.copy(
                     sourceInfo = info,
-                    sources = selected.ifEmpty { info.sources.map { it.id }.take(4) },
+                    sources = selected.ifEmpty { VN_FRIENDLY_PRESET.filter { it in available }.take(info.activeSourceLimit) },
+                    activeSourceLimit = info.activeSourceLimit,
                     infoLoading = false,
                 )
             }.onFailure { error ->
@@ -165,7 +169,8 @@ class CoverSearchViewModel @Inject constructor(
         if (!isSourceActive(source)) return
         val selected = _state.value.sources.toMutableList()
         if (source in selected && selected.size == 1) return
-        if (source in selected) selected.remove(source) else selected.add(source)
+        if (source in selected) selected.remove(source)
+        else if (selected.size < _state.value.activeSourceLimit) selected.add(source) else return
         _state.value = _state.value.copy(sources = selected)
     }
     fun reset() { _state.value = _state.value.copy(artist = originalArtist, album = originalAlbum, error = null) }
@@ -274,6 +279,7 @@ fun CoverSearchScreen(
                     OutlinedTextField(state.artist, viewModel::setArtist, label = { Text(stringResource(R.string.cover_search_artist)) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
                     OutlinedTextField(state.album, viewModel::setAlbum, label = { Text(stringResource(R.string.cover_search_album)) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
                     Text(stringResource(R.string.cover_search_sources), style = MaterialTheme.typography.titleSmall)
+                    Text(stringResource(R.string.cover_sources_limit, state.sources.size, state.activeSourceLimit), style = MaterialTheme.typography.bodySmall)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
                         state.sourceInfo?.sources.orEmpty().forEach { source -> FilterChip(enabled = viewModel.isSourceActive(source.id), selected = source.id in state.sources, onClick = { viewModel.toggleSource(source.id) }, label = { Text(sourceLabel(source.id, state.sourceInfo?.sources.orEmpty())) }) }
                     }
