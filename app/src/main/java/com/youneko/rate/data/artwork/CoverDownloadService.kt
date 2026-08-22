@@ -3,7 +3,6 @@ package com.youneko.rate.data.artwork
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import androidx.core.content.FileProvider
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -20,7 +19,7 @@ sealed interface CoverDownloadResult {
     data class Failure(val reason: FailureReason) : CoverDownloadResult
 }
 
-enum class FailureReason { NETWORK, TOO_LARGE, INVALID_IMAGE, TOO_SMALL, WRITE_FAILED }
+enum class FailureReason { NETWORK, HOTLINK_BLOCKED, TOO_LARGE, INVALID_IMAGE, TOO_SMALL, WRITE_FAILED }
 
 data class DownloadedCover(
     val albumId: String,
@@ -47,7 +46,9 @@ class CoverDownloadService @Inject constructor(
         try {
             val request = Request.Builder().url(url).get().build()
             client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return@withContext CoverDownloadResult.Failure(FailureReason.NETWORK)
+                if (!response.isSuccessful) {
+                    return@withContext CoverDownloadResult.Failure(if (response.code == 401 || response.code == 403) FailureReason.HOTLINK_BLOCKED else FailureReason.NETWORK)
+                }
                 val body = response.body ?: return@withContext CoverDownloadResult.Failure(FailureReason.INVALID_IMAGE)
                 if (body.contentLength() > MAX_BYTES) return@withContext CoverDownloadResult.Failure(FailureReason.TOO_LARGE)
                 var copied = 0L
@@ -89,12 +90,12 @@ class CoverDownloadService @Inject constructor(
 
     private fun writeThumbnail(bitmap: Bitmap, output: File) {
         val maxDimension = maxOf(bitmap.width, bitmap.height)
-        val scaled = if (maxDimension > THUMBNAIL_SIZE) {
-            val ratio = THUMBNAIL_SIZE.toFloat() / maxDimension
+        val scaled = if (maxDimension > PROCESSED_SIZE) {
+            val ratio = PROCESSED_SIZE.toFloat() / maxDimension
             Bitmap.createScaledBitmap(bitmap, (bitmap.width * ratio).toInt().coerceAtLeast(1), (bitmap.height * ratio).toInt().coerceAtLeast(1), true)
         } else bitmap
         output.outputStream().use { stream ->
-            check(scaled.compress(Bitmap.CompressFormat.JPEG, 85, stream)) { "thumbnail compression failed" }
+            check(scaled.compress(Bitmap.CompressFormat.JPEG, 90, stream)) { "cover compression failed" }
         }
         if (scaled !== bitmap) scaled.recycle()
     }
@@ -102,6 +103,6 @@ class CoverDownloadService @Inject constructor(
     companion object {
         private const val MAX_BYTES = 20L * 1024L * 1024L
         private const val MIN_DIMENSION = 300
-        private const val THUMBNAIL_SIZE = 512
+        private const val PROCESSED_SIZE = 1500
     }
 }

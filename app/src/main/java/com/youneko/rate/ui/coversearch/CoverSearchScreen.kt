@@ -64,6 +64,7 @@ import com.youneko.rate.data.SettingsDataStore
 import com.youneko.rate.data.artwork.AppliedCover
 import com.youneko.rate.data.artwork.CoverApplyService
 import com.youneko.rate.data.artwork.CoverDownloadResult
+import com.youneko.rate.data.artwork.FailureReason
 import com.youneko.rate.data.artwork.CoverDownloadService
 import com.youneko.rate.data.coversearch.CoverSearchEvent
 import com.youneko.rate.data.coversearch.MusicHoardersApi
@@ -103,6 +104,7 @@ data class CoverSearchUiState(
     val errorFields: Map<String, String> = emptyMap(),
     val downloadProgress: Int? = null,
     val applying: Boolean = false,
+    val downloadFailure: FailureReason? = null,
     val applyNotice: String? = null,
 )
 
@@ -180,11 +182,11 @@ class CoverSearchViewModel @Inject constructor(
     fun applyCover(result: MusicHoardersCoverLine) {
         val url = result.bigCoverUrl ?: return
         viewModelScope.launch {
-            _state.value = _state.value.copy(applying = true, downloadProgress = 0, error = null, applyNotice = null)
+            _state.value = _state.value.copy(applying = true, downloadProgress = 0, downloadFailure = null, error = null, applyNotice = null)
             when (val downloaded = downloader.download(albumId, url, result.source.orEmpty()) { progress ->
                 _state.value = _state.value.copy(downloadProgress = progress)
             }) {
-                is CoverDownloadResult.Failure -> _state.value = _state.value.copy(applying = false, downloadProgress = null, error = downloaded.reason.name)
+                is CoverDownloadResult.Failure -> _state.value = _state.value.copy(applying = false, downloadProgress = null, downloadFailure = downloaded.reason)
                 is CoverDownloadResult.Success -> {
                     applier.apply(albumId, downloaded.cover).onSuccess { applied ->
                         lastApplied = applied
@@ -251,6 +253,7 @@ fun CoverSearchScreen(
     viewModel: CoverSearchViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val downloadFailureText = state.downloadFailure?.let { reason -> stringResource(when (reason) { FailureReason.HOTLINK_BLOCKED -> R.string.cover_download_blocked; FailureReason.NETWORK -> R.string.cover_download_network; FailureReason.TOO_LARGE -> R.string.cover_download_too_large; FailureReason.INVALID_IMAGE -> R.string.cover_download_invalid; FailureReason.TOO_SMALL -> R.string.cover_download_too_small; FailureReason.WRITE_FAILED -> R.string.cover_download_write_failed }) }
     var countryExpanded by remember { mutableStateOf(false) }
     var preview by remember { mutableStateOf<MusicHoardersCoverLine?>(null) }
     val snackbarHost = remember { SnackbarHostState() }
@@ -319,6 +322,7 @@ fun CoverSearchScreen(
                     Text(stringResource(R.string.cover_attribution), style = MaterialTheme.typography.bodySmall)
                     if (state.searching) LinearProgressIndicator(Modifier.fillMaxWidth())
                     state.downloadProgress?.let { progress -> Text(stringResource(R.string.cover_downloading, progress), style = MaterialTheme.typography.bodySmall) }
+                    downloadFailureText?.let { message -> YounekoErrorState(message, onRetry = {}, modifier = Modifier.fillMaxWidth()) }
                     if (state.error != null) {
                         Column(Modifier.fillMaxWidth()) {
                             YounekoErrorState(state.error ?: stringResource(R.string.error_generic), onRetry = viewModel::search, modifier = Modifier.fillMaxWidth())

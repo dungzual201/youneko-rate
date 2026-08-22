@@ -518,6 +518,12 @@
     <string name="cover_undo">Hoàn tác</string>
     <string name="cover_downloading">Đang tải… %1$d%%</string>
     <string name="cover_apply_failed">Không thể áp dụng ảnh bìa.</string>
+    <string name="cover_download_blocked">Nguồn này chặn tải trực tiếp. Hãy thử nguồn khác.</string>
+    <string name="cover_download_network">Không thể tải ảnh bìa này.</string>
+    <string name="cover_download_too_large">Ảnh bìa lớn hơn 20 MB.</string>
+    <string name="cover_download_invalid">Tệp tải về không phải ảnh hợp lệ.</string>
+    <string name="cover_download_too_small">Ảnh bìa phải có kích thước tối thiểu 300 × 300 điểm ảnh.</string>
+    <string name="cover_download_write_failed">Không thể lưu ảnh bìa vào bộ nhớ riêng của ứng dụng.</string>
     <string name="batch_cover_search_title">Tìm ảnh bìa còn thiếu</string>
     <string name="batch_cover_search_not_implemented">Chưa khả dụng: tìm hàng loạt</string>
     <string name="batch_cover_search_reason">CHƯA LÀM: tạm tắt yêu cầu hàng loạt cho đến khi hoàn thiện giới hạn truy cập và xác nhận của người dùng.</string>

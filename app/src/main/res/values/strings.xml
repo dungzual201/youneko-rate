@@ -262,6 +262,12 @@
     <string name="cover_undo">Undo</string>
     <string name="cover_downloading">Downloading… %1$d%%</string>
     <string name="cover_apply_failed">Could not apply cover art.</string>
+    <string name="cover_download_blocked">This source blocks direct downloads. Try another source.</string>
+    <string name="cover_download_network">Could not download this cover.</string>
+    <string name="cover_download_too_large">The cover is larger than 20 MB.</string>
+    <string name="cover_download_invalid">The downloaded file is not a valid image.</string>
+    <string name="cover_download_too_small">The cover must be at least 300 × 300 pixels.</string>
+    <string name="cover_download_write_failed">The cover could not be saved in app storage.</string>
     <string name="batch_cover_search_title">Find missing covers</string>
     <string name="batch_cover_search_not_implemented">Batch cover search unavailable</string>
     <string name="batch_cover_search_reason">CHƯA LÀM: automatic batch requests are disabled until rate limits and user confirmation are implemented safely.</string>

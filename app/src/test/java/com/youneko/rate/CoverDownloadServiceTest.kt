@@ -19,7 +19,7 @@ import org.robolectric.annotation.Config
 @Config(application = YounekoRateApplication::class, sdk = [35])
 class CoverDownloadServiceTest {
     @Test
-    fun validImagePreservesOriginalAndWrites512Thumbnail() {
+    fun validImagePreservesOriginalAndWrites1500pxCover() {
         MockWebServer().use { server ->
             val bytes = resourceBytes("cover-large.png")
             server.enqueue(MockResponse().setBody(Buffer().write(bytes)))
@@ -34,9 +34,21 @@ class CoverDownloadServiceTest {
             assertTrue(cover.originalFile.isFile)
             assertTrue(cover.thumbnailFile.isFile)
             val thumbnail = BitmapFactoryCompat.decode(cover.thumbnailFile)
-            assertTrue(maxOf(thumbnail.first, thumbnail.second) <= 512)
+            assertTrue(maxOf(thumbnail.first, thumbnail.second) <= 1500)
             cover.originalFile.delete()
             cover.thumbnailFile.delete()
+        }
+    }
+
+    @Test
+    fun directHotlinkBlockIsReportedAsActionableFailure() {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setResponseCode(403).setBody("hotlink blocked"))
+            val service = CoverDownloadService(ApplicationProvider.getApplicationContext(), OkHttpClient())
+            val result = kotlinx.coroutines.runBlocking {
+                service.download("blocked-test", server.url("/cover.jpg").toString(), "discogs")
+            }
+            assertEquals(CoverDownloadResult.Failure(com.youneko.rate.data.artwork.FailureReason.HOTLINK_BLOCKED), result)
         }
     }
 
