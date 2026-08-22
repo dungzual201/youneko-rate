@@ -334,10 +334,21 @@ fun AudioAnalysisScreen(initialUri: String? = null, viewModel: AudioAnalysisView
         Box(Modifier.fillMaxSize()) {
             LazyColumn(
                 state = listState,
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 20.dp, top = 12.dp, end = 20.dp, bottom = 168.dp),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 20.dp, top = 12.dp, end = 20.dp, bottom = YnDimens.navigationSafe),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxSize().padding(innerPadding),
             ) {
+                if (latest != null) {
+                    item {
+                        androidx.compose.material3.OutlinedButton(
+                            onClick = { sourceMode = null; showSourceSheet = true },
+                            modifier = Modifier.fillMaxWidth().padding(bottom = YnDimens.space2),
+                        ) {
+                            Icon(Icons.Rounded.LibraryMusic, contentDescription = null)
+                            Text(stringResource(R.string.audio_analysis_choose_another))
+                        }
+                    }
+                }
                 item {
                     header?.let { selectedHeader ->
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -368,18 +379,7 @@ fun AudioAnalysisScreen(initialUri: String? = null, viewModel: AudioAnalysisView
                 item {
                     Column {
                         Text(stringResource(R.string.analyze_decode_note), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(Modifier.height(YnDimens.navigationSafe))
-                    }
-                }
-                if (latest != null) {
-                    item {
-                        androidx.compose.material3.OutlinedButton(
-                            onClick = { sourceMode = null; showSourceSheet = true },
-                            modifier = Modifier.fillMaxWidth().padding(bottom = YnDimens.navigationSafe),
-                        ) {
-                            Icon(Icons.Rounded.LibraryMusic, contentDescription = null)
-                            Text(stringResource(R.string.audio_analysis_choose_another))
-                        }
+                        Spacer(Modifier.height(YnDimens.space4))
                     }
                 }
             }
