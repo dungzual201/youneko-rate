@@ -223,6 +223,10 @@
     <string name="load_more">Load more</string>
     <string name="close">Close</string>
     <string name="a11y_back">Back</string>
+    <string name="cover_save">Save cover</string>
+    <string name="cover_share">Share cover</string>
+    <string name="a11y_cover_fullscreen">Album cover, full screen</string>
+    <string name="a11y_palette_swatch">Color %1$s, hold to view code</string>
     <string name="network_offline">Offline mode is enabled.</string>
     <string name="network_no_connection">No network connection.</string>
     <string name="network_timeout">MusicBrainz connection timed out.</string>

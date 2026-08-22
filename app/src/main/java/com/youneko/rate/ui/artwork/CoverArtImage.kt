@@ -20,6 +20,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -48,7 +49,8 @@ fun CoverArtImage(
     @DrawableRes placeholder: Int = R.drawable.ic_cat_cover,
     placeholderSeed: String = "",
     placeholderLabel: String? = null,
-) = CoverArtImage(listOfNotNull(model), modifier, placeholder, placeholderSeed, placeholderLabel)
+    contentScale: ContentScale = ContentScale.Crop,
+) = CoverArtImage(listOfNotNull(model), modifier, placeholder, placeholderSeed, placeholderLabel, contentScale)
 
 @Composable
 fun CoverArtImage(
@@ -57,6 +59,7 @@ fun CoverArtImage(
     @DrawableRes placeholder: Int = R.drawable.ic_cat_cover,
     placeholderSeed: String = "",
     placeholderLabel: String? = null,
+    contentScale: ContentScale = ContentScale.Crop,
 ) {
     val imageLoader = hiltViewModel<CoverArtImageViewModel>().imageLoader
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -74,7 +77,7 @@ fun CoverArtImage(
             imageLoader = imageLoader,
             contentDescription = null,
             modifier = clipped,
-            contentScale = ContentScale.Crop,
+            contentScale = contentScale,
             placeholder = painterResource(placeholder),
             error = painterResource(placeholder),
             onError = { if (index < models.lastIndex) index++ },

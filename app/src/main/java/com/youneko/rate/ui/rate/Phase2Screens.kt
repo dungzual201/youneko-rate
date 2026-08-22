@@ -21,9 +21,9 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.rememberTransformableState
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
@@ -63,6 +63,8 @@ import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SaveAlt
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pets
 import androidx.compose.material.icons.filled.RemoveCircleOutline
@@ -120,6 +122,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -764,23 +768,46 @@ fun AlbumDetailScreen(
 }
 
 @Composable
-private fun CoverArtFullscreenDialog(model: Any, onDismiss: () -> Unit) {
+private fun CoverArtFullscreenDialog(model: Any, onDismiss: () -> Unit, onSave: () -> Unit = {}) {
     var scale by remember { mutableFloatStateOf(1f) }
-    val transformState = rememberTransformableState { zoomChange, _, _ ->
+    var offset by remember { mutableStateOf(Offset.Zero) }
+    var swipeDistance by remember { mutableFloatStateOf(0f) }
+    val context = LocalContext.current
+    val transformState = rememberTransformableState { zoomChange, panChange, _ ->
         scale = (scale * zoomChange).coerceIn(1f, 5f)
+        if (scale > 1f) offset += panChange
     }
     Dialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false),
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
     ) {
-        Surface(color = Color.Black, modifier = Modifier.fillMaxSize().clickable(onClick = onDismiss)) {
-            Box(Modifier.fillMaxSize()) {
+        Surface(color = Color.Black.copy(alpha = 0.95f), modifier = Modifier.fillMaxSize()) {
+            Box(
+                Modifier.fillMaxSize().pointerInput(Unit) {
+                    detectVerticalDragGestures(
+                        onVerticalDrag = { _, amount -> swipeDistance += amount },
+                        onDragEnd = { if (swipeDistance > 120f) onDismiss(); swipeDistance = 0f },
+                        onDragCancel = { swipeDistance = 0f },
+                    )
+                },
+            ) {
                 CoverArtImage(
                     model = model,
-                    modifier = Modifier.fillMaxSize().graphicsLayer { scaleX = scale; scaleY = scale }.transformable(transformState),
+                    modifier = Modifier.fillMaxSize()
+                        .padding(horizontal = 16.dp, vertical = 72.dp)
+                        .graphicsLayer { scaleX = scale; scaleY = scale; translationX = offset.x; translationY = offset.y }
+                        .transformable(transformState),
+                    contentScale = ContentScale.Fit,
                 )
-                TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.TopEnd).padding(12.dp)) {
-                    Text(stringResource(R.string.close), color = Color.White)
+                IconButton(onClick = onDismiss, modifier = Modifier.align(Alignment.TopStart).padding(12.dp)) {
+                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.close), tint = Color.White)
+                }
+                Row(Modifier.align(Alignment.TopEnd).padding(12.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    IconButton(onClick = onSave) { Icon(Icons.Default.SaveAlt, contentDescription = stringResource(R.string.cover_save), tint = Color.White) }
+                    IconButton(onClick = {
+                        val send = Intent(Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(Intent.EXTRA_TEXT, model.toString()) }
+                        context.startActivity(Intent.createChooser(send, context.getString(R.string.cover_share)))
+                    }) { Icon(Icons.Default.Share, contentDescription = stringResource(R.string.cover_share), tint = Color.White) }
                 }
             }
         }

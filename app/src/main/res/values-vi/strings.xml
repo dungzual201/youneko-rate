@@ -479,4 +479,8 @@
     <string name="backup_restore_failed">Khôi phục thất bại; database trước đó vẫn được giữ nguyên.</string>
     <string name="backup_no_manifest">Thiếu manifest.json hoặc manifest không nằm ở entry đầu tiên.</string>
     <string name="backup_schema_too_new">Schema database mới hơn phiên bản app đang dùng.</string>
+    <string name="cover_save">Lưu ảnh bìa</string>
+    <string name="cover_share">Chia sẻ ảnh bìa</string>
+    <string name="a11y_cover_fullscreen">Ảnh bìa album, toàn màn hình</string>
+    <string name="a11y_palette_swatch">Màu %1$s, nhấn giữ để xem mã</string>
 </resources>
