@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -311,9 +312,11 @@ fun AudioAnalysisScreen(initialUri: String? = null, viewModel: AudioAnalysisView
     }
     Scaffold(
         modifier = Modifier.fillMaxSize(),
+        contentWindowInsets = WindowInsets(0),
         topBar = {
             YnSharedTopAppBar(
                 screenName = "Analyze",
+                windowInsets = WindowInsets(0),
                 actions = {
                     if (analyzeState is AnalyzeUiState.Idle || analyzeState is AnalyzeUiState.Running || analyzeState is AnalyzeUiState.Failed || latest != null) {
                         TooltipBox(

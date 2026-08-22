@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -56,6 +57,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -74,6 +76,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -104,12 +107,16 @@ fun YnSharedTopAppBar(
     screenName: String,
     title: @Composable () -> Unit = { YnBrandTitle() },
     actions: @Composable RowScope.() -> Unit = {},
+    windowInsets: WindowInsets = TopAppBarDefaults.windowInsets,
 ) {
-    androidx.compose.runtime.LaunchedEffect(screenName) {
-        Log.d("HEADER", "screen=$screenName barHeight=64dp topPadding=0dp")
+    val density = LocalDensity.current
+    val topInsetDp = with(density) { windowInsets.getTop(this).toDp().value }
+    androidx.compose.runtime.LaunchedEffect(screenName, topInsetDp) {
+        Log.d("HEADER", "tab=$screenName logoTopY=0dp barHeight=64dp topInset=${topInsetDp}dp")
     }
     TopAppBar(
         title = title,
+        windowInsets = windowInsets,
         modifier = Modifier.height(64.dp).padding(horizontal = 16.dp),
         actions = {
             Row(

@@ -221,6 +221,7 @@ fun LibraryScreen(
     Column(modifier = Modifier.fillMaxSize()) {
         YnSharedTopAppBar(
             screenName = "Library",
+            windowInsets = WindowInsets(0),
             actions = {
                 IconButton(onClick = onOpenSettings) { Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.settings), modifier = Modifier.size(YnDimens.iconMedium)) }
                 IconButton(onClick = { showFilters = true }) { Icon(Icons.Default.FilterList, contentDescription = stringResource(R.string.filters), modifier = Modifier.size(YnDimens.iconMedium)) }
