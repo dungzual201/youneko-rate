@@ -43,6 +43,7 @@
     <string name="verdict_transcode_insufficient">Chưa đủ dữ liệu để xét transcode</string>
     <string name="audio_analysis_explain">Các chỉ số này có ý nghĩa gì?</string>
     <string name="audio_analysis_cutoff">Tần số cắt (kHz)</string>
+    <string name="audio_analysis_cutoff_short">Tần số cắt</string>
     <string name="audio_analysis_slope">Độ dốc vách cắt (dB/kHz)</string>
     <string name="audio_analysis_dynamic">Dải động</string>
     <string name="audio_analysis_peak">Đỉnh thực</string>

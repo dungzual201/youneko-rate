@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -92,6 +93,7 @@ import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -383,11 +385,11 @@ private fun AnalysisCard(analysis: AudioAnalysisEntity, cached: CachedSpectrogra
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun AnalysisHero(analysis: AudioAnalysisEntity) {
     val rawFormatVerdict = analysis.formatVerdict ?: analysis.verdict.substringBefore('\n')
     val rawTranscodeVerdict = analysis.transcodeVerdict ?: analysis.verdict.substringAfter('\n', "")
-    val formatVerdict = localizedFormatVerdict(analysis, rawFormatVerdict)
     val transcodeVerdict = localizedTranscodeVerdict(rawTranscodeVerdict)
     val groupLabel = when {
         rawFormatVerdict.startsWith("LOSSLESS") -> stringResource(R.string.verdict_lossless)
@@ -405,12 +407,10 @@ private fun AnalysisHero(analysis: AudioAnalysisEntity) {
         analysis.bitDepth?.let { "$it-bit" },
     ).joinToString(" · ")
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(stringResource(R.string.audio_analysis_verdict), style = MaterialTheme.typography.titleLarge, )
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 AssistChip(onClick = {}, label = { Text(groupLabel) }, colors = androidx.compose.material3.AssistChipDefaults.assistChipColors(containerColor = chipColor))
-                Text(formatVerdict, style = MaterialTheme.typography.headlineSmall, color = verdictColor(rawFormatVerdict))
-                if (identity.isNotBlank()) Text(identity, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(identity.ifBlank { groupLabel }, style = MaterialTheme.typography.headlineSmall, color = verdictColor(rawFormatVerdict), maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(transcodeVerdict, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Box(Modifier.size(68.dp), contentAlignment = Alignment.Center) {
@@ -418,10 +418,10 @@ private fun AnalysisHero(analysis: AudioAnalysisEntity) {
                 Text("${analysis.confidence}%", style = MaterialTheme.typography.labelMedium)
             }
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            SummaryChip(stringResource(R.string.audio_analysis_cutoff), analysis.cutoffHz?.let { formatDecimal(it / 1000.0, 1) + " kHz" } ?: stringResource(R.string.audio_analysis_not_applicable))
-            SummaryChip(stringResource(R.string.audio_analysis_dynamic), analysis.dynamicRangeDb?.let { formatDecimal(it, 1) + " dB" } ?: stringResource(R.string.audio_analysis_not_applicable))
-            SummaryChip(stringResource(R.string.audio_analysis_peak), analysis.truePeakDbtp?.let { formatDecimal(it, 1) + " dBTP" } ?: stringResource(R.string.audio_analysis_not_applicable))
+        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp), maxItemsInEachRow = 2) {
+            SummaryChip(stringResource(R.string.audio_analysis_cutoff_short), analysis.cutoffHz?.let { formatDecimal(it / 1000.0, 1) + " kHz" } ?: stringResource(R.string.audio_analysis_not_applicable), Modifier.weight(1f))
+            SummaryChip(stringResource(R.string.audio_analysis_dynamic), analysis.dynamicRangeDb?.let { formatDecimal(it, 1) + " dB" } ?: stringResource(R.string.audio_analysis_not_applicable), Modifier.weight(1f))
+            SummaryChip(stringResource(R.string.audio_analysis_peak), analysis.truePeakDbtp?.let { formatDecimal(it, 1) + " dBTP" } ?: stringResource(R.string.audio_analysis_not_applicable), Modifier.weight(1f))
         }
     }
 }
@@ -448,8 +448,8 @@ private fun localizedTranscodeVerdict(raw: String): String = when {
 }
 
 @Composable
-private fun SummaryChip(label: String, value: String) {
-    AssistChip(onClick = {}, label = { Text("$label: $value", maxLines = 1, overflow = TextOverflow.Ellipsis) })
+private fun SummaryChip(label: String, value: String, modifier: Modifier = Modifier) {
+    AssistChip(onClick = {}, label = { Text("$label · $value", maxLines = 2) }, modifier = modifier)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

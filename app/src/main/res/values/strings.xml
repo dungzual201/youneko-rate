@@ -43,6 +43,7 @@
     <string name="verdict_transcode_insufficient">Not enough data to assess transcode</string>
     <string name="audio_analysis_explain">What do these metrics mean?</string>
     <string name="audio_analysis_cutoff">Cutoff frequency (kHz)</string>
+    <string name="audio_analysis_cutoff_short">Cutoff</string>
     <string name="audio_analysis_slope">Cutoff slope (dB/kHz)</string>
     <string name="audio_analysis_dynamic">Dynamic range</string>
     <string name="audio_analysis_peak">True peak</string>
