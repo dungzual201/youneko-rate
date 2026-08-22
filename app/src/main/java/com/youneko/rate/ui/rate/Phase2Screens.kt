@@ -679,39 +679,49 @@ fun AlbumDetailScreen(
     val tags by viewModel.tags.collectAsStateWithLifecycle()
     val listeningLogs by viewModel.listeningLogs.collectAsStateWithLifecycle()
     val reviewRevisions by viewModel.reviewRevisions.collectAsStateWithLifecycle()
-    Scaffold(contentWindowInsets = WindowInsets(0), snackbarHost = { SnackbarHost(snackbarHost) }) { padding ->
-        when (state) {
-            AlbumDetailUiState.Loading -> YounekoLoadingState(Modifier.fillMaxSize().padding(padding).padding(YounekoSpacing.md), lines = 4)
-            AlbumDetailUiState.AlbumDeleted -> YounekoEmptyState(stringResource(R.string.confirm_delete_body), modifier = Modifier.fillMaxSize().padding(padding))
-            is AlbumDetailUiState.Content -> {
-            val value = (state as AlbumDetailUiState.Content).album
-            android.util.Log.d("INSET", "screen=album_detail topPadding=${padding.calculateTopPadding().value}dp")
-            val palette = albumPalette
-            val darkTheme = isSystemInDarkTheme()
-            val dominantColor = palette?.dominant ?: androidx.compose.ui.graphics.Color(0xFF403A46)
-            val onGradientColor = androidx.compose.ui.graphics.Color.White
-            val topBarContrast = contrastRatio(dominantColor, onGradientColor)
-            val view = LocalView.current
-            val statusBarPx = ViewCompat.getRootWindowInsets(view)?.getInsets(WindowInsetsCompat.Type.statusBars())?.top ?: 0
-            val scrimHeight = with(LocalDensity.current) { statusBarPx.toDp() } + 120.dp
-            android.util.Log.d("CONTRAST", "album=${value.album.id} bg=${dominantColor.toHex()} text=#FFFFFF ratio=$topBarContrast")
-            SideEffect {
-                (context as? Activity)?.window?.let { window ->
-                    WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
-                }
-            }
-            val detailGradient = remember(value.album.id, palette, darkTheme) {
-                coverDetailGradient(palette, value.album.id, darkTheme)
-            }
-            Column(Modifier.fillMaxSize().background(detailGradient).verticalScroll(rememberScrollState()).padding(padding).padding(horizontal = 16.dp)) {
-                Box(Modifier.fillMaxWidth().height(scrimHeight)) {
-                    Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.55f), Color.Transparent))))
-                    TopAppBar(
-                    modifier = Modifier.align(Alignment.TopStart).fillMaxWidth(),
+    val contentValue = (state as? AlbumDetailUiState.Content)?.album
+    val palette = albumPalette
+    val darkTheme = isSystemInDarkTheme()
+    val dominantColor = palette?.dominant ?: Color(0xFF403A46)
+    val view = LocalView.current
+    val statusBarPx = ViewCompat.getRootWindowInsets(view)?.getInsets(WindowInsetsCompat.Type.statusBars())?.top ?: 0
+    val statusBarDp = with(LocalDensity.current) { statusBarPx.toDp() }
+    val scrimHeight = statusBarDp + 120.dp
+    val detailGradient = remember(contentValue?.album?.id, palette, darkTheme) {
+        coverDetailGradient(palette, contentValue?.album?.id ?: "album-detail", darkTheme)
+    }
+    contentValue?.let {
+        val topBarContrast = contrastRatio(dominantColor, Color.White)
+        android.util.Log.d("CONTRAST", "album=${it.album.id} bg=${dominantColor.toHex()} text=#FFFFFF ratio=$topBarContrast")
+    }
+    SideEffect {
+        (context as? Activity)?.window?.let { window ->
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
+        }
+    }
+    Box(Modifier.fillMaxSize()) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(statusBarDp + 420.dp)
+                .background(detailGradient),
+        )
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(scrimHeight)
+                .background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.55f), Color.Transparent))),
+        )
+        Scaffold(
+            containerColor = Color.Transparent,
+            contentWindowInsets = WindowInsets(0),
+            snackbarHost = { SnackbarHost(snackbarHost) },
+            topBar = {
+                TopAppBar(
                     windowInsets = WindowInsets(0),
                     title = { Text(stringResource(R.string.album_detail), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.a11y_back), modifier = Modifier.size(YnDimens.iconMedium)) } },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent, scrolledContainerColor = Color.Transparent, titleContentColor = onGradientColor, navigationIconContentColor = onGradientColor, actionIconContentColor = onGradientColor),
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent, scrolledContainerColor = Color.Transparent, titleContentColor = Color.White, navigationIconContentColor = Color.White, actionIconContentColor = Color.White),
                     actions = {
                         Box {
                             IconButton(onClick = { menuExpanded = true }) { Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.edit_album), modifier = Modifier.size(YnDimens.iconMedium)) }
@@ -719,14 +729,22 @@ fun AlbumDetailScreen(
                                 DropdownMenuItem(text = { Text(stringResource(R.string.refresh_metadata), maxLines = 3, overflow = TextOverflow.Ellipsis) }, onClick = { menuExpanded = false; viewModel.refreshMetadata() })
                                 DropdownMenuItem(text = { Text(stringResource(R.string.reload_cover), maxLines = 3, overflow = TextOverflow.Ellipsis) }, onClick = { menuExpanded = false; viewModel.reloadCover() })
                                 DropdownMenuItem(text = { Text(stringResource(R.string.choose_manual_cover), maxLines = 3, overflow = TextOverflow.Ellipsis) }, onClick = { menuExpanded = false; manualCoverPicker.launch(arrayOf("image/*")) })
-                                DropdownMenuItem(text = { Text(stringResource(R.string.menu_search_cover_online), maxLines = 3, overflow = TextOverflow.Ellipsis) }, onClick = { menuExpanded = false; onSearchCover(value.album.id) })
-                                DropdownMenuItem(text = { Text(stringResource(R.string.view_credits), maxLines = 3, overflow = TextOverflow.Ellipsis) }, onClick = { menuExpanded = false; onViewCredits(value.album.id, null, value.album.mbid) })
+                                DropdownMenuItem(text = { Text(stringResource(R.string.menu_search_cover_online), maxLines = 3, overflow = TextOverflow.Ellipsis) }, onClick = { menuExpanded = false; contentValue?.let { onSearchCover(it.album.id) } })
+                                DropdownMenuItem(text = { Text(stringResource(R.string.view_credits), maxLines = 3, overflow = TextOverflow.Ellipsis) }, onClick = { menuExpanded = false; contentValue?.let { onViewCredits(it.album.id, null, it.album.mbid) } })
                                 DropdownMenuItem(text = { Text(stringResource(R.string.delete_album), maxLines = 3, overflow = TextOverflow.Ellipsis) }, onClick = { menuExpanded = false; showDelete = true }, leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) })
                             }
                         }
                     },
-                    )
-                }
+                )
+            },
+        ) { padding ->
+        when (state) {
+            AlbumDetailUiState.Loading -> YounekoLoadingState(Modifier.fillMaxSize().padding(padding).padding(YounekoSpacing.md), lines = 4)
+            AlbumDetailUiState.AlbumDeleted -> YounekoEmptyState(stringResource(R.string.confirm_delete_body), modifier = Modifier.fillMaxSize().padding(padding))
+            is AlbumDetailUiState.Content -> {
+            val value = (state as AlbumDetailUiState.Content).album
+            android.util.Log.d("INSET", "screen=album_detail topPadding=${padding.calculateTopPadding().value}dp")
+            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(padding).padding(horizontal = 16.dp)) {
                 Box(Modifier.fillMaxWidth().height(YnDimens.coverHeroContentHeight), contentAlignment = Alignment.Center) {
                     CoverArtImage(
                         value.album.coverUri,
@@ -799,6 +817,7 @@ fun AlbumDetailScreen(
                 Spacer(Modifier.height(32.dp))
             }
             }
+        }
         }
     }
     if (showManualScore) {
