@@ -120,23 +120,9 @@ private fun CoverPalette.toEntity(albumId: String, coverUpdatedAt: Long?) = Albu
 fun coverDetailGradient(palette: CoverPalette?, seed: String, darkTheme: Boolean): androidx.compose.ui.graphics.Brush {
     val fallbackHue = (seed.hashCode().toUInt().toLong() % 360L).toFloat()
     val fallback = Color.hsv(fallbackHue, 0.42f, if (darkTheme) 0.55f else 0.78f)
-    var top = when {
-        palette == null && darkTheme -> fallback
-        palette == null -> fallback
-        darkTheme -> palette.darkVibrant ?: palette.dominant
-        else -> palette.lightVibrant ?: palette.muted ?: palette.dominant
-    }
-    val foreground = if (darkTheme) Color.White else Color.Black
-    val original = top
-    var ratio = contrastRatio(top, foreground)
-    var attempts = 0
-    while (ratio < 4.5 && attempts < 6) {
-        val delta = if (darkTheme) -0.04f else 0.04f
-        top = adjustHslLightness(top, delta)
-        ratio = contrastRatio(top, foreground)
-        attempts++
-    }
-    android.util.Log.d("PALETTE", "album=$seed dominant=${original.toArgb()} adjustedTo=${top.toArgb()} ratio=${contrastRatio(top, foreground)}")
+    val chosen = palette?.vibrant ?: palette?.lightVibrant ?: palette?.muted ?: palette?.dominant ?: fallback
+    val top = normalizeHslLightness(chosen)
+    android.util.Log.d("PALETTE", "album=$seed CHOSEN=${chosen.toHex()} afterHSL=${top.toHex()}")
     val alpha = if (darkTheme) 0.90f else 0.55f
     return androidx.compose.ui.graphics.Brush.verticalGradient(
         colorStops = arrayOf(
@@ -146,6 +132,19 @@ fun coverDetailGradient(palette: CoverPalette?, seed: String, darkTheme: Boolean
             1.0f to if (darkTheme) Color(0xFF151118) else Color(0xFFFFF9FC),
         ),
     )
+}
+
+private fun Color.toHex(): String = "#%08X".format(toArgb())
+
+fun normalizeHslLightness(color: Color): Color {
+    val red = color.red.toDouble()
+    val green = color.green.toDouble()
+    val blue = color.blue.toDouble()
+    val max = maxOf(red, green, blue)
+    val min = minOf(red, green, blue)
+    val lightness = (max + min) / 2.0
+    val target = lightness.coerceIn(0.28, 0.45)
+    return adjustHslLightness(color, (target - lightness).toFloat())
 }
 
 fun adjustHslLightness(color: Color, delta: Float): Color {
