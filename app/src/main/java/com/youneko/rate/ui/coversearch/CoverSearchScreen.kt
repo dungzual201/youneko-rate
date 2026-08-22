@@ -37,6 +37,8 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -59,6 +61,10 @@ import coil.compose.AsyncImage
 import com.youneko.rate.R
 import com.youneko.rate.data.AlbumRepository
 import com.youneko.rate.data.SettingsDataStore
+import com.youneko.rate.data.artwork.AppliedCover
+import com.youneko.rate.data.artwork.CoverApplyService
+import com.youneko.rate.data.artwork.CoverDownloadResult
+import com.youneko.rate.data.artwork.CoverDownloadService
 import com.youneko.rate.data.coversearch.CoverSearchEvent
 import com.youneko.rate.data.coversearch.MusicHoardersApi
 import com.youneko.rate.data.coversearch.MusicHoardersCoverLine
@@ -89,6 +95,9 @@ data class CoverSearchUiState(
     val searching: Boolean = false,
     val searched: Boolean = false,
     val error: String? = null,
+    val downloadProgress: Int? = null,
+    val applying: Boolean = false,
+    val applyNotice: String? = null,
 )
 
 @HiltViewModel
@@ -96,6 +105,8 @@ class CoverSearchViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val repository: AlbumRepository,
     private val api: MusicHoardersApi,
+    private val downloader: CoverDownloadService,
+    private val applier: CoverApplyService,
     @dagger.hilt.android.qualifiers.ApplicationContext context: android.content.Context,
 ) : ViewModel() {
     private val settings = SettingsDataStore(context)
@@ -104,6 +115,7 @@ class CoverSearchViewModel @Inject constructor(
     val state: StateFlow<CoverSearchUiState> = _state.asStateFlow()
     private var originalArtist = ""
     private var originalAlbum = ""
+    private var lastApplied: AppliedCover? = null
 
     init {
         viewModelScope.launch {
@@ -130,6 +142,38 @@ class CoverSearchViewModel @Inject constructor(
         _state.value = _state.value.copy(sources = selected)
     }
     fun reset() { _state.value = _state.value.copy(artist = originalArtist, album = originalAlbum, error = null) }
+
+    fun applyCover(result: MusicHoardersCoverLine) {
+        val url = result.bigCoverUrl ?: return
+        viewModelScope.launch {
+            _state.value = _state.value.copy(applying = true, downloadProgress = 0, error = null, applyNotice = null)
+            when (val downloaded = downloader.download(albumId, url, result.source.orEmpty()) { progress ->
+                _state.value = _state.value.copy(downloadProgress = progress)
+            }) {
+                is CoverDownloadResult.Failure -> _state.value = _state.value.copy(applying = false, downloadProgress = null, error = downloaded.reason.name)
+                is CoverDownloadResult.Success -> {
+                    applier.apply(albumId, downloaded.cover).onSuccess { applied ->
+                        lastApplied = applied
+                        _state.value = _state.value.copy(applying = false, downloadProgress = null, applyNotice = "applied")
+                    }.onFailure { error ->
+                        _state.value = _state.value.copy(applying = false, downloadProgress = null, error = error.message)
+                    }
+                }
+            }
+        }
+    }
+
+    fun undo() {
+        val applied = lastApplied ?: return
+        viewModelScope.launch {
+            if (applier.undo(applied)) {
+                lastApplied = null
+                _state.value = _state.value.copy(applyNotice = "undone")
+            }
+        }
+    }
+
+    fun clearApplyNotice() { _state.value = _state.value.copy(applyNotice = null) }
 
     fun search() {
         val current = _state.value
@@ -168,7 +212,21 @@ fun CoverSearchScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     var countryExpanded by remember { mutableStateOf(false) }
     var preview by remember { mutableStateOf<MusicHoardersCoverLine?>(null) }
+    val snackbarHost = remember { SnackbarHostState() }
+    val appliedText = stringResource(R.string.cover_applied)
+    val undoText = stringResource(R.string.cover_undo)
+    LaunchedEffect(state.applyNotice) {
+        when (state.applyNotice) {
+            "applied" -> {
+                val result = snackbarHost.showSnackbar(appliedText, actionLabel = undoText)
+                if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) viewModel.undo()
+                viewModel.clearApplyNotice()
+            }
+            "undone" -> viewModel.clearApplyNotice()
+        }
+    }
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHost) },
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.cover_search_title)) },
@@ -216,6 +274,7 @@ fun CoverSearchScreen(
                     }
                     Text(stringResource(R.string.cover_attribution), style = MaterialTheme.typography.bodySmall)
                     if (state.searching) LinearProgressIndicator(Modifier.fillMaxWidth())
+                    state.downloadProgress?.let { progress -> Text(stringResource(R.string.cover_downloading, progress), style = MaterialTheme.typography.bodySmall) }
                     if (state.error != null) YounekoErrorState(state.error ?: stringResource(R.string.error_generic), onRetry = viewModel::search, modifier = Modifier.fillMaxWidth())
                     if (state.searched && !state.searching && state.error == null && state.results.isEmpty()) YounekoEmptyState(stringResource(R.string.cover_search_none), modifier = Modifier.fillMaxWidth())
                     Spacer(Modifier.height(4.dp))
@@ -239,7 +298,7 @@ fun CoverSearchScreen(
             model = selected.bigCoverUrl.orEmpty(),
             palette = null,
             onDismiss = { preview = null },
-            onUse = { preview = null; onUseCover(selected) },
+            onUse = { preview = null; viewModel.applyCover(selected); onUseCover(selected) },
         )
     }
 }

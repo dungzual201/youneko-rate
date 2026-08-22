@@ -499,5 +499,9 @@
     <string name="cover_status_none">Không có kết quả</string>
     <string name="cover_status_error">Lỗi</string>
     <string name="cover_search_reset">Đặt lại</string>
+    <string name="cover_applied">Đã cập nhật ảnh bìa</string>
+    <string name="cover_undo">Hoàn tác</string>
+    <string name="cover_downloading">Đang tải… %1$d%%</string>
+    <string name="cover_apply_failed">Không thể áp dụng ảnh bìa.</string>
     <string name="palette_copied">Đã sao chép %1$s</string>
 </resources>

@@ -243,6 +243,10 @@
     <string name="cover_status_none">No results</string>
     <string name="cover_status_error">Error</string>
     <string name="cover_search_reset">Reset</string>
+    <string name="cover_applied">Cover art updated</string>
+    <string name="cover_undo">Undo</string>
+    <string name="cover_downloading">Downloading… %1$d%%</string>
+    <string name="cover_apply_failed">Could not apply cover art.</string>
     <string name="network_offline">Offline mode is enabled.</string>
     <string name="network_no_connection">No network connection.</string>
     <string name="network_timeout">MusicBrainz connection timed out.</string>
