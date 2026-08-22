@@ -247,7 +247,7 @@ fun CoverSearchScreen(
                     OutlinedTextField(state.album, viewModel::setAlbum, label = { Text(stringResource(R.string.cover_search_album)) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
                     Text(stringResource(R.string.cover_search_sources), style = MaterialTheme.typography.titleSmall)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
-                        ALL_SOURCES.forEach { source -> FilterChip(selected = source in state.sources, onClick = { viewModel.toggleSource(source) }, label = { Text(source) }) }
+                        ALL_SOURCES.forEach { source -> FilterChip(selected = source in state.sources, onClick = { viewModel.toggleSource(source) }, label = { Text(sourceLabel(source)) }) }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
                         state.sources.forEach { source ->
@@ -276,6 +276,7 @@ fun CoverSearchScreen(
                     if (state.searching) LinearProgressIndicator(Modifier.fillMaxWidth())
                     state.downloadProgress?.let { progress -> Text(stringResource(R.string.cover_downloading, progress), style = MaterialTheme.typography.bodySmall) }
                     if (state.error != null) YounekoErrorState(state.error ?: stringResource(R.string.error_generic), onRetry = viewModel::search, modifier = Modifier.fillMaxWidth())
+                    if (!state.searched) YounekoEmptyState(stringResource(R.string.cover_search_empty), modifier = Modifier.fillMaxWidth())
                     if (state.searched && !state.searching && state.error == null && state.results.isEmpty()) YounekoEmptyState(stringResource(R.string.cover_search_none), modifier = Modifier.fillMaxWidth())
                     Spacer(Modifier.height(4.dp))
                 }
@@ -284,7 +285,7 @@ fun CoverSearchScreen(
                 val sourceResults = state.results.filter { it.source == source }
                 if (sourceResults.isNotEmpty()) {
                     item(span = { GridItemSpan(maxLineSpan) }) {
-                        Text("$source — ${sourceResults.size}", style = MaterialTheme.typography.titleSmall)
+                        Text("${sourceLabel(source)} — ${sourceResults.size}", style = MaterialTheme.typography.titleSmall)
                     }
                     items(sourceResults, key = { it.bigCoverUrl.orEmpty() }) { result ->
                         CoverResultCard(result, onClick = { preview = result })
@@ -315,6 +316,23 @@ private fun CoverResultCard(result: MusicHoardersCoverLine, onClick: () -> Unit)
         }
     }
 }
+
+@Composable
+private fun sourceLabel(source: String): String = stringResource(
+    when (source) {
+        "applemusic" -> R.string.cover_source_applemusic
+        "spotify" -> R.string.cover_source_spotify
+        "tidal" -> R.string.cover_source_tidal
+        "deezer" -> R.string.cover_source_deezer
+        "qobuz" -> R.string.cover_source_qobuz
+        "bandcamp" -> R.string.cover_source_bandcamp
+        "itunes" -> R.string.cover_source_itunes
+        "musicbrainz" -> R.string.cover_source_musicbrainz
+        "discogs" -> R.string.cover_source_discogs
+        "lastfm" -> R.string.cover_source_lastfm
+        else -> R.string.cover_source_musicbrainz
+    },
+)
 
 @Composable
 private fun statusLabel(status: String?, count: Int): String = when {
