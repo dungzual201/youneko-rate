@@ -8,6 +8,7 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
@@ -112,9 +113,20 @@ internal fun parseMusicHoardersLine(json: Json, line: String): CoverSearchEvent?
 
 object MusicHoardersSession {
     @Volatile private var session: String? = null
+    private var nextAllowedAtMillis: Long = 0L
 
     fun value(): String = session ?: synchronized(this) {
         session ?: UUID.randomUUID().toString().replace("-", "").also { session = it }
+    }
+
+    suspend fun awaitSearchPermit() {
+        val waitMillis = synchronized(this) {
+            val now = System.currentTimeMillis()
+            val permitAt = maxOf(now, nextAllowedAtMillis)
+            nextAllowedAtMillis = permitAt + 1_000L
+            permitAt - now
+        }
+        if (waitMillis > 0) delay(waitMillis)
     }
 }
 
@@ -192,6 +204,7 @@ class MusicHoardersApi(
             .header("User-Agent", "YounekoRate/${BuildConfig.VERSION_NAME} (Android; personal library use)")
             .post(requestJson.toRequestBody(JSON_MEDIA_TYPE))
             .build()
+        MusicHoardersSession.awaitSearchPermit()
         val call = client.newCall(request)
         val events = mutableListOf<CoverSearchEvent>()
         val worker: Job = launch(Dispatchers.IO) {

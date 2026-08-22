@@ -513,6 +513,7 @@
     <string name="cover_source_discogs">Discogs</string>
     <string name="cover_source_lastfm">Last.fm</string>
     <string name="cover_search_reset">Đặt lại</string>
+    <string name="cover_cancel">Huỷ</string>
     <string name="cover_applied">Đã cập nhật ảnh bìa</string>
     <string name="cover_undo">Hoàn tác</string>
     <string name="cover_downloading">Đang tải… %1$d%%</string>

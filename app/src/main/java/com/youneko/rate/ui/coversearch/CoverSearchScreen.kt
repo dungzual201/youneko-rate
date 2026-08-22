@@ -78,6 +78,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -121,6 +122,7 @@ class CoverSearchViewModel @Inject constructor(
     private var originalArtist = ""
     private var originalAlbum = ""
     private var lastApplied: AppliedCover? = null
+    private var searchJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -207,10 +209,16 @@ class CoverSearchViewModel @Inject constructor(
 
     fun clearApplyNotice() { _state.value = _state.value.copy(applyNotice = null) }
 
+    fun cancelSearch() {
+        searchJob?.cancel()
+        _state.value = _state.value.copy(searching = false)
+    }
+
     fun search() {
+        searchJob?.cancel()
         val current = _state.value
         if (current.artist.isBlank() || current.album.isBlank() || current.sources.isEmpty()) return
-        viewModelScope.launch {
+        searchJob = viewModelScope.launch {
             settings.setCoverSearchSources(current.sources.joinToString(","))
             settings.setCoverSearchCountry(current.country)
             _state.value = current.copy(results = emptyList(), sourceStatus = current.sources.associateWith { "searching" }, searching = true, searched = true, error = null, errorFields = emptyMap())
@@ -305,7 +313,7 @@ fun CoverSearchScreen(
                         }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = viewModel::search, enabled = !state.searching && state.artist.isNotBlank() && state.album.isNotBlank()) { Text(stringResource(R.string.search)) }
+                        Button(onClick = { if (state.searching) viewModel.cancelSearch() else viewModel.search() }, enabled = state.searching || (state.artist.isNotBlank() && state.album.isNotBlank())) { Text(stringResource(if (state.searching) R.string.cover_cancel else R.string.search)) }
                         Button(onClick = viewModel::reset, enabled = !state.searching) { Icon(Icons.Default.Refresh, contentDescription = null); Text(stringResource(R.string.cover_search_reset)) }
                     }
                     Text(stringResource(R.string.cover_attribution), style = MaterialTheme.typography.bodySmall)

@@ -257,6 +257,7 @@
     <string name="cover_source_discogs">Discogs</string>
     <string name="cover_source_lastfm">Last.fm</string>
     <string name="cover_search_reset">Reset</string>
+    <string name="cover_cancel">Cancel</string>
     <string name="cover_applied">Cover art updated</string>
     <string name="cover_undo">Undo</string>
     <string name="cover_downloading">Downloading… %1$d%%</string>
