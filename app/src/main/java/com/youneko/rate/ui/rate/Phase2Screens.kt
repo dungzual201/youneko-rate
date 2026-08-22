@@ -22,8 +22,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.rememberTransformableState
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.gestures.transformable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
@@ -247,14 +247,7 @@ fun LibraryScreen(
             )
             state.gridView -> LazyVerticalGrid(
                 columns = GridCells.Adaptive(160.dp),
-                modifier = Modifier.weight(1f).pointerInput(Unit) {
-                    var pulled = 0f
-                    detectVerticalDragGestures(
-                        onVerticalDrag = { change, dragAmount -> if (dragAmount > 0f) pulled += dragAmount; change.consume() },
-                        onDragEnd = { if (pulled >= 120f) refresh() },
-                        onDragCancel = { pulled = 0f },
-                    )
-                },
+                modifier = Modifier.weight(1f),
                 contentPadding = PaddingValues(start = YnDimens.space4, end = YnDimens.space4, top = YnDimens.space2, bottom = YnDimens.navigationSafe),
                 horizontalArrangement = Arrangement.spacedBy(YnDimens.space3),
                 verticalArrangement = Arrangement.spacedBy(YnDimens.space3),
@@ -267,14 +260,7 @@ fun LibraryScreen(
                 }
             }
             else -> LazyColumn(
-                modifier = Modifier.weight(1f).pointerInput(Unit) {
-                    var pulled = 0f
-                    detectVerticalDragGestures(
-                        onVerticalDrag = { change, dragAmount -> if (dragAmount > 0f) pulled += dragAmount; change.consume() },
-                        onDragEnd = { if (pulled >= 120f) refresh() },
-                        onDragCancel = { pulled = 0f },
-                    )
-                },
+                modifier = Modifier.weight(1f),
                 contentPadding = PaddingValues(start = YnDimens.space4, end = YnDimens.space4, top = YnDimens.space2, bottom = YnDimens.navigationSafe),
                 verticalArrangement = Arrangement.spacedBy(YnDimens.space3),
             ) {
