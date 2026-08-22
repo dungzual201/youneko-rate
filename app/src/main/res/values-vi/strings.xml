@@ -199,6 +199,8 @@
     <string name="online_search">Trực tuyến</string>
     <string name="online_results">Kết quả MusicBrainz</string>
     <string name="online_enter_query">Nhập tên album để tìm kiếm trên MusicBrainz.</string>
+    <string name="online_search_tip">Tìm kiếm bắt đầu khi bạn nhập ít nhất hai ký tự.</string>
+    <string name="clear_search">Xoá tìm kiếm</string>
     <string name="retry">Thử lại</string>
     <string name="loading">Đang tải…</string>
     <string name="saved">Đã lưu</string>

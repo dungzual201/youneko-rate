@@ -9,6 +9,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.padding
@@ -47,6 +51,9 @@ import com.youneko.rate.data.musicbrainz.MusicBrainzImportProgress
 import com.youneko.rate.data.musicbrainz.MusicBrainzImportStage
 import com.youneko.rate.data.musicbrainz.CoverArtUrls
 import com.youneko.rate.ui.artwork.CoverArtImage
+import com.youneko.rate.ui.YounekoEmptyState
+import com.youneko.rate.ui.YounekoErrorState
+import com.youneko.rate.ui.YounekoShimmer
 import com.youneko.rate.data.musicbrainz.MusicBrainzPreview
 import com.youneko.rate.data.musicbrainz.MusicBrainzSearchItem
 import com.youneko.rate.data.musicbrainz.NetworkError
@@ -73,51 +80,49 @@ fun MusicBrainzSearchPanel(
         }
     }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = modifier.fillMaxWidth()) {
-        Text(stringResource(R.string.online_results), style = MaterialTheme.typography.titleMedium)
-        if (query.isBlank()) {
-            Box(
+        when {
+            query.isBlank() -> Box(
                 modifier = Modifier.fillMaxWidth().weight(1f).navigationBarsPadding(),
                 contentAlignment = Alignment.Center,
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Icon(Icons.Default.Pets, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(64.dp))
-                    Text(stringResource(R.string.online_enter_query))
+                    YounekoEmptyState(stringResource(R.string.online_enter_query), modifier = Modifier.fillMaxWidth())
+                    Text(stringResource(R.string.online_search_tip), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-        } else {
-            when (val refresh = results.loadState.refresh) {
-                LoadState.Loading -> Box(
-                    modifier = Modifier.fillMaxWidth().weight(1f).navigationBarsPadding(),
-                    contentAlignment = Alignment.Center,
-                ) { CircularProgressIndicator() }
-                is LoadState.Error -> Box(
-                    modifier = Modifier.fillMaxWidth().navigationBarsPadding(),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(stringResource(R.string.network_error), color = MaterialTheme.colorScheme.error)
-                        TextButton(onClick = results::retry) { Text(stringResource(R.string.retry)) }
-                    }
-                }
-                is LoadState.NotLoading -> if (results.itemCount == 0) {
-                    Text(stringResource(R.string.no_results_for_query, query))
-                } else {
-                    Text(pluralStringResource(R.plurals.online_result_count, results.itemCount, results.itemCount))
-                }
+            results.loadState.refresh is LoadState.Loading -> LazyVerticalGrid(
+                columns = GridCells.Adaptive(160.dp),
+                modifier = Modifier.weight(1f).navigationBarsPadding(),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                items(6) { YounekoShimmer(Modifier.fillMaxWidth().height(180.dp), lines = 4) }
             }
-            LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(results.itemCount, key = { index -> results.peek(index)?.id ?: "page-$index" }) { index ->
-                    results[index]?.let { MusicBrainzResultCard(it, viewModel::openPreview) }
-                }
-                if (results.loadState.append is LoadState.Loading) {
-                    item {
-                        Box(Modifier.fillMaxWidth().height(56.dp), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator()
-                        }
+            results.loadState.refresh is LoadState.Error -> YounekoErrorState(
+                stringResource(R.string.network_error),
+                onRetry = results::retry,
+                modifier = Modifier.fillMaxWidth().weight(1f).navigationBarsPadding(),
+            )
+            results.itemCount == 0 -> YounekoEmptyState(
+                stringResource(R.string.no_results_for_query, query),
+                actionLabel = stringResource(R.string.clear_search),
+                onAction = { viewModel.setQuery("") },
+                modifier = Modifier.fillMaxWidth().weight(1f).navigationBarsPadding(),
+            )
+            else -> {
+                Text(pluralStringResource(R.plurals.online_result_count, results.itemCount, results.itemCount), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 24.dp)) {
+                    items(results.itemCount, key = { index -> results.peek(index)?.id ?: "page-$index" }) { index ->
+                        results[index]?.let { MusicBrainzResultCard(it, viewModel::openPreview) }
                     }
-                }
-                if (results.loadState.append is LoadState.Error) {
-                    item { TextButton(onClick = results::retry) { Text(stringResource(R.string.retry)) } }
+                    if (results.loadState.append is LoadState.Loading) {
+                        item { YounekoShimmer(Modifier.fillMaxWidth().height(56.dp), lines = 1) }
+                    }
+                    if (results.loadState.append is LoadState.Error) {
+                        item { TextButton(onClick = results::retry) { Text(stringResource(R.string.retry)) } }
+                    }
                 }
             }
         }

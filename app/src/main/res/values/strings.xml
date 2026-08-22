@@ -199,6 +199,8 @@
     <string name="online_search">Online</string>
     <string name="online_results">MusicBrainz results</string>
     <string name="online_enter_query">Enter an album name to search MusicBrainz.</string>
+    <string name="online_search_tip">Search starts after you type at least two characters.</string>
+    <string name="clear_search">Clear search</string>
     <string name="retry">Try again</string>
     <string name="loading">Loading…</string>
     <string name="saved">Saved</string>
