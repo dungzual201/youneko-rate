@@ -28,4 +28,6 @@ object YnDimens {
     val cardElevation: Dp = 2.dp
     val navigationSafe: Dp = 80.dp
     val iconMedium: Dp = 24.dp
+    val metricRowMinHeight: Dp = 48.dp
+    val metricHelpIcon: Dp = 20.dp
 }

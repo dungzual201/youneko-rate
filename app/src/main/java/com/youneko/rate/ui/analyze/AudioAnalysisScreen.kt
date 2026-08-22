@@ -4,6 +4,7 @@ import com.youneko.rate.ui.YounekoEmptyState
 import com.youneko.rate.ui.YounekoErrorState
 import com.youneko.rate.ui.YounekoLoadingState
 import com.youneko.rate.ui.YounekoSpacing
+import com.youneko.rate.ui.YnDimens
 
 import android.content.Intent
 import androidx.annotation.StringRes
@@ -508,10 +509,25 @@ private fun MetricGroup(title: String, content: @Composable () -> Unit) {
 @Composable
 private fun DetailedMetricRow(label: String, value: String, helpRes: Int, warning: Boolean = false) {
     val onHelp = LocalMetricHelp.current
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = { onHelp(helpRes) }, modifier = Modifier.size(28.dp)) { Icon(Icons.Default.HelpOutline, contentDescription = stringResource(R.string.audio_analysis_help)) }
-        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-        Text(value, style = MaterialTheme.typography.bodyMedium, color = if (warning) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
+    val stacked = value.length > 22
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = YnDimens.metricRowMinHeight).padding(vertical = YnDimens.space1),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(onClick = { onHelp(helpRes) }, modifier = Modifier.size(YnDimens.minTouchTarget)) {
+            Icon(Icons.Default.HelpOutline, contentDescription = stringResource(R.string.audio_analysis_help), modifier = Modifier.size(YnDimens.metricHelpIcon))
+        }
+        androidx.compose.foundation.layout.Spacer(Modifier.width(YnDimens.space2))
+        if (stacked) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(YnDimens.space1)) {
+                Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(value, style = MaterialTheme.typography.bodyLarge, color = if (warning) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
+            }
+        } else {
+            Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            androidx.compose.foundation.layout.Spacer(Modifier.width(YnDimens.space3))
+            Text(value, style = MaterialTheme.typography.bodyLarge, textAlign = androidx.compose.ui.text.style.TextAlign.End, maxLines = 2, color = if (warning) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
+        }
     }
 }
 
