@@ -311,6 +311,7 @@ fun AudioAnalysisScreen(viewModel: AudioAnalysisViewModel = hiltViewModel()) {
                 else -> YounekoEmptyState(stringResource(R.string.audio_analysis_empty), actionLabel = stringResource(R.string.audio_analysis_choose_file), onAction = { picker.launch(arrayOf("audio/*")) }, modifier = Modifier.fillMaxWidth())
             }
             Text(stringResource(R.string.analyze_decode_note), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(YnDimens.navigationSafe))
         }
     }
     if (explain) {
@@ -464,7 +465,9 @@ private fun AnalysisDetailsCard(analysis: AudioAnalysisEntity) {
                     DetailedMetricRow(stringResource(R.string.audio_analysis_bit_depth), analysis.bitDepth?.let { "$it-bit" } ?: stringResource(R.string.audio_analysis_not_applicable), R.string.audio_analysis_bit_depth)
                     DetailedMetricRow(stringResource(R.string.audio_analysis_channels), analysis.channels?.toString() ?: stringResource(R.string.audio_analysis_not_applicable), R.string.audio_analysis_channels)
                     DetailedMetricRow(stringResource(R.string.audio_analysis_bitrate), analysis.bitrate?.let { "$it bps" } ?: stringResource(R.string.audio_analysis_not_applicable), R.string.audio_analysis_bitrate)
-                    if (analysis.bitrateNote != null) DetailedMetricRow(stringResource(R.string.audio_analysis_bitrate_note), stringResource(R.string.audio_analysis_bitrate_note_estimated), R.string.audio_analysis_bitrate_note)
+                    if (analysis.bitrateNote != null) {
+                        Text(stringResource(R.string.audio_analysis_bitrate_note_estimated), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = YnDimens.metricCaptionIndent))
+                    }
                     DetailedMetricRow(stringResource(R.string.audio_analysis_theoretical_bitrate), analysis.theoreticalBitrate?.let { "$it bps" } ?: stringResource(R.string.audio_analysis_not_applicable), R.string.audio_analysis_theoretical_bitrate)
                     if (analysis.bitrate != null && analysis.theoreticalBitrate != null && analysis.theoreticalBitrate > 0) DetailedMetricRow(stringResource(R.string.audio_analysis_compression_ratio), formatDecimal(analysis.bitrate.toDouble() / analysis.theoreticalBitrate * 100.0, 0) + "%", R.string.audio_analysis_compression_ratio)
                     if (analysis.codec == "UNKNOWN") DetailedMetricRow(stringResource(R.string.audio_analysis_header_hex), analysis.rawHeaderHex ?: stringResource(R.string.audio_analysis_not_applicable), R.string.audio_analysis_header_hex)

@@ -30,4 +30,5 @@ object YnDimens {
     val iconMedium: Dp = 24.dp
     val metricRowMinHeight: Dp = 48.dp
     val metricHelpIcon: Dp = 20.dp
+    val metricCaptionIndent: Dp = 40.dp
 }
