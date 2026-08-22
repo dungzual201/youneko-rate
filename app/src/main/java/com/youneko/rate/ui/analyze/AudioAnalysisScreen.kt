@@ -376,13 +376,29 @@ fun AudioAnalysisScreen(initialUri: String? = null, viewModel: AudioAnalysisView
                     when {
                         latest != null -> AnalysisCard(latest, cachedSpectrogram, context, onExplain = { explain = true })
                         analyzeState is AnalyzeUiState.Failed -> Unit
-                        else -> YounekoEmptyState(stringResource(R.string.audio_analysis_empty), actionLabel = stringResource(R.string.audio_analysis_choose_file), onAction = { sourceMode = null; showSourceSheet = true }, modifier = Modifier.fillMaxWidth())
+                        else -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(YnDimens.space4),
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                YounekoEmptyState(
+                                    stringResource(R.string.audio_analysis_empty),
+                                    actionLabel = stringResource(R.string.audio_analysis_choose_file),
+                                    onAction = { sourceMode = null; showSourceSheet = true },
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                                Text(stringResource(R.string.analyze_decode_note), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
                     }
                 }
-                item {
-                    Column {
-                        Text(stringResource(R.string.analyze_decode_note), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(Modifier.height(YnDimens.space4))
+                if (latest != null || analyzeState is AnalyzeUiState.Failed) {
+                    item {
+                        Column {
+                            Text(stringResource(R.string.analyze_decode_note), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(Modifier.height(YnDimens.space4))
+                        }
                     }
                 }
             }
