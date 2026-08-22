@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -673,12 +674,13 @@ fun AlbumDetailScreen(
     val tags by viewModel.tags.collectAsStateWithLifecycle()
     val listeningLogs by viewModel.listeningLogs.collectAsStateWithLifecycle()
     val reviewRevisions by viewModel.reviewRevisions.collectAsStateWithLifecycle()
-    Scaffold(snackbarHost = { SnackbarHost(snackbarHost) }) { padding ->
+    Scaffold(contentWindowInsets = WindowInsets(0), snackbarHost = { SnackbarHost(snackbarHost) }) { padding ->
         when (state) {
             AlbumDetailUiState.Loading -> YounekoLoadingState(Modifier.fillMaxSize().padding(padding).padding(YounekoSpacing.md), lines = 4)
             AlbumDetailUiState.AlbumDeleted -> YounekoEmptyState(stringResource(R.string.confirm_delete_body), modifier = Modifier.fillMaxSize().padding(padding))
             is AlbumDetailUiState.Content -> {
             val value = (state as AlbumDetailUiState.Content).album
+            android.util.Log.d("INSET", "screen=album_detail topPadding=${padding.calculateTopPadding().value}dp")
             val palette = albumPalette
             val darkTheme = isSystemInDarkTheme()
             val dominantColor = palette?.dominant ?: androidx.compose.ui.graphics.Color(0xFF403A46)
