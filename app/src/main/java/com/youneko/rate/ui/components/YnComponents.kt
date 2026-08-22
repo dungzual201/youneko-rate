@@ -4,6 +4,8 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -53,12 +55,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -94,6 +98,33 @@ fun YnBrandTitle() {
     }
 }
 
+
+@Composable
+fun YnPaletteSwatches(colors: List<Color>, onReleased: (Color) -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier.horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(YnDimens.space2),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        colors.distinctBy { it.toArgb() }.forEach { color ->
+            val hex = "#%08X".format(color.toArgb())
+            val a11y = stringResource(R.string.a11y_palette_swatch, hex)
+            Box(
+                Modifier.size(YnDimens.space6)
+                    .clip(CircleShape)
+                    .background(color)
+                    .semantics { contentDescription = a11y }
+                    .pointerInput(color) {
+                        awaitPointerEventScope {
+                            val down = awaitFirstDown(requireUnconsumed = false)
+                            down.consume()
+                            if (waitForUpOrCancellation() != null) onReleased(color)
+                        }
+                    },
+            )
+        }
+    }
+}
 
 @Composable
 fun YnRatingBadge(score: Double?, modifier: Modifier = Modifier, large: Boolean = false) {

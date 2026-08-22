@@ -122,6 +122,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -146,7 +147,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.youneko.rate.R
 import com.youneko.rate.data.LibraryAlbum
 import com.youneko.rate.data.artwork.ArtworkStore
+import com.youneko.rate.data.artwork.CoverPalette
 import com.youneko.rate.data.artwork.coverDetailGradient
+import com.youneko.rate.ui.components.YnPaletteSwatches
 import com.youneko.rate.data.local.entity.AlbumEntity
 import com.youneko.rate.data.local.entity.TrackEntity
 import com.youneko.rate.data.importer.LocalAudioTagReader
@@ -636,9 +639,11 @@ fun AlbumDetailScreen(
     var tagDraft by rememberSaveable { mutableStateOf("") }
     var listeningNote by rememberSaveable { mutableStateOf("") }
     var menuExpanded by rememberSaveable { mutableStateOf(false) }
+    var selectedPaletteColor by remember { mutableStateOf<Color?>(null) }
     val snackbarHost = remember { SnackbarHostState() }
     val refreshResult by viewModel.refreshResult.collectAsStateWithLifecycle()
     val ratingScale by viewModel.ratingScale.collectAsStateWithLifecycle()
+    val albumPalette by viewModel.palette.collectAsStateWithLifecycle()
     val tags by viewModel.tags.collectAsStateWithLifecycle()
     val listeningLogs by viewModel.listeningLogs.collectAsStateWithLifecycle()
     val reviewRevisions by viewModel.reviewRevisions.collectAsStateWithLifecycle()
@@ -648,7 +653,7 @@ fun AlbumDetailScreen(
             AlbumDetailUiState.AlbumDeleted -> YounekoEmptyState(stringResource(R.string.confirm_delete_body), modifier = Modifier.fillMaxSize().padding(padding))
             is AlbumDetailUiState.Content -> {
             val value = (state as AlbumDetailUiState.Content).album
-            val palette by viewModel.palette.collectAsStateWithLifecycle()
+            val palette = albumPalette
             val darkTheme = isSystemInDarkTheme()
             val detailGradient = remember(value.album.id, palette, darkTheme) {
                 coverDetailGradient(palette, value.album.id, darkTheme)
@@ -672,6 +677,10 @@ fun AlbumDetailScreen(
                 )
                 Box(Modifier.fillMaxWidth().height(YnDimens.coverHeroHeight), contentAlignment = Alignment.Center) {
                     CoverArtImage(value.album.coverUri, Modifier.size(YnDimens.coverDetail).clickable(enabled = value.album.coverUri != null) { showFullCover = true }, placeholderSeed = value.album.id, placeholderLabel = value.album.title)
+                }
+                if (palette != null) {
+                    Text(stringResource(R.string.palette_title), style = MaterialTheme.typography.labelLarge)
+                    YnPaletteSwatches(palette!!.swatches, onReleased = { selectedPaletteColor = it }, modifier = Modifier.fillMaxWidth().padding(vertical = YnDimens.space2))
                 }
                 Text(value.album.title, style = MaterialTheme.typography.displaySmall, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = YnDimens.space3))
                 TextButton(onClick = { value.artist?.id?.let(onOpenArtist) }, enabled = value.artist != null) { Text(value.artist?.name.orEmpty(), style = MaterialTheme.typography.titleMedium) }
@@ -746,9 +755,18 @@ fun AlbumDetailScreen(
             dismissButton = { TextButton(onClick = { showDelete = false }) { Text(stringResource(R.string.cancel)) } },
         )
     }
+    selectedPaletteColor?.let { color ->
+        val hex = "#%08X".format(color.toArgb())
+        AlertDialog(
+            onDismissRequest = { selectedPaletteColor = null },
+            title = { Text(stringResource(R.string.palette_title)) },
+            text = { Text(stringResource(R.string.palette_hex, hex)) },
+            confirmButton = { TextButton(onClick = { selectedPaletteColor = null }) { Text(stringResource(R.string.close)) } },
+        )
+    }
     if (showFullCover) {
         (state as? AlbumDetailUiState.Content)?.album?.album?.coverUri?.let { coverUri ->
-            CoverArtFullscreenDialog(coverUri, onDismiss = { showFullCover = false })
+            CoverArtFullscreenDialog(coverUri, albumPalette, onDismiss = { showFullCover = false })
         }
     }
     fileInfoTrackId?.let { trackId ->
@@ -768,7 +786,7 @@ fun AlbumDetailScreen(
 }
 
 @Composable
-private fun CoverArtFullscreenDialog(model: Any, onDismiss: () -> Unit, onSave: () -> Unit = {}) {
+private fun CoverArtFullscreenDialog(model: Any, palette: CoverPalette?, onDismiss: () -> Unit, onSave: () -> Unit = {}) {
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
     var swipeDistance by remember { mutableFloatStateOf(0f) }
@@ -801,6 +819,13 @@ private fun CoverArtFullscreenDialog(model: Any, onDismiss: () -> Unit, onSave: 
                 )
                 IconButton(onClick = onDismiss, modifier = Modifier.align(Alignment.TopStart).padding(12.dp)) {
                     Icon(Icons.Default.Close, contentDescription = stringResource(R.string.close), tint = Color.White)
+                }
+                palette?.let { currentPalette ->
+                    YnPaletteSwatches(
+                        colors = currentPalette.swatches,
+                        onReleased = {},
+                        modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 24.dp),
+                    )
                 }
                 Row(Modifier.align(Alignment.TopEnd).padding(12.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     IconButton(onClick = onSave) { Icon(Icons.Default.SaveAlt, contentDescription = stringResource(R.string.cover_save), tint = Color.White) }

@@ -480,6 +480,8 @@
     <string name="backup_no_manifest">Thiếu manifest.json hoặc manifest không nằm ở entry đầu tiên.</string>
     <string name="backup_schema_too_new">Schema database mới hơn phiên bản app đang dùng.</string>
     <string name="cover_save">Lưu ảnh bìa</string>
+    <string name="palette_title">Bảng màu ảnh bìa</string>
+    <string name="palette_hex">Mã màu: %1$s</string>
     <string name="cover_share">Chia sẻ ảnh bìa</string>
     <string name="a11y_cover_fullscreen">Ảnh bìa album, toàn màn hình</string>
     <string name="a11y_palette_swatch">Màu %1$s, nhấn giữ để xem mã</string>

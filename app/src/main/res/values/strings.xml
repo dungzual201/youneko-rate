@@ -224,6 +224,8 @@
     <string name="close">Close</string>
     <string name="a11y_back">Back</string>
     <string name="cover_save">Save cover</string>
+    <string name="palette_title">Cover palette</string>
+    <string name="palette_hex">Color code: %1$s</string>
     <string name="cover_share">Share cover</string>
     <string name="a11y_cover_fullscreen">Album cover, full screen</string>
     <string name="a11y_palette_swatch">Color %1$s, hold to view code</string>
