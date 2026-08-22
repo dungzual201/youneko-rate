@@ -26,4 +26,5 @@ object YnDimens {
     val coverHeroHeight: Dp = 320.dp
     val coverBlur: Dp = 40.dp
     val cardElevation: Dp = 2.dp
+    val navigationSafe: Dp = 80.dp
 }

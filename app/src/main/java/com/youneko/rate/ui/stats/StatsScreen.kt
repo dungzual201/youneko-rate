@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -98,7 +99,7 @@ class StatsViewModel @Inject constructor(private val statsDao: StatsDao) : ViewM
 }
 
 @Composable
-fun StatsScreen(viewModel: StatsViewModel = hiltViewModel()) {
+fun StatsScreen(contentPadding: PaddingValues = PaddingValues(), viewModel: StatsViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     if (state.loading) {
@@ -112,7 +113,11 @@ fun StatsScreen(viewModel: StatsViewModel = hiltViewModel()) {
         }
         return
     }
-    LazyColumn(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    LazyColumn(
+        Modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = contentPadding.calculateBottomPadding() + YnDimens.navigationSafe),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
         item {
             Text(stringResource(R.string.stats_empty_title), style = MaterialTheme.typography.headlineSmall)
             Text(stringResource(R.string.stats_empty_body), style = MaterialTheme.typography.bodyMedium)

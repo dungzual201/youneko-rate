@@ -263,7 +263,7 @@ fun LibraryScreen(
                             onDragCancel = { pulled = 0f },
                         )
                     },
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+                    contentPadding = PaddingValues(start = YnDimens.space4, end = YnDimens.space4, top = YnDimens.space4, bottom = YnDimens.navigationSafe),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
@@ -286,7 +286,7 @@ fun LibraryScreen(
                             onDragCancel = { pulled = 0f },
                         )
                     },
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+                    contentPadding = PaddingValues(start = YnDimens.space4, end = YnDimens.space4, top = YnDimens.space4, bottom = YnDimens.navigationSafe),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     items(state.albums, key = { stableAlbumKey(it.album.id) }) { item -> AlbumListRow(item, onOpenAlbum) }
@@ -434,7 +434,11 @@ fun RateScreen(onAddAlbum: () -> Unit, onImportTags: () -> Unit, onOpenAlbum: (S
         if (rateItems.isEmpty()) {
             EmptyLibrary(onAddAlbum, hasQuery = false)
         } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            LazyColumn(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                contentPadding = PaddingValues(bottom = YnDimens.navigationSafe),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
                 items(rateItems, key = { stableAlbumKey(it.album.id) }) { item -> AlbumListRow(item, onOpenAlbum) }
             }
         }
