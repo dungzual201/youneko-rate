@@ -62,6 +62,43 @@ class MusicHoardersApiTest {
     }
 
     @Test
+    fun http400BodySurfacesFieldErrorsAndIgnoresQuery() = runTest {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setResponseCode(400).setHeader("Content-Type", "application/json").setBody("""{"artist":"required","album":"too short","query":"ignored"}"""))
+            val api = MusicHoardersApi(OkHttpClient.Builder().build(), json, server.url("/api/search").toString())
+            val event = api.search("", "", "us", listOf("applemusic")).toList().filterIsInstance<CoverSearchEvent.Error>().first()
+            assertEquals(400, event.code)
+            assertEquals("required", event.fieldErrors["artist"])
+            assertEquals("too short", event.fieldErrors["album"])
+            assertTrue(!event.fieldErrors.containsKey("query"))
+        }
+    }
+
+    @Test
+    fun sourceCompatibilityUsesCountryAndSearchQuery() {
+        val apple = com.youneko.rate.data.coversearch.MusicHoardersSourceInfo("applemusic", countries = listOf("us"), queries = listOf("search"))
+        val deezer = com.youneko.rate.data.coversearch.MusicHoardersSourceInfo("deezer", countries = listOf("de"), queries = listOf("search"))
+        val global = com.youneko.rate.data.coversearch.MusicHoardersSourceInfo("musicbrainz", countries = listOf("xw"), queries = listOf("search"))
+        val barcodeOnly = com.youneko.rate.data.coversearch.MusicHoardersSourceInfo("barcode", countries = listOf("us"), queries = listOf("barcode"))
+        assertTrue(com.youneko.rate.ui.coversearch.isMusicHoardersSourceActive(apple, "us"))
+        assertTrue(!com.youneko.rate.ui.coversearch.isMusicHoardersSourceActive(deezer, "us"))
+        assertTrue(com.youneko.rate.ui.coversearch.isMusicHoardersSourceActive(global, "us"))
+        assertTrue(!com.youneko.rate.ui.coversearch.isMusicHoardersSourceActive(barcodeOnly, "us"))
+    }
+
+    @Test
+    fun infoIsCachedForTwentyFourHours() = runTest {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setHeader("Content-Type", "application/json").setBody("""{"activeSourceLimit":9,"maximumPage":5,"countries":["us","xw"],"sources":[{"id":"applemusic","name":"Apple Music","countries":["us"],"queries":["search"]}],"serverPatterns":["i.discogs.com"]}"""))
+            val api = MusicHoardersApi(OkHttpClient.Builder().build(), json, server.url("/api/search").toString())
+            assertEquals(9, api.info().getOrThrow().activeSourceLimit)
+            assertEquals(9, api.info().getOrThrow().activeSourceLimit)
+            assertTrue(server.takeRequest(2, TimeUnit.SECONDS) != null)
+            assertTrue(server.takeRequest(200, TimeUnit.MILLISECONDS) == null)
+        }
+    }
+
+    @Test
     fun cancellingFlowCancelsStreamingCall() = runTest {
         MockWebServer().use { server ->
             server.enqueue(

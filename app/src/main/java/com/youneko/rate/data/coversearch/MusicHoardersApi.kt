@@ -13,6 +13,10 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -67,8 +71,15 @@ sealed interface CoverSearchEvent {
     data class SourceStatus(val source: String, val status: String, val count: Int? = null) : CoverSearchEvent
     data class Count(val source: String?, val releaseCount: Int?, val releaseTotal: Int?, val accuracy: String?, val next: String?) : CoverSearchEvent
     data object Done : CoverSearchEvent
-    data class Error(val code: Int? = null, val message: String? = null) : CoverSearchEvent
+    data class Error(val code: Int? = null, val message: String? = null, val fieldErrors: Map<String, String> = emptyMap()) : CoverSearchEvent
 }
+
+internal fun parseBadRequestFields(json: Json, body: String): Map<String, String> = runCatching {
+    val objectBody: JsonObject = json.parseToJsonElement(body).jsonObject
+    objectBody.entries
+        .filter { it.key != "query" }
+        .associate { (key, value) -> key to (value.jsonPrimitive.contentOrNull ?: value.toString()) }
+}.getOrDefault(emptyMap())
 
 internal fun parseMusicHoardersLine(json: Json, line: String): CoverSearchEvent? {
     val parsed = runCatching { json.decodeFromString<MusicHoardersCoverLine>(line) }.getOrNull() ?: return null
@@ -98,7 +109,6 @@ class MusicHoardersApi(
     private data class CacheEntry(val expiresAtMillis: Long, val events: List<CoverSearchEvent>)
 
     private val cache = ConcurrentHashMap<String, CacheEntry>()
-
     fun search(
         artist: String,
         album: String,
@@ -140,7 +150,16 @@ class MusicHoardersApi(
             try {
                 call.execute().use { response ->
                     if (!response.isSuccessful) {
-                        val error = CoverSearchEvent.Error(response.code, response.message)
+                        val body = response.body?.string().orEmpty()
+                        runCatching { android.util.Log.e("CoverSearch", "HTTP ${response.code} ${response.message}; body=$body") }
+                        val fieldErrors = if (response.code == 400) parseBadRequestFields(json, body) else emptyMap()
+                        val message = when {
+                            response.code == 429 -> "Slow down"
+                            response.code == 500 && body.isNotBlank() -> body
+                            body.isNotBlank() -> body
+                            else -> response.message
+                        }
+                        val error = CoverSearchEvent.Error(response.code, message, fieldErrors)
                         events += error
                         trySend(error)
                         close()

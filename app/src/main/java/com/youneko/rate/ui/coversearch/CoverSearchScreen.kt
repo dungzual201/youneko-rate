@@ -95,6 +95,7 @@ data class CoverSearchUiState(
     val searching: Boolean = false,
     val searched: Boolean = false,
     val error: String? = null,
+    val errorFields: Map<String, String> = emptyMap(),
     val downloadProgress: Int? = null,
     val applying: Boolean = false,
     val applyNotice: String? = null,
@@ -181,7 +182,7 @@ class CoverSearchViewModel @Inject constructor(
         viewModelScope.launch {
             settings.setCoverSearchSources(current.sources.joinToString(","))
             settings.setCoverSearchCountry(current.country)
-            _state.value = current.copy(results = emptyList(), sourceStatus = current.sources.associateWith { "searching" }, searching = true, searched = true, error = null)
+            _state.value = current.copy(results = emptyList(), sourceStatus = current.sources.associateWith { "searching" }, searching = true, searched = true, error = null, errorFields = emptyMap())
             runCatching {
                 api.search(current.artist, current.album, current.country, current.sources).collect { event ->
                     when (event) {
@@ -189,10 +190,10 @@ class CoverSearchViewModel @Inject constructor(
                         is CoverSearchEvent.SourceStatus -> _state.value = _state.value.copy(sourceStatus = _state.value.sourceStatus + (event.source to event.status))
                         is CoverSearchEvent.Count -> event.source?.let { source -> _state.value = _state.value.copy(sourceStatus = _state.value.sourceStatus + (source to "${event.releaseCount ?: 0}/${event.releaseTotal ?: 0}")) }
                         CoverSearchEvent.Done -> _state.value = _state.value.copy(searching = false)
-                        is CoverSearchEvent.Error -> _state.value = _state.value.copy(searching = false, error = event.message ?: event.code?.toString())
+                        is CoverSearchEvent.Error -> _state.value = _state.value.copy(searching = false, error = event.message ?: event.code?.toString(), errorFields = event.fieldErrors)
                     }
                 }
-            }.onFailure { error -> _state.value = _state.value.copy(searching = false, error = error.message) }
+            }.onFailure { error -> _state.value = _state.value.copy(searching = false, error = error.message, errorFields = emptyMap()) }
             _state.value = _state.value.copy(searching = false)
         }
     }
@@ -276,7 +277,12 @@ fun CoverSearchScreen(
                     Text(stringResource(R.string.cover_attribution), style = MaterialTheme.typography.bodySmall)
                     if (state.searching) LinearProgressIndicator(Modifier.fillMaxWidth())
                     state.downloadProgress?.let { progress -> Text(stringResource(R.string.cover_downloading, progress), style = MaterialTheme.typography.bodySmall) }
-                    if (state.error != null) YounekoErrorState(state.error ?: stringResource(R.string.error_generic), onRetry = viewModel::search, modifier = Modifier.fillMaxWidth())
+                    if (state.error != null) {
+                        Column(Modifier.fillMaxWidth()) {
+                            YounekoErrorState(state.error ?: stringResource(R.string.error_generic), onRetry = viewModel::search, modifier = Modifier.fillMaxWidth())
+                            state.errorFields.forEach { (field, message) -> Text("$field: $message", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+                        }
+                    }
                     if (!state.searched) YounekoEmptyState(stringResource(R.string.cover_search_empty), modifier = Modifier.fillMaxWidth())
                     if (state.searched && !state.searching && state.error == null && state.results.isEmpty()) YounekoEmptyState(stringResource(R.string.cover_search_none), modifier = Modifier.fillMaxWidth())
                     Spacer(Modifier.height(4.dp))
