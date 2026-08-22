@@ -194,110 +194,60 @@ fun LibraryScreen(
         LargeTopAppBar(
             title = { Text(stringResource(R.string.library), maxLines = 1, overflow = TextOverflow.Ellipsis) },
             actions = {
-                IconButton(onClick = onOpenSettings) {
-                    Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.settings))
-                }
-                IconButton(onClick = { showFilters = true }) {
-                    Icon(Icons.Default.FilterList, contentDescription = stringResource(R.string.filters))
-                }
+                IconButton(onClick = onOpenSettings) { Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.settings), modifier = Modifier.size(YnDimens.iconMedium)) }
+                IconButton(onClick = { showFilters = true }) { Icon(Icons.Default.FilterList, contentDescription = stringResource(R.string.filters), modifier = Modifier.size(YnDimens.iconMedium)) }
                 IconButton(onClick = { viewModel.setGridView(!state.gridView) }) {
-                    Icon(
-                        if (state.gridView) Icons.Default.List else Icons.Default.GridView,
-                        contentDescription = if (state.gridView) stringResource(R.string.library_list) else stringResource(R.string.library_grid),
-                    )
+                    Icon(if (state.gridView) Icons.Default.List else Icons.Default.GridView, contentDescription = if (state.gridView) stringResource(R.string.library_list) else stringResource(R.string.library_grid), modifier = Modifier.size(YnDimens.iconMedium))
                 }
             },
         )
-        SearchBar(
-            query = state.query,
-            onQueryChange = { query ->
-                viewModel.setQuery(query)
-                if (onlineMode) onlineViewModel.setQuery(query)
-            },
-            onSearch = { searchActive = false },
-            active = searchActive,
-            onActiveChange = { searchActive = it },
-            placeholder = { Text(stringResource(R.string.search_hint)) },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = stringResource(R.string.search)) },
-            trailingIcon = if (state.query.isNotBlank()) ({ IconButton(onClick = { viewModel.setQuery("") }) { Icon(Icons.Default.Close, contentDescription = stringResource(R.string.close)) } }) else null,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = YnDimens.space4),
-        ) { Text(stringResource(R.string.search_library), Modifier.padding(YnDimens.space4)) }
-        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = YnDimens.space4, vertical = YnDimens.space2)) {
-            val labels = listOf(stringResource(R.string.search_on_device), stringResource(R.string.search_online))
-            labels.forEachIndexed { index, label ->
-                SegmentedButton(
-                    selected = onlineMode == (index == 1),
-                    onClick = { onlineMode = index == 1; if (onlineMode) onlineViewModel.setQuery(state.query) },
-                    shape = SegmentedButtonDefaults.itemShape(index = index, count = labels.size),
-                    label = { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                )
-            }
-        }
-        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TextButton(onClick = onOpenAdvancedSearch) { Text(stringResource(R.string.advanced_search)) }
-            TextButton(onClick = onOpenCollections) { Text(stringResource(R.string.collections)) }
-            TextButton(onClick = refresh) { Text(stringResource(R.string.refresh_music_data)) }
-        }
-        if (!onlineMode) {
-            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(pluralStringResource(R.plurals.library_count, state.albums.size, state.albums.size), style = MaterialTheme.typography.labelLarge)
-                Spacer(Modifier.weight(1f))
-                SortMenu(state.sort, viewModel::setSort)
-            }
-            Spacer(Modifier.height(8.dp))
-            if (state.error != null) {
-                YounekoErrorState(state.error ?: stringResource(R.string.error_generic), onRetry = viewModel::clearError, modifier = Modifier.weight(1f).fillMaxWidth())
-            } else if (state.albums.isEmpty()) {
-                EmptyLibrary(onAddAlbum, hasQuery = state.query.isNotBlank() || state.unfinishedOnly)
-            } else if (state.gridView) {
-                LazyVerticalGrid(
-                    columns = GridCells.Adaptive(160.dp),
-                    modifier = Modifier.weight(1f).pointerInput(Unit) {
-                        var pulled = 0f
-                        detectVerticalDragGestures(
-                            onVerticalDrag = { change, dragAmount ->
-                                if (dragAmount > 0f) pulled += dragAmount
-                                change.consume()
-                            },
-                            onDragEnd = { if (pulled >= 120f) refresh() },
-                            onDragCancel = { pulled = 0f },
-                        )
-                    },
-                    contentPadding = PaddingValues(start = YnDimens.space4, end = YnDimens.space4, top = YnDimens.space4, bottom = YnDimens.navigationSafe),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    if (refreshing) {
-                        items(6, key = { "skeleton-$it" }) { YnSkeleton(Modifier.padding(YnDimens.space2)) }
-                    } else {
-                        items(state.albums, key = { stableAlbumKey(it.album.id) }) { item -> AlbumCard(item, onOpenAlbum) }
-                    }
+        if (onlineMode) {
+            MusicBrainzSearchPanel(viewModel = onlineViewModel, onImported = onOpenAlbum, modifier = Modifier.weight(1f).fillMaxWidth())
+        } else if (state.gridView) {
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(160.dp),
+                modifier = Modifier.weight(1f).pointerInput(Unit) {
+                    var pulled = 0f
+                    detectVerticalDragGestures(
+                        onVerticalDrag = { change, dragAmount -> if (dragAmount > 0f) pulled += dragAmount; change.consume() },
+                        onDragEnd = { if (pulled >= 120f) refresh() },
+                        onDragCancel = { pulled = 0f },
+                    )
+                },
+                contentPadding = PaddingValues(start = YnDimens.space4, end = YnDimens.space4, top = YnDimens.space2, bottom = YnDimens.navigationSafe),
+                horizontalArrangement = Arrangement.spacedBy(YnDimens.space3),
+                verticalArrangement = Arrangement.spacedBy(YnDimens.space3),
+            ) {
+                item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
+                    LibraryListHeader(state, onlineMode, searchActive, { searchActive = it }, { query -> viewModel.setQuery(query); onlineViewModel.setQuery(query) }, { selectedOnline -> onlineMode = selectedOnline; if (selectedOnline) onlineViewModel.setQuery(state.query) }, onOpenAdvancedSearch, onOpenCollections, refresh, viewModel::setSort)
                 }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.weight(1f).pointerInput(Unit) {
-                        var pulled = 0f
-                        detectVerticalDragGestures(
-                            onVerticalDrag = { change, dragAmount ->
-                                if (dragAmount > 0f) pulled += dragAmount
-                                change.consume()
-                            },
-                            onDragEnd = { if (pulled >= 120f) refresh() },
-                            onDragCancel = { pulled = 0f },
-                        )
-                    },
-                    contentPadding = PaddingValues(start = YnDimens.space4, end = YnDimens.space4, top = YnDimens.space4, bottom = YnDimens.navigationSafe),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    items(state.albums, key = { stableAlbumKey(it.album.id) }) { item -> AlbumListRow(item, onOpenAlbum) }
+                when {
+                    state.error != null -> item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) { YounekoErrorState(state.error ?: stringResource(R.string.error_generic), onRetry = viewModel::clearError, modifier = Modifier.fillMaxWidth()) }
+                    state.albums.isEmpty() -> item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) { EmptyLibrary(onAddAlbum, hasQuery = state.query.isNotBlank() || state.unfinishedOnly) }
+                    refreshing -> items(6, key = { "skeleton-$it" }) { YnSkeleton(Modifier.padding(YnDimens.space2)) }
+                    else -> items(state.albums, key = { stableAlbumKey(it.album.id) }) { item -> AlbumCard(item, onOpenAlbum) }
                 }
             }
         } else {
-            MusicBrainzSearchPanel(
-                viewModel = onlineViewModel,
-                onImported = onOpenAlbum,
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-            )
+            LazyColumn(
+                modifier = Modifier.weight(1f).pointerInput(Unit) {
+                    var pulled = 0f
+                    detectVerticalDragGestures(
+                        onVerticalDrag = { change, dragAmount -> if (dragAmount > 0f) pulled += dragAmount; change.consume() },
+                        onDragEnd = { if (pulled >= 120f) refresh() },
+                        onDragCancel = { pulled = 0f },
+                    )
+                },
+                contentPadding = PaddingValues(start = YnDimens.space4, end = YnDimens.space4, top = YnDimens.space2, bottom = YnDimens.navigationSafe),
+                verticalArrangement = Arrangement.spacedBy(YnDimens.space3),
+            ) {
+                item { LibraryListHeader(state, onlineMode, searchActive, { searchActive = it }, { query -> viewModel.setQuery(query); onlineViewModel.setQuery(query) }, { selectedOnline -> onlineMode = selectedOnline; if (selectedOnline) onlineViewModel.setQuery(state.query) }, onOpenAdvancedSearch, onOpenCollections, refresh, viewModel::setSort) }
+                when {
+                    state.error != null -> item { YounekoErrorState(state.error ?: stringResource(R.string.error_generic), onRetry = viewModel::clearError, modifier = Modifier.fillMaxWidth()) }
+                    state.albums.isEmpty() -> item { EmptyLibrary(onAddAlbum, hasQuery = state.query.isNotBlank() || state.unfinishedOnly) }
+                    else -> items(state.albums, key = { stableAlbumKey(it.album.id) }) { item -> AlbumListRow(item, onOpenAlbum) }
+                }
+            }
         }
     }
     if (showFilters) {
@@ -307,6 +257,56 @@ fun LibraryScreen(
                 onUnfinished = viewModel::setUnfinishedOnly,
                 onClear = { viewModel.setUnfinishedOnly(false) },
             )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LibraryListHeader(
+    state: LibraryUiState,
+    onlineMode: Boolean,
+    searchActive: Boolean,
+    onSearchActiveChange: (Boolean) -> Unit,
+    onQueryChange: (String) -> Unit,
+    onOnlineModeChange: (Boolean) -> Unit,
+    onOpenAdvancedSearch: () -> Unit,
+    onOpenCollections: () -> Unit,
+    onRefresh: () -> Unit,
+    onSort: (LibrarySort) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(YnDimens.space2)) {
+        SearchBar(
+            query = state.query,
+            onQueryChange = onQueryChange,
+            onSearch = { onSearchActiveChange(false) },
+            active = searchActive,
+            onActiveChange = onSearchActiveChange,
+            placeholder = { Text(stringResource(R.string.search_hint)) },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = stringResource(R.string.search), modifier = Modifier.size(YnDimens.iconMedium)) },
+            trailingIcon = if (state.query.isNotBlank()) ({ IconButton(onClick = { onQueryChange("") }) { Icon(Icons.Default.Close, contentDescription = stringResource(R.string.close), modifier = Modifier.size(YnDimens.iconMedium)) } }) else null,
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text(stringResource(R.string.search_library), Modifier.padding(YnDimens.space4)) }
+        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+            val labels = listOf(stringResource(R.string.search_on_device), stringResource(R.string.search_online))
+            labels.forEachIndexed { index, label ->
+                SegmentedButton(
+                    selected = onlineMode == (index == 1),
+                    onClick = { onOnlineModeChange(index == 1) },
+                    shape = SegmentedButtonDefaults.itemShape(index = index, count = labels.size),
+                    label = { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                )
+            }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(YnDimens.space2)) {
+            TextButton(onClick = onOpenAdvancedSearch) { Text(stringResource(R.string.advanced_search)) }
+            TextButton(onClick = onOpenCollections) { Text(stringResource(R.string.collections)) }
+            TextButton(onClick = onRefresh) { Text(stringResource(R.string.refresh_music_data)) }
+        }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(pluralStringResource(R.plurals.library_count, state.albums.size, state.albums.size), style = MaterialTheme.typography.labelLarge)
+            Spacer(Modifier.weight(1f))
+            SortMenu(state.sort, onSort)
         }
     }
 }
