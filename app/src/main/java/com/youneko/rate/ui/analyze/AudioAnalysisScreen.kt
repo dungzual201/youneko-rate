@@ -12,6 +12,8 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
 import android.graphics.Paint
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,6 +21,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -65,6 +68,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -75,6 +79,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.FileProvider
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExpandLess
@@ -580,7 +585,13 @@ private fun SpectrogramPanel(cached: CachedSpectrogram?, context: android.conten
                     FilterChip(selected = false, onClick = { dbFloor = if (dbFloor <= -100f) -90f else if (dbFloor <= -90f) -100f else -120f }, label = { Text(stringResource(R.string.spectrogram_db_range, dbFloor.toInt())) })
                     FilterChip(selected = false, onClick = { resetToken++ }, label = { Text(stringResource(R.string.spectrogram_reset_zoom)) })
                 }
-                SpectrogramView(cached, logarithmic, dbFloor, showAxes, resetToken = resetToken, modifier = Modifier.fillMaxWidth().aspectRatio(16f / 10f), onTooltip = { tooltip = it })
+                Box(Modifier.fillMaxWidth().aspectRatio(16f / 10f)) {
+                    SpectrogramView(cached, logarithmic, dbFloor, showAxes, resetToken = resetToken, modifier = Modifier.fillMaxSize(), onTooltip = { tooltip = it })
+                    DbLegend(
+                        dbFloor = dbFloor,
+                        modifier = Modifier.align(Alignment.CenterEnd).padding(end = 6.dp, top = 8.dp, bottom = if (showAxes) 36.dp else 8.dp),
+                    )
+                }
                 tooltip?.let { Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary) }
             }
         }
@@ -594,6 +605,22 @@ private fun SpectrogramPanel(cached: CachedSpectrogram?, context: android.conten
                 }
                 SpectrogramView(cached, logarithmic, dbFloor, showAxes, resetToken = resetToken, modifier = Modifier.fillMaxWidth().aspectRatio(0.9f), onTooltip = { tooltip = it })
             }
+        }
+    }
+}
+
+@Composable
+private fun DbLegend(dbFloor: Float, modifier: Modifier = Modifier) {
+    Row(modifier.width(56.dp).fillMaxHeight(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Box(
+            Modifier.width(18.dp).fillMaxHeight().clip(RoundedCornerShape(4.dp)).background(
+                Brush.verticalGradient(listOf(Color.White, Color.Yellow, Color.Red, Color(0xFFB0006D), Color.Black)),
+            ),
+        )
+        Column(Modifier.fillMaxHeight(), verticalArrangement = Arrangement.SpaceBetween) {
+            Text(stringResource(R.string.spectrogram_db_zero), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.spectrogram_db_mid), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.spectrogram_db_floor, dbFloor.toInt()), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

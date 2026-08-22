@@ -87,6 +87,9 @@
     <string name="spectrogram_hide_axes">Hide axes</string>
     <string name="spectrogram_show_axes">Show axes</string>
     <string name="spectrogram_db_range">dB range: %1$d</string>
+    <string name="spectrogram_db_zero">0 dB</string>
+    <string name="spectrogram_db_mid">-60 dB</string>
+    <string name="spectrogram_db_floor">%1$d dB</string>
     <string name="spectrogram_export_png">Export PNG</string>
     <string name="spectrogram_fullscreen">Open fullscreen spectrum</string>
     <string name="spectrogram_share">Share spectrogram</string>

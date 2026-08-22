@@ -110,7 +110,7 @@ fun SpectrogramView(
                 .pointerInput(plotBitmap, showAxes) {
                     detectTransformGestures { _, pan, zoomChange, _ ->
                         zoom = (zoom * zoomChange).coerceIn(1f, 8f)
-                        val plotWidth = (size.width - if (showAxes) 92f else 0f).coerceAtLeast(1f)
+                        val plotWidth = (size.width - if (showAxes) 92f else 64f).coerceAtLeast(1f)
                         val maxPan = plotWidth * (zoom - 1f)
                         panX = (panX + pan.x).coerceIn(-maxPan, 0f)
                     }
@@ -119,7 +119,7 @@ fun SpectrogramView(
                     detectTapGestures { position ->
                         val left = if (showAxes) 52f else 0f
                         val top = 12f
-                        val right = size.width - if (showAxes) 42f else 0f
+                        val right = size.width - if (showAxes) 42f else 64f
                         val bottom = size.height - if (showAxes) 34f else 0f
                         val plotWidth = (right - left).coerceAtLeast(1f)
                         val plotHeight = (bottom - top).coerceAtLeast(1f)
@@ -137,7 +137,7 @@ fun SpectrogramView(
         ) {
             val left = if (showAxes) 52f else 0f
             val top = 12f
-            val right = size.width - if (showAxes) 42f else 0f
+            val right = size.width - if (showAxes) 42f else 64f
             val bottom = size.height - if (showAxes) 34f else 0f
             val plotWidth = (right - left).coerceAtLeast(1f)
             val plotHeight = (bottom - top).coerceAtLeast(1f)
@@ -156,7 +156,6 @@ fun SpectrogramView(
                 drawLine(outline, Offset(left, top), Offset(left, bottom), strokeWidth = 2f)
                 drawLine(outline, Offset(left, bottom), Offset(right, bottom), strokeWidth = 2f)
                 drawAxes(this, left, top, right, bottom, cached, logarithmic, outline)
-                drawLegend(this, right + 8f, top, bottom, dbFloor, outline)
             }
         }
     }
@@ -193,25 +192,3 @@ private fun drawAxes(
     }
 }
 
-private fun drawLegend(
-    scope: androidx.compose.ui.graphics.drawscope.DrawScope,
-    x: Float,
-    top: Float,
-    bottom: Float,
-    dbFloor: Float,
-    outline: androidx.compose.ui.graphics.Color,
-) = with(scope) {
-    val width = 18f
-    val steps = 64
-    repeat(steps) { index ->
-        val normalized = index.toFloat() / (steps - 1)
-        val y = bottom - normalized * (bottom - top)
-        val nextY = bottom - (index + 1).toFloat() / (steps - 1) * (bottom - top)
-        drawRect(SpectrogramLut.color(dbFloor + normalized * -dbFloor, dbFloor).let { androidx.compose.ui.graphics.Color(it) }, androidx.compose.ui.geometry.Offset(x, nextY), androidx.compose.ui.geometry.Size(width, y - nextY + 1f))
-    }
-    val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = outline.toArgb(); textSize = 18f }
-    listOf(dbFloor, -60f, -30f, 0f).forEach { db ->
-        val y = bottom - ((db - dbFloor) / (0f - dbFloor)).coerceIn(0f, 1f) * (bottom - top)
-        drawIntoCanvas { canvas -> canvas.nativeCanvas.drawText("${db.roundToInt()} dB", x + width + 4f, y + 5f, paint) }
-    }
-}

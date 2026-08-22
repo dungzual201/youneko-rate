@@ -87,6 +87,9 @@
     <string name="spectrogram_hide_axes">Ẩn trục</string>
     <string name="spectrogram_show_axes">Hiện trục</string>
     <string name="spectrogram_db_range">Dải dB: %1$d</string>
+    <string name="spectrogram_db_zero">0 dB</string>
+    <string name="spectrogram_db_mid">-60 dB</string>
+    <string name="spectrogram_db_floor">%1$d dB</string>
     <string name="spectrogram_export_png">Xuất PNG</string>
     <string name="spectrogram_fullscreen">Mở phổ toàn màn hình</string>
     <string name="spectrogram_share">Chia sẻ phổ spectrogram</string>
