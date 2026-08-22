@@ -83,7 +83,7 @@ fun YounekoActionButton(
                         Text(label)
                     }
                     AsyncActionState.Success -> {
-                        Icon(Icons.Default.Check, contentDescription = null)
+                        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(20.dp))
                         Text(successLabel)
                     }
                 }

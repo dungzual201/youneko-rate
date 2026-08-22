@@ -403,7 +403,7 @@ fun RateScreen(onAddAlbum: () -> Unit, onImportTags: () -> Unit, onOpenAlbum: (S
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = onAddAlbum, modifier = Modifier.weight(1f)) {
-                Icon(Icons.Default.Add, contentDescription = null)
+                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_album), modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(6.dp))
                 Text(stringResource(R.string.add_album), maxLines = 3, overflow = TextOverflow.Ellipsis)
             }
@@ -412,7 +412,7 @@ fun RateScreen(onAddAlbum: () -> Unit, onImportTags: () -> Unit, onOpenAlbum: (S
             }
         }
         OutlinedButton(onClick = onImportTags, modifier = Modifier.fillMaxWidth()) {
-            Icon(Icons.Default.FolderOpen, contentDescription = null)
+            Icon(Icons.Default.FolderOpen, contentDescription = stringResource(R.string.import_music), modifier = Modifier.size(20.dp))
             Spacer(Modifier.width(6.dp))
             Text(stringResource(R.string.import_music), maxLines = 3, overflow = TextOverflow.Ellipsis)
         }
@@ -837,7 +837,7 @@ private fun TrackRow(
                 )
             }
             IconButton(onClick = { actionsOpen = true }) {
-                Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.track_actions))
+                Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.track_actions), modifier = Modifier.size(24.dp))
             }
         }
         if (track.isMissing) {

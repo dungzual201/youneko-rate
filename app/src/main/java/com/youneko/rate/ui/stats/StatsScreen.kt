@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -165,8 +166,8 @@ private fun shareStatsImage(context: Context, state: StatsUiState) {
 private fun StatsOverview(state: StatsUiState) {
     val average = state.averageScore?.let { "%.2f★".format(Locale.getDefault(), it) } ?: "—"
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(YnDimens.space3)) {
-        YnStatCard(state.ratedAlbums.toString(), stringResource(R.string.stats_rated_albums), { Icon(Icons.Default.Album, contentDescription = null) }, Modifier.weight(1f))
-        YnStatCard(average, stringResource(R.string.stats_average_score), { Icon(Icons.Default.Star, contentDescription = null) }, Modifier.weight(1f))
+        YnStatCard(state.ratedAlbums.toString(), stringResource(R.string.stats_rated_albums), { Icon(Icons.Default.Album, contentDescription = null, modifier = Modifier.size(24.dp)) }, Modifier.weight(1f))
+        YnStatCard(average, stringResource(R.string.stats_average_score), { Icon(Icons.Default.Star, contentDescription = null, modifier = Modifier.size(24.dp)) }, Modifier.weight(1f))
     }
 }
 

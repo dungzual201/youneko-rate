@@ -454,7 +454,7 @@ private fun AnalysisDetailsCard(analysis: AudioAnalysisEntity) {
         Column(Modifier.animateContentSize()) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(stringResource(R.string.audio_analysis_raw_metrics), Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, )
-                IconButton(onClick = { expanded = !expanded }) { Icon(if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore, contentDescription = stringResource(R.string.audio_analysis_expand_details)) }
+                IconButton(onClick = { expanded = !expanded }) { Icon(if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore, contentDescription = stringResource(R.string.audio_analysis_expand_details), modifier = Modifier.size(24.dp)) }
             }
             if (expanded) {
                 MetricGroup(stringResource(R.string.audio_analysis_group_source)) {
@@ -552,7 +552,7 @@ private fun SpectrogramPanel(cached: CachedSpectrogram?, context: android.conten
         Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(stringResource(R.string.spectrogram_title), Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, )
-                IconButton(onClick = { fullscreen = true }) { Icon(Icons.Default.Fullscreen, contentDescription = stringResource(R.string.spectrogram_fullscreen)) }
+                IconButton(onClick = { fullscreen = true }) { Icon(Icons.Default.Fullscreen, contentDescription = stringResource(R.string.spectrogram_fullscreen), modifier = Modifier.size(24.dp)) }
                 IconButton(onClick = {
                     cached?.let { value ->
                         scope.launch(Dispatchers.IO) {
@@ -565,7 +565,7 @@ private fun SpectrogramPanel(cached: CachedSpectrogram?, context: android.conten
                             }
                         }
                     }
-                }) { Icon(Icons.Default.FileDownload, contentDescription = stringResource(R.string.spectrogram_export_png)) }
+                }) { Icon(Icons.Default.FileDownload, contentDescription = stringResource(R.string.spectrogram_export_png), modifier = Modifier.size(20.dp)) }
             }
             if (cached == null) {
                 Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -590,7 +590,7 @@ private fun SpectrogramPanel(cached: CachedSpectrogram?, context: android.conten
             Column(Modifier.fillMaxWidth().padding(12.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(stringResource(R.string.spectrogram_title), Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
-                    IconButton(onClick = { fullscreen = false }) { Icon(Icons.Default.Close, contentDescription = stringResource(R.string.close)) }
+                    IconButton(onClick = { fullscreen = false }) { Icon(Icons.Default.Close, contentDescription = stringResource(R.string.close), modifier = Modifier.size(24.dp)) }
                 }
                 SpectrogramView(cached, logarithmic, dbFloor, showAxes, resetToken = resetToken, modifier = Modifier.fillMaxWidth().aspectRatio(0.9f), onTooltip = { tooltip = it })
             }

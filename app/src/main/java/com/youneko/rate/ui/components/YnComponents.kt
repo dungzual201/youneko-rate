@@ -117,7 +117,7 @@ fun YnTrackRow(track: TrackEntity, score: Double? = track.stars, onClick: () -> 
                 Text(track.title, style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(track.durationMs?.let(::formatDuration) ?: stringResource(R.string.audio_analysis_not_applicable), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            if (track.isMissing) Icon(Icons.Default.WarningAmber, contentDescription = stringResource(R.string.track_missing), tint = MaterialTheme.colorScheme.error)
+            if (track.isMissing) Icon(Icons.Default.WarningAmber, contentDescription = stringResource(R.string.track_missing), tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp))
             YnRatingBadge(score, large = false)
         }
     }
@@ -183,7 +183,7 @@ fun YnPrimaryButton(label: String, state: YnButtonState, onClick: () -> Unit, mo
         when (state) {
             YnButtonState.Idle -> Text(label)
             YnButtonState.Loading -> { CircularProgressIndicator(Modifier.size(YnDimens.space3), strokeWidth = 2.dp); Spacer(Modifier.width(YnDimens.space2)); Text(stringResource(R.string.loading)) }
-            YnButtonState.Success -> { Icon(Icons.Default.Check, contentDescription = null); Spacer(Modifier.width(YnDimens.space2)); Text(stringResource(R.string.saved)) }
+            YnButtonState.Success -> { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(20.dp)); Spacer(Modifier.width(YnDimens.space2)); Text(stringResource(R.string.saved)) }
         }
     }
 }
@@ -204,8 +204,8 @@ fun YnConfirmDialog(title: String, body: String, onConfirm: () -> Unit, onDismis
 fun YnMetricRow(label: String, value: String, onHelp: () -> Unit, warning: Boolean = false) {
     Row(Modifier.fillMaxWidth().padding(vertical = YnDimens.space1), verticalAlignment = Alignment.CenterVertically) {
         Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-        IconButton(onClick = onHelp, modifier = Modifier.size(YnDimens.minTouchTarget)) { Icon(Icons.Default.HelpOutline, contentDescription = stringResource(R.string.audio_analysis_help)) }
-        Text(value, color = if (warning) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface, fontWeight = if (warning) FontWeight.Bold else FontWeight.Medium)
+        IconButton(onClick = onHelp, modifier = Modifier.size(YnDimens.minTouchTarget)) { Icon(Icons.Default.HelpOutline, contentDescription = stringResource(R.string.audio_analysis_help), modifier = Modifier.size(20.dp)) }
+        Text(value, style = MaterialTheme.typography.bodyLarge, color = if (warning) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
     }
 }
 
@@ -223,7 +223,7 @@ private fun YnComponentsDarkPreview() { YounekoRateTheme(darkTheme = true) { Pre
 private fun PreviewComponents() {
     Column(Modifier.padding(YnDimens.space4), verticalArrangement = Arrangement.spacedBy(YnDimens.space3)) {
         YnRatingBadge(4.5, large = true)
-        YnStatCard("229", stringResource(R.string.library), { Icon(Icons.Default.Star, contentDescription = null) })
+        YnStatCard("229", stringResource(R.string.library), { Icon(Icons.Default.Star, contentDescription = null, modifier = Modifier.size(24.dp)) })
         YnSkeleton()
         YnMetricRow(stringResource(R.string.audio_analysis_cutoff), "24.0 kHz", {}, warning = false)
     }

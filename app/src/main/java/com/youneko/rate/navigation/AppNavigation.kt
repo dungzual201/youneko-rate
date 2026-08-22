@@ -97,7 +97,7 @@ fun YounekoNavHost() {
                     title = { Text(stringResource(mainTopBarTitle(currentDestination?.route))) },
                     actions = {
                         if (!isSettings) IconButton(onClick = { navController.navigate("settings") }) {
-                            Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.settings))
+                            Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.settings), modifier = Modifier.size(24.dp))
                         }
                     },
                 )
