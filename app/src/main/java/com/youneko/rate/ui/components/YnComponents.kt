@@ -14,6 +14,8 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -73,7 +75,8 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -209,15 +212,21 @@ fun YnRatingBadge(score: Double?, modifier: Modifier = Modifier, large: Boolean 
 }
 
 @Composable
+@OptIn(ExperimentalFoundationApi::class)
 fun YnAlbumCard(item: LibraryAlbum, onClick: () -> Unit, onLongClick: (() -> Unit)? = null, modifier: Modifier = Modifier) {
-    val gestureModifier = if (onLongClick == null) {
-        modifier
-    } else {
-        modifier.pointerInput(item.album.id) {
-            detectTapGestures(onTap = { onClick() }, onLongPress = { onLongClick() })
-        }
-    }
-    Card(onClick = if (onLongClick == null) onClick else ({}), modifier = gestureModifier, shape = RoundedCornerShape(YnDimens.radiusMd), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+    Card(
+        modifier = modifier
+            .semantics { role = Role.Button }
+            .combinedClickable(
+                onClick = {
+                    android.util.Log.d("NAVDEBUG", "album click id=${item.album.id}")
+                    onClick()
+                },
+                onLongClick = onLongClick,
+            ),
+        shape = RoundedCornerShape(YnDimens.radiusMd),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+    ) {
         Column(Modifier.padding(YnDimens.space3), verticalArrangement = Arrangement.spacedBy(YnDimens.space2)) {
             Box(Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(YnDimens.radiusSm))) {
                 CoverArtImage(item.album.coverUri, Modifier.fillMaxSize(), placeholderSeed = item.album.id, placeholderLabel = item.album.title)
