@@ -21,6 +21,7 @@ import androidx.core.os.LocaleListCompat
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -137,8 +138,11 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import com.youneko.rate.data.SettingsDataStore
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.pluralStringResource
@@ -684,24 +688,29 @@ fun AlbumDetailScreen(
             val palette = albumPalette
             val darkTheme = isSystemInDarkTheme()
             val dominantColor = palette?.dominant ?: androidx.compose.ui.graphics.Color(0xFF403A46)
-            val onGradientColor = if (contrastRatio(dominantColor, androidx.compose.ui.graphics.Color.Black) >= contrastRatio(dominantColor, androidx.compose.ui.graphics.Color.White)) androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color.White
+            val onGradientColor = androidx.compose.ui.graphics.Color.White
             val topBarContrast = contrastRatio(dominantColor, onGradientColor)
-            val topBarScrim = if (topBarContrast < 4.5) androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.30f) else androidx.compose.ui.graphics.Color.Transparent
-            android.util.Log.d("CONTRAST", "album=${value.album.id} bg=${dominantColor.toHex()} text=${onGradientColor.toHex()} ratio=$topBarContrast")
             val view = LocalView.current
+            val statusBarPx = ViewCompat.getRootWindowInsets(view)?.getInsets(WindowInsetsCompat.Type.statusBars())?.top ?: 0
+            val scrimHeight = with(LocalDensity.current) { statusBarPx.toDp() } + 120.dp
+            android.util.Log.d("CONTRAST", "album=${value.album.id} bg=${dominantColor.toHex()} text=#FFFFFF ratio=$topBarContrast")
             SideEffect {
                 (context as? Activity)?.window?.let { window ->
-                    WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = onGradientColor == androidx.compose.ui.graphics.Color.Black
+                    WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
                 }
             }
             val detailGradient = remember(value.album.id, palette, darkTheme) {
                 coverDetailGradient(palette, value.album.id, darkTheme)
             }
             Column(Modifier.fillMaxSize().background(detailGradient).verticalScroll(rememberScrollState()).padding(padding).padding(horizontal = 16.dp)) {
-                TopAppBar(
+                Box(Modifier.fillMaxWidth().height(scrimHeight)) {
+                    Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.55f), Color.Transparent))))
+                    TopAppBar(
+                    modifier = Modifier.align(Alignment.TopStart).fillMaxWidth(),
+                    windowInsets = WindowInsets(0),
                     title = { Text(stringResource(R.string.album_detail), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.a11y_back), modifier = Modifier.size(YnDimens.iconMedium)) } },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = topBarScrim, scrolledContainerColor = topBarScrim, titleContentColor = onGradientColor, navigationIconContentColor = onGradientColor, actionIconContentColor = onGradientColor),
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent, scrolledContainerColor = Color.Transparent, titleContentColor = onGradientColor, navigationIconContentColor = onGradientColor, actionIconContentColor = onGradientColor),
                     actions = {
                         Box {
                             IconButton(onClick = { menuExpanded = true }) { Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.edit_album), modifier = Modifier.size(YnDimens.iconMedium)) }
@@ -715,7 +724,8 @@ fun AlbumDetailScreen(
                             }
                         }
                     },
-                )
+                    )
+                }
                 Box(Modifier.fillMaxWidth().height(YnDimens.coverHeroHeight), contentAlignment = Alignment.Center) {
                     CoverArtImage(
                         value.album.coverUri,
