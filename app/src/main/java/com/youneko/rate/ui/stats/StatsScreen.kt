@@ -50,6 +50,7 @@ import com.youneko.rate.ui.YnDimens
 import com.youneko.rate.ui.YnMotion
 import com.youneko.rate.ui.rememberReducedMotion
 import com.youneko.rate.ui.components.YnStatCard
+import com.youneko.rate.ui.components.YnTabTitle
 import com.youneko.rate.data.local.dao.StatsCountRow
 import com.youneko.rate.data.local.dao.StatsValueRow
 import com.youneko.rate.data.local.dao.StatsDao
@@ -104,21 +105,28 @@ fun StatsScreen(contentPadding: PaddingValues = PaddingValues(), viewModel: Stat
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     if (state.loading) {
-        Column(Modifier.fillMaxWidth().padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) { CircularProgressIndicator() }
+        Column(Modifier.fillMaxWidth().padding(horizontal = YnDimens.space4)) {
+            YnTabTitle(R.string.stats)
+            CircularProgressIndicator()
+        }
         return
     }
     if (state.ratedAlbums == 0 && state.quality.isEmpty()) {
-        Column(Modifier.fillMaxWidth().padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(stringResource(R.string.stats_empty_title), style = MaterialTheme.typography.headlineSmall)
-            Text(stringResource(R.string.stats_no_data))
+        Column(Modifier.fillMaxWidth().padding(horizontal = YnDimens.space4)) {
+            YnTabTitle(R.string.stats)
+            Column(verticalArrangement = Arrangement.spacedBy(YnDimens.space3)) {
+                Text(stringResource(R.string.stats_empty_title), style = MaterialTheme.typography.headlineSmall)
+                Text(stringResource(R.string.stats_no_data))
+            }
         }
         return
     }
     LazyColumn(
         Modifier.fillMaxWidth(),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = contentPadding.calculateBottomPadding() + YnDimens.navigationSafe),
+        contentPadding = PaddingValues(start = YnDimens.space4, end = YnDimens.space4, top = 0.dp, bottom = contentPadding.calculateBottomPadding() + YnDimens.navigationSafe),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        item { YnTabTitle(R.string.stats) }
         item {
             Text(stringResource(R.string.stats_empty_title), style = MaterialTheme.typography.headlineSmall)
             Text(stringResource(R.string.stats_empty_body), style = MaterialTheme.typography.bodyMedium)

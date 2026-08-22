@@ -1,6 +1,7 @@
 package com.youneko.rate.ui.components
 
 import android.util.Log
+import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -125,6 +126,15 @@ fun YnSharedTopAppBar(
                 content = actions,
             )
         },
+    )
+}
+
+@Composable
+fun YnTabTitle(@StringRes titleRes: Int, modifier: Modifier = Modifier) {
+    Text(
+        text = stringResource(titleRes),
+        style = MaterialTheme.typography.headlineMedium,
+        modifier = modifier.padding(top = YnDimens.space1, bottom = YnDimens.space3),
     )
 }
 

@@ -174,6 +174,7 @@ import com.youneko.rate.data.lyrics.LyricLine
 import com.youneko.rate.ui.artwork.CoverArtImage
 import com.youneko.rate.ui.components.YnAlbumCard
 import com.youneko.rate.ui.components.YnSharedTopAppBar
+import com.youneko.rate.ui.components.YnTabTitle
 import com.youneko.rate.ui.components.YnSkeleton
 import com.youneko.rate.domain.usecase.ScoreMode
 import com.youneko.rate.domain.usecase.RatingScale
@@ -230,11 +231,7 @@ fun LibraryScreen(
                 }
             },
         )
-        Text(
-            stringResource(R.string.library),
-            style = MaterialTheme.typography.headlineMedium,
-            modifier = Modifier.padding(horizontal = YnDimens.space4, vertical = 0.dp).padding(top = YnDimens.space2, bottom = YnDimens.space3),
-        )
+        YnTabTitle(R.string.library, Modifier.padding(horizontal = YnDimens.space4))
         LibraryListHeader(
             state = state,
             onlineMode = onlineMode,
@@ -246,7 +243,7 @@ fun LibraryScreen(
             onOpenCollections = onOpenCollections,
             onRefresh = refresh,
             onSort = viewModel::setSort,
-            modifier = Modifier.padding(horizontal = YnDimens.space4, vertical = YnDimens.space2),
+            modifier = Modifier.padding(horizontal = YnDimens.space4),
         )
         when {
             onlineMode -> MusicBrainzSearchPanel(
@@ -457,8 +454,10 @@ fun RateScreen(onAddAlbum: () -> Unit, onImportTags: () -> Unit, onOpenAlbum: (S
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var showStandalone by rememberSaveable { mutableStateOf(false) }
     var filter by rememberSaveable { mutableStateOf(RateFilter.ALL) }
-    Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(Modifier.fillMaxSize().padding(horizontal = YnDimens.space4)) {
+        YnTabTitle(R.string.rate)
+        Column(verticalArrangement = Arrangement.spacedBy(YnDimens.space2), modifier = Modifier.fillMaxSize()) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(YnDimens.space2)) {
             Button(onClick = onAddAlbum, modifier = Modifier.weight(1f)) {
                 Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_album), modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(6.dp))
@@ -498,6 +497,7 @@ fun RateScreen(onAddAlbum: () -> Unit, onImportTags: () -> Unit, onOpenAlbum: (S
             ) {
                 items(rateItems, key = { stableAlbumKey(it.album.id) }) { item -> AlbumListRow(item, onOpenAlbum) }
             }
+        }
         }
     }
     if (showStandalone) StandaloneDialog(onDismiss = { showStandalone = false })

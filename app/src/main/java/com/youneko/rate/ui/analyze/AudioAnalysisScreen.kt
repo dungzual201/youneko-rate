@@ -124,6 +124,7 @@ import com.youneko.rate.data.importer.LocalAudioTagReader
 import com.youneko.rate.data.local.entity.AudioAnalysisEntity
 import com.youneko.rate.data.local.entity.TrackEntity
 import com.youneko.rate.ui.components.YnSharedTopAppBar
+import com.youneko.rate.ui.components.YnTabTitle
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
@@ -337,10 +338,11 @@ fun AudioAnalysisScreen(initialUri: String? = null, viewModel: AudioAnalysisView
         Box(Modifier.fillMaxSize()) {
             LazyColumn(
                 state = listState,
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 20.dp, top = 12.dp, end = 20.dp, bottom = YnDimens.navigationSafe),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(start = YnDimens.space6, top = 0.dp, end = YnDimens.space6, bottom = YnDimens.navigationSafe),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxSize().padding(innerPadding),
             ) {
+                item { YnTabTitle(R.string.analyze) }
                 if (latest != null) {
                     item {
                         androidx.compose.material3.OutlinedButton(
