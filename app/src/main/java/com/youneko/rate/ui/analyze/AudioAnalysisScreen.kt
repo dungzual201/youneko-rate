@@ -695,9 +695,10 @@ private fun SpectrogramPanel(cached: CachedSpectrogram?, context: android.conten
                     Text(stringResource(R.string.spectrogram_waiting), style = MaterialTheme.typography.bodySmall)
                 }
             } else {
-                Row(
-                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     FilterChip(selected = logarithmic, onClick = { val next = !logarithmic; logarithmic = next; scope.launch { settings.setSpectrogramLogarithmic(next) } }, label = { Text(stringResource(R.string.spectrogram_log_short)) }, modifier = Modifier.height(32.dp))
                     FilterChip(selected = !showAxes, onClick = { val next = !showAxes; showAxes = next; scope.launch { settings.setSpectrogramShowAxes(next) } }, label = { Text(stringResource(R.string.spectrogram_hide_axes)) }, modifier = Modifier.height(32.dp))
