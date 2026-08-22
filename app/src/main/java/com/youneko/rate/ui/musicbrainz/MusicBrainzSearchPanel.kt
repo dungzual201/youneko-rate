@@ -82,7 +82,7 @@ fun MusicBrainzSearchPanel(
     Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = modifier.fillMaxWidth()) {
         when {
             query.isBlank() -> Box(
-                modifier = Modifier.fillMaxWidth().weight(1f).navigationBarsPadding(),
+                modifier = Modifier.fillMaxWidth().weight(1f).heightIn(min = 320.dp).navigationBarsPadding(),
                 contentAlignment = Alignment.Center,
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
