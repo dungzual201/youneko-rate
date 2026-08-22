@@ -580,7 +580,7 @@ private fun SpectrogramPanel(cached: CachedSpectrogram?, context: android.conten
                     FilterChip(selected = false, onClick = { dbFloor = if (dbFloor <= -100f) -90f else if (dbFloor <= -90f) -100f else -120f }, label = { Text(stringResource(R.string.spectrogram_db_range, dbFloor.toInt())) })
                     FilterChip(selected = false, onClick = { resetToken++ }, label = { Text(stringResource(R.string.spectrogram_reset_zoom)) })
                 }
-                SpectrogramView(cached, logarithmic, dbFloor, showAxes, resetToken = resetToken, modifier = Modifier.fillMaxWidth().aspectRatio(1.45f), onTooltip = { tooltip = it })
+                SpectrogramView(cached, logarithmic, dbFloor, showAxes, resetToken = resetToken, modifier = Modifier.fillMaxWidth().aspectRatio(16f / 10f), onTooltip = { tooltip = it })
                 tooltip?.let { Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary) }
             }
         }
