@@ -24,6 +24,7 @@ object YnDimens {
     val ratingStarSize: Dp = 32.dp
     val coverDetail: Dp = 220.dp
     val coverHeroHeight: Dp = 420.dp
+    val coverHeroContentHeight: Dp = 360.dp
     val coverBlur: Dp = 40.dp
     val cardElevation: Dp = 2.dp
     val navigationSafe: Dp = 80.dp

@@ -158,6 +158,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.youneko.rate.BuildConfig
 import com.youneko.rate.R
 import com.youneko.rate.data.LibraryAlbum
 import com.youneko.rate.data.artwork.ArtworkStore
@@ -726,7 +727,7 @@ fun AlbumDetailScreen(
                     },
                     )
                 }
-                Box(Modifier.fillMaxWidth().height(YnDimens.coverHeroHeight), contentAlignment = Alignment.Center) {
+                Box(Modifier.fillMaxWidth().height(YnDimens.coverHeroContentHeight), contentAlignment = Alignment.Center) {
                     CoverArtImage(
                         value.album.coverUri,
                         Modifier.size(YnDimens.coverDetail)
@@ -739,7 +740,7 @@ fun AlbumDetailScreen(
                         placeholderLabel = value.album.title,
                     )
                 }
-                if (palette != null) {
+                if (BuildConfig.DEBUG && palette != null) {
                     Text(stringResource(R.string.palette_title), style = MaterialTheme.typography.labelLarge)
                     YnPaletteSwatches(
                         colors = palette!!.swatches,
@@ -748,7 +749,7 @@ fun AlbumDetailScreen(
                         onCopied = { hex -> scope.launch { snackbarHost.showSnackbar(paletteCopiedPattern.replace("%1\$s", hex)) } },
                     )
                 }
-                Text(value.album.title, style = MaterialTheme.typography.displaySmall, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = YnDimens.space3))
+                Text(value.album.title, style = MaterialTheme.typography.displaySmall, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = YnDimens.space2))
                 TextButton(onClick = { value.artist?.id?.let(onOpenArtist) }, enabled = value.artist != null) { Text(value.artist?.name.orEmpty(), style = MaterialTheme.typography.titleMedium) }
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 8.dp)) {
                     Text(value.score?.let { "${it.effectiveScore.format2()}★" } ?: stringResource(R.string.not_rated), style = MaterialTheme.typography.displaySmall, color = MaterialTheme.colorScheme.primary)
