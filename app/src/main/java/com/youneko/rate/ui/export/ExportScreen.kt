@@ -22,6 +22,9 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -30,6 +33,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLocale
@@ -97,6 +102,7 @@ class ExportViewModel @Inject constructor(private val database: YounekoDatabase,
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExportScreen(onBack: () -> Unit, viewModel: ExportViewModel = hiltViewModel()) {
     val context = LocalContext.current
@@ -140,9 +146,15 @@ fun ExportScreen(onBack: () -> Unit, viewModel: ExportViewModel = hiltViewModel(
         }
     }
 
-    Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        TextButton(onClick = onBack) { Text(stringResource(R.string.cancel)) }
-        Text(stringResource(R.string.backup_title), style = MaterialTheme.typography.headlineSmall)
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.backup_title)) },
+                navigationIcon = { androidx.compose.material3.IconButton(onClick = onBack) { androidx.compose.material3.Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.a11y_back)) } },
+            )
+        },
+    ) { innerPadding ->
+    Column(Modifier.fillMaxSize().padding(innerPadding).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(stringResource(R.string.backup_description), style = MaterialTheme.typography.bodyMedium)
         Divider()
         Button(onClick = { pendingBackupOptions = true }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.backup_export)) }
@@ -162,6 +174,7 @@ fun ExportScreen(onBack: () -> Unit, viewModel: ExportViewModel = hiltViewModel(
             Button(onClick = { shareCollage(context, data, 3) }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.export_collage_3x3)) }
             Button(onClick = { shareCollage(context, data, 4) }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.export_collage_4x4)) }
         }
+    }
     }
 
     if (pendingBackupOptions) {

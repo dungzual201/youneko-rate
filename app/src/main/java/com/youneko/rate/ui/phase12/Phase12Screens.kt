@@ -15,6 +15,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -22,6 +27,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -56,6 +63,7 @@ class CollectionsViewModel @Inject constructor(private val database: YounekoData
     fun delete(id: String) = viewModelScope.launch(Dispatchers.IO) { database.collectionDao().deleteCollection(id); load() }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CollectionsScreen(onBack: () -> Unit, viewModel: CollectionsViewModel = hiltViewModel()) {
     val collections by viewModel.collections.collectAsStateWithLifecycle()
@@ -63,15 +71,15 @@ fun CollectionsScreen(onBack: () -> Unit, viewModel: CollectionsViewModel = hilt
     var name by rememberSaveable { mutableStateOf("") }
     var description by rememberSaveable { mutableStateOf("") }
     LaunchedEffect(Unit) { viewModel.load() }
-    Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        TextButton(onClick = onBack) { Text(stringResource(R.string.cancel)) }
-        Text(stringResource(R.string.collections), style = MaterialTheme.typography.headlineSmall)
+    Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.collections)) }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.a11y_back)) } }) }) { innerPadding ->
+    Column(Modifier.fillMaxSize().padding(innerPadding).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Button(onClick = { showCreate = true }) { Text(stringResource(R.string.collection_create)) }
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(collections, key = { it.id }) { collection ->
                 Card(Modifier.fillMaxWidth()) { Row(Modifier.padding(12.dp)) { Column(Modifier.weight(1f)) { Text(collection.name, style = MaterialTheme.typography.titleMedium); collection.description?.let { Text(it) } }; TextButton(onClick = { viewModel.delete(collection.id) }) { Text(stringResource(R.string.delete_album)) } } }
             }
         }
+    }
     }
     if (showCreate) AlertDialog(
         onDismissRequest = { showCreate = false },
@@ -96,14 +104,15 @@ class ArtistPageViewModel @Inject constructor(private val database: YounekoDatab
 data class ArtistPageState(val name: String, val albums: List<ArtistAlbum>)
 data class ArtistAlbum(val album: AlbumEntity, val score: Double?)
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ArtistPageScreen(artistId: String, onBack: () -> Unit, viewModel: ArtistPageViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     LaunchedEffect(artistId) { viewModel.load(artistId) }
-    Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        TextButton(onClick = onBack) { Text(stringResource(R.string.cancel)) }
-        Text(state?.name.orEmpty(), style = MaterialTheme.typography.headlineSmall)
+    Scaffold(topBar = { TopAppBar(title = { Text(state?.name.orEmpty()) }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.a11y_back)) } }) }) { innerPadding ->
+    Column(Modifier.fillMaxSize().padding(innerPadding).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         state?.albums?.let { albums -> LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) { items(albums, key = { it.album.id }) { item -> Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(12.dp)) { Text(item.album.title, style = MaterialTheme.typography.titleMedium); Text(item.score?.let { "%.1f/5".format(it) } ?: stringResource(R.string.not_rated)) } } } } }
+    }
     }
 }
 
@@ -133,6 +142,7 @@ class AdvancedSearchViewModel @Inject constructor(private val database: YounekoD
 }
 data class AdvancedSearchResult(val album: AlbumEntity, val artist: String, val score: Double?)
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdvancedSearchScreen(onBack: () -> Unit, viewModel: AdvancedSearchViewModel = hiltViewModel()) {
     val results by viewModel.results.collectAsStateWithLifecycle()
@@ -142,9 +152,8 @@ fun AdvancedSearchScreen(onBack: () -> Unit, viewModel: AdvancedSearchViewModel 
     var tag by rememberSaveable { mutableStateOf("") }
     var credit by rememberSaveable { mutableStateOf("") }
     var verdict by rememberSaveable { mutableStateOf("") }
-    Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        TextButton(onClick = onBack) { Text(stringResource(R.string.cancel)) }
-        Text(stringResource(R.string.advanced_search), style = MaterialTheme.typography.headlineSmall)
+    Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.advanced_search)) }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.a11y_back)) } }) }) { innerPadding ->
+    Column(Modifier.fillMaxSize().padding(innerPadding).padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedTextField(query, { query = it }, modifier = Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.search_hint)) })
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedTextField(min, { min = it }, modifier = Modifier.weight(1f), label = { Text(stringResource(R.string.advanced_min_score)) }); OutlinedTextField(max, { max = it }, modifier = Modifier.weight(1f), label = { Text(stringResource(R.string.advanced_max_score)) }) }
         OutlinedTextField(tag, { tag = it }, modifier = Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.advanced_tag)) })
@@ -152,5 +161,6 @@ fun AdvancedSearchScreen(onBack: () -> Unit, viewModel: AdvancedSearchViewModel 
         OutlinedTextField(verdict, { verdict = it }, modifier = Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.advanced_audio_verdict)) })
         Button(onClick = { viewModel.search(query, min.toDoubleOrNull(), max.toDoubleOrNull(), tag, credit, verdict) }) { Text(stringResource(R.string.search)) }
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) { items(results, key = { it.album.id }) { item -> Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(12.dp)) { Text(item.album.title, style = MaterialTheme.typography.titleMedium); Text(item.artist); Text(item.score?.let { "%.1f/5".format(it) } ?: stringResource(R.string.not_rated)) } } } }
+    }
     }
 }

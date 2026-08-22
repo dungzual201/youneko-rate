@@ -220,6 +220,7 @@
     <string name="create_new">Create new</string>
     <string name="load_more">Load more</string>
     <string name="close">Close</string>
+    <string name="a11y_back">Back</string>
     <string name="network_offline">Offline mode is enabled.</string>
     <string name="network_no_connection">No network connection.</string>
     <string name="network_timeout">MusicBrainz connection timed out.</string>
