@@ -2,6 +2,9 @@ package com.youneko.rate
 
 import androidx.lifecycle.SavedStateHandle
 import androidx.test.core.app.ApplicationProvider
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import com.youneko.rate.data.AlbumDraft
 import com.youneko.rate.data.AlbumRepository
@@ -42,6 +45,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
+@RunWith(RobolectricTestRunner::class)
+@Config(application = YounekoRateApplication::class, sdk = [35])
 class AlbumNavigationHotfixTest {
     @Test
     fun add_emits_openAlbum_event_after_repository_returns_id() = runTest {

@@ -642,6 +642,7 @@ fun AlbumDetailScreen(
     var menuExpanded by rememberSaveable { mutableStateOf(false) }
     val snackbarHost = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val paletteCopiedPattern = stringResource(R.string.palette_copied)
     val refreshResult by viewModel.refreshResult.collectAsStateWithLifecycle()
     val ratingScale by viewModel.ratingScale.collectAsStateWithLifecycle()
     val albumPalette by viewModel.palette.collectAsStateWithLifecycle()
@@ -686,7 +687,7 @@ fun AlbumDetailScreen(
                         colors = palette!!.swatches,
                         onReleased = {},
                         modifier = Modifier.fillMaxWidth().padding(vertical = YnDimens.space2),
-                        onCopied = { hex -> scope.launch { snackbarHost.showSnackbar(context.getString(R.string.palette_copied, hex)) } },
+                        onCopied = { hex -> scope.launch { snackbarHost.showSnackbar(paletteCopiedPattern.replace("%1\$s", hex)) } },
                     )
                 }
                 Text(value.album.title, style = MaterialTheme.typography.displaySmall, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = YnDimens.space3))
@@ -768,7 +769,7 @@ fun AlbumDetailScreen(
                 model = coverUri,
                 palette = albumPalette,
                 onDismiss = { showFullCover = false },
-                onCopied = { hex -> scope.launch { snackbarHost.showSnackbar(context.getString(R.string.palette_copied, hex)) } },
+                onCopied = { hex -> scope.launch { snackbarHost.showSnackbar(paletteCopiedPattern.replace("%1\$s", hex)) } },
             )
         }
     }
@@ -801,6 +802,7 @@ internal fun CoverArtFullscreenDialog(
     var offset by remember { mutableStateOf(Offset.Zero) }
     var swipeDistance by remember { mutableFloatStateOf(0f) }
     val context = LocalContext.current
+    val shareTitle = stringResource(R.string.cover_share)
     val transformState = rememberTransformableState { zoomChange, panChange, _ ->
         scale = (scale * zoomChange).coerceIn(1f, 5f)
         if (scale > 1f) offset += panChange
@@ -847,7 +849,7 @@ internal fun CoverArtFullscreenDialog(
                     IconButton(onClick = onSave) { Icon(Icons.Default.SaveAlt, contentDescription = stringResource(R.string.cover_save), tint = Color.White) }
                     IconButton(onClick = {
                         val send = Intent(Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(Intent.EXTRA_TEXT, model.toString()) }
-                        context.startActivity(Intent.createChooser(send, context.getString(R.string.cover_share)))
+                        context.startActivity(Intent.createChooser(send, shareTitle))
                     }) { Icon(Icons.Default.Share, contentDescription = stringResource(R.string.cover_share), tint = Color.White) }
                 }
             }
