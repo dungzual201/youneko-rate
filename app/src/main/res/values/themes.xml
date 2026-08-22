@@ -10,4 +10,10 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
     </style>
+
+    <style name="Theme.YounekoRate.Starter" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/youneko_purple</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_paw</item>
+        <item name="postSplashScreenTheme">@style/Theme.YounekoRate</item>
+    </style>
 </resources>

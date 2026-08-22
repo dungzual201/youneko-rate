@@ -2,6 +2,7 @@ package com.youneko.rate
 
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.getValue
@@ -27,6 +28,7 @@ class MainActivity : AppCompatActivity() {
     @Inject lateinit var mediaStoreScanner: MediaStoreScanner
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         mediaScanCoordinator.attach(this)
