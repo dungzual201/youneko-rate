@@ -744,10 +744,10 @@ fun AlbumDetailScreen(
             val value = (state as AlbumDetailUiState.Content).album
             android.util.Log.d("INSET", "screen=album_detail topPadding=${padding.calculateTopPadding().value}dp")
             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(padding).padding(horizontal = 16.dp)) {
-                Box(Modifier.fillMaxWidth().height(YnDimens.coverHeroContentHeight), contentAlignment = Alignment.Center) {
+                Box(Modifier.fillMaxWidth().padding(top = YnDimens.space4), contentAlignment = Alignment.Center) {
                     CoverArtImage(
                         value.album.coverUri,
-                        Modifier.size(YnDimens.coverDetail)
+                        Modifier.fillMaxWidth(0.72f)
                             .aspectRatio(1f)
                             .clip(RoundedCornerShape(16.dp))
                             .shadow(12.dp, RoundedCornerShape(16.dp))
@@ -757,7 +757,7 @@ fun AlbumDetailScreen(
                         placeholderLabel = value.album.title,
                     )
                 }
-                Text(value.album.title, style = MaterialTheme.typography.displaySmall, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = YnDimens.space2))
+                Text(value.album.title, style = MaterialTheme.typography.displaySmall, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = YnDimens.space5))
                 TextButton(onClick = { value.artist?.id?.let(onOpenArtist) }, enabled = value.artist != null) { Text(value.artist?.name.orEmpty(), style = MaterialTheme.typography.titleMedium) }
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 8.dp)) {
                     Text(value.score?.let { "${it.effectiveScore.format2()}★" } ?: stringResource(R.string.not_rated), style = MaterialTheme.typography.displaySmall, color = MaterialTheme.colorScheme.primary)
