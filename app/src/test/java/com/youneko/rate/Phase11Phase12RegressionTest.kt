@@ -71,13 +71,6 @@ class Phase11Phase12RegressionTest {
         assertEquals(5, ManualCreditParser.parse(text).size)
     }
 
-    @Test fun d9_emptyCreditsIsOneUnifiedBlock() {
-        val source = repoFile("src/main/java/com/youneko/rate/ui/credits/CreditsScreen.kt").readText()
-        assertEquals(1, Regex("credits_empty_truthful").findAll(source).count())
-        assertEquals(1, Regex("credits_reason_no_manual").findAll(source).count())
-        assertTrue(source.contains("credits_add_manual"))
-    }
-
     @Test fun d10_noPlaybackTokensInMainSource() {
         val root = repoFile("src/main/java")
         val source = root.walkTopDown().filter { it.isFile && it.extension == "kt" }.joinToString("\n") { it.readText() }

@@ -12,7 +12,9 @@ import com.youneko.rate.ui.younekoSpring
 import com.youneko.rate.ui.stableAlbumKey
 
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
+import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.animation.animateContentSize
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -185,7 +187,22 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 import kotlin.math.abs
+
+private fun Context.openGoogleSearch(query: String) {
+    val cleanQuery = query.trim().replace(Regex("\\s+"), " ")
+    if (cleanQuery.isBlank()) return
+    val encoded = URLEncoder.encode(cleanQuery, StandardCharsets.UTF_8.name())
+    val uri = Uri.parse("https://www.google.com/search?q=$encoded")
+    val openedInCustomTab = runCatching { CustomTabsIntent.Builder().build().launchUrl(this, uri) }.isSuccess
+    if (!openedInCustomTab) {
+        val intent = Intent(Intent.ACTION_VIEW, uri)
+        if (this !is Activity) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        startActivity(intent)
+    }
+}
 
 private fun androidx.compose.ui.graphics.Color.toHex(): String = "#%08X".format(toArgb())
 
@@ -642,7 +659,6 @@ private fun AlbumTypeMenu(value: String, onValue: (String) -> Unit) {
 @Composable
 fun AlbumDetailScreen(
     onBack: () -> Unit,
-    onViewCredits: (albumId: String, trackId: String?, releaseMbid: String?) -> Unit = { _, _, _ -> },
     onOpenArtist: (String) -> Unit = {},
     onAnalyzeTrack: (String) -> Unit = {},
     onSearchCover: (String) -> Unit = {},
@@ -730,7 +746,7 @@ fun AlbumDetailScreen(
                                 DropdownMenuItem(text = { Text(stringResource(R.string.reload_cover), maxLines = 3, overflow = TextOverflow.Ellipsis) }, onClick = { menuExpanded = false; viewModel.reloadCover() })
                                 DropdownMenuItem(text = { Text(stringResource(R.string.choose_manual_cover), maxLines = 3, overflow = TextOverflow.Ellipsis) }, onClick = { menuExpanded = false; manualCoverPicker.launch(arrayOf("image/*")) })
                                 DropdownMenuItem(text = { Text(stringResource(R.string.menu_search_cover_online), maxLines = 3, overflow = TextOverflow.Ellipsis) }, onClick = { menuExpanded = false; contentValue?.let { onSearchCover(it.album.id) } })
-                                DropdownMenuItem(text = { Text(stringResource(R.string.view_credits), maxLines = 3, overflow = TextOverflow.Ellipsis) }, onClick = { menuExpanded = false; contentValue?.let { onViewCredits(it.album.id, null, it.album.mbid) } })
+                                DropdownMenuItem(text = { Text(stringResource(R.string.search_on_google), maxLines = 3, overflow = TextOverflow.Ellipsis) }, onClick = { menuExpanded = false; contentValue?.let { context.openGoogleSearch(listOfNotNull(it.artist?.name, it.album.title).joinToString(" ")) } })
                                 DropdownMenuItem(text = { Text(stringResource(R.string.delete_album), maxLines = 3, overflow = TextOverflow.Ellipsis) }, onClick = { menuExpanded = false; showDelete = true }, leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) })
                             }
                         }
@@ -801,7 +817,7 @@ fun AlbumDetailScreen(
                         track = track,
                         onChanged = viewModel::updateTrack,
                         ratingScale = ratingScale,
-                        onViewCredits = { onViewCredits(value.album.id, track.id, value.album.mbid) },
+                        onSearchGoogle = { context.openGoogleSearch(listOfNotNull(value.artist?.name, track.title).joinToString(" ")) },
                         onAnalyzeTrack = { onAnalyzeTrack(track.id) },
                     )
                 }
@@ -932,7 +948,7 @@ private fun TrackRow(
     track: TrackEntity,
     onChanged: (TrackEntity) -> Unit,
     ratingScale: RatingScale = RatingScale.FIVE_STARS,
-    onViewCredits: () -> Unit = {},
+    onSearchGoogle: () -> Unit = {},
     onAnalyzeTrack: () -> Unit = {},
 ) {
     val context = LocalContext.current
@@ -1022,7 +1038,7 @@ private fun TrackRow(
         ) {
             Column(Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
                 Text(track.title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp), maxLines = 3, overflow = TextOverflow.Ellipsis)
-                TextButton(onClick = { closeSheetThen(onViewCredits) }) { Text(stringResource(R.string.track_credits)) }
+                TextButton(onClick = { closeSheetThen(onSearchGoogle) }) { Text(stringResource(R.string.search_on_google)) }
                 TextButton(onClick = { closeSheetThen { reviewExpanded = true } }) { Text(stringResource(R.string.track_review)) }
                 TextButton(onClick = { closeSheetThen { /* inline stars remain the score control */ } }) { Text(stringResource(R.string.track_score)) }
                 TextButton(onClick = { closeSheetThen(onAnalyzeTrack) }) { Text(stringResource(R.string.track_analyze_quality)) }

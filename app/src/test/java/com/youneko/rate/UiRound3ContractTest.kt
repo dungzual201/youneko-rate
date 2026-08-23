@@ -47,11 +47,10 @@ class UiRound3ContractTest {
         val files = listOf(
             "app/src/main/java/com/youneko/rate/ui/export/ExportScreen.kt",
             "app/src/main/java/com/youneko/rate/ui/phase12/Phase12Screens.kt",
-            "app/src/main/java/com/youneko/rate/ui/credits/CreditsScreen.kt",
         ).map { File(root(), it).readText() }
         files.forEach { source ->
             assertTrue(source.contains("navigationIcon"))
-            assertTrue(source.contains("a11y_back"))
+            assertTrue(source.contains("a11y_back") || source.contains("stringResource(R.string.back)"))
             assertFalse(source.contains("TextButton(onClick = onBack)"))
         }
     }

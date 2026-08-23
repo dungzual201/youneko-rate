@@ -239,6 +239,7 @@
     <string name="a11y_cover_fullscreen">Album cover, full screen</string>
     <string name="a11y_palette_swatch">Color %1$s, hold to view code</string>
     <string name="menu_search_cover_online">Search cover online</string>
+    <string name="search_on_google">Search on Google</string>
     <string name="cover_search_title">Find cover art</string>
     <string name="cover_search_official_pending">Opening the official cover integration…</string>
     <string name="cover_fallback_hint">If the embedded page cannot return a result, hold the cover, save it, then import it from the gallery.</string>
@@ -402,7 +403,6 @@
     <string name="track_analyze_quality">Analyze quality</string>
     <string name="track_musicbrainz">View on MusicBrainz</string>
     <string name="track_actions">Track actions</string>
-    <string name="track_credits">Credits</string>
     <string name="track_mark_highlight">Mark as highlight</string>
     <string name="track_unmark_highlight">Remove highlight</string>
     <string name="track_skip">Skip this track</string>
@@ -443,11 +443,8 @@
     <string name="refresh_metadata">Refresh metadata</string>
     <string name="reload_cover">Reload cover art</string>
     <string name="refresh_metadata_error">Could not refresh metadata.</string>
-    <string name="view_credits">View credits</string>
     <string name="source_musicbrainz">MusicBrainz</string>
-    <string name="credits_source_summary">Aggregated from: %1$s</string>
     <string name="credits_open_source">Open page</string>
-    <string name="credits_title">Credits</string>
     <string name="credits_reload">Reload credits</string>
     <string name="credits_progress">Aggregating credits… (%1$d/%2$d sources)</string>
     <string name="credits_progress_loading">Loading enabled credit sources…</string>
@@ -459,7 +456,6 @@
     <string name="credits_needs_token">Token required</string>
     <string name="credits_source_empty">No credits</string>
     <string name="credits_no_match">No matching item</string>
-    <string name="credits_empty">Available sources have not stored credits for this item yet.</string>
     <string name="credits_no_mbid">This item has no MusicBrainz link yet; embedded tags and enabled providers can still supply credits.</string>
     <string name="credits_link_musicbrainz">Link with MusicBrainz</string>
     <string name="credits_try_other_release">Try another release</string>

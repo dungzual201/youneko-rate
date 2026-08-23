@@ -46,7 +46,6 @@ import com.youneko.rate.ui.rate.RateScreen
 import com.youneko.rate.ui.components.YnSharedTopAppBar
 import com.youneko.rate.ui.rate.SettingsScreen
 import com.youneko.rate.ui.analyze.AudioAnalysisScreen
-import com.youneko.rate.ui.credits.CreditsScreen
 import com.youneko.rate.ui.stats.StatsScreen
 import com.youneko.rate.ui.export.ExportScreen
 import com.youneko.rate.ui.phase12.AdvancedSearchScreen
@@ -85,7 +84,6 @@ fun YounekoNavHost() {
     val isLibrary = currentDestination?.route == "library"
     val isAnalyze = currentDestination?.route == "analyze"
     val isDetail = currentDestination?.route?.startsWith("album/") == true
-    val isCredits = currentDestination?.route?.startsWith("credits/") == true
     val isEditor = currentDestination?.route == "addAlbum"
     val isImport = currentDestination?.route == "importTags"
     val isExport = currentDestination?.route == "export"
@@ -94,7 +92,7 @@ fun YounekoNavHost() {
     MediaAccessGate(content = {
         Scaffold(
         topBar = {
-            if (!isLibrary && !isAnalyze && !isDetail && !isCredits && !isEditor && !isImport && !isExport && !isCoverSearch) {
+            if (!isLibrary && !isAnalyze && !isDetail && !isEditor && !isImport && !isExport && !isCoverSearch) {
                 YnSharedTopAppBar(
                     screenName = if (currentDestination?.route == "rate") "Rate" else "Stats",
                     actions = {
@@ -106,7 +104,7 @@ fun YounekoNavHost() {
             }
         },
         bottomBar = {
-            if (!isSettings && !isDetail && !isCredits && !isEditor && !isImport && !isExport && !isCoverSearch) {
+            if (!isSettings && !isDetail && !isEditor && !isImport && !isExport && !isCoverSearch) {
                 NavigationBar {
                     destinations.forEach { destination ->
                         val selected = currentDestination?.hierarchy?.any { it.route == destination.route } == true
@@ -184,47 +182,10 @@ fun YounekoNavHost() {
                     onOpenArtist = { navController.navigate("artist/$it") },
                     onAnalyzeTrack = { navController.navigate("analyze") },
                     onSearchCover = { albumId -> navController.navigate("coverSearch/$albumId") { launchSingleTop = true } },
-                    onViewCredits = { albumId, trackId, releaseMbid ->
-                        val releasePart = releaseMbid?.let { "&releaseMbid=$it" }.orEmpty()
-                        if (trackId == null) {
-                            navController.navigate("credits/album/$albumId${releasePart.replaceFirst('&', '?')}")
-                        } else {
-                            navController.navigate("credits/track/$trackId?albumId=$albumId$releasePart")
-                        }
-                    },
                 )
             }
             composable("artist/{artistId}", arguments = listOf(navArgument("artistId") { type = NavType.StringType })) { entry ->
                 ArtistPageScreen(artistId = checkNotNull(entry.arguments?.getString("artistId")), onBack = { navController.popBackStack() })
-            }
-            composable(
-                route = "credits/album/{albumId}?releaseMbid={releaseMbid}",
-                arguments = listOf(
-                    navArgument("albumId") { type = NavType.StringType },
-                    navArgument("releaseMbid") { type = NavType.StringType; nullable = true; defaultValue = null },
-                ),
-            ) { entry ->
-                val releaseMbid = entry.arguments?.getString("releaseMbid")
-                CreditsScreen(
-                    onBack = { navController.popBackStack() },
-                    onOpenSettings = { navController.navigate("settings") },
-                    releaseUrl = releaseMbid?.let { "https://musicbrainz.org/release/$it" },
-                )
-            }
-            composable(
-                route = "credits/track/{trackId}?albumId={albumId}&releaseMbid={releaseMbid}",
-                arguments = listOf(
-                    navArgument("trackId") { type = NavType.StringType },
-                    navArgument("albumId") { type = NavType.StringType },
-                    navArgument("releaseMbid") { type = NavType.StringType; nullable = true; defaultValue = null },
-                ),
-            ) { entry ->
-                val releaseMbid = entry.arguments?.getString("releaseMbid")
-                CreditsScreen(
-                    onBack = { navController.popBackStack() },
-                    onOpenSettings = { navController.navigate("settings") },
-                    releaseUrl = releaseMbid?.let { "https://musicbrainz.org/release/$it" },
-                )
             }
                 }
         }

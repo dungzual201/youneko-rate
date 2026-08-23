@@ -339,7 +339,6 @@
     <string name="track_analyze_quality">Phân tích chất lượng</string>
     <string name="track_musicbrainz">Xem trên MusicBrainz</string>
     <string name="track_actions">Thao tác bài</string>
-    <string name="track_credits">Xem credits</string>
     <string name="track_mark_highlight">Đánh dấu nổi bật</string>
     <string name="track_unmark_highlight">Bỏ đánh dấu nổi bật</string>
     <string name="track_skip">Bỏ qua bài này</string>
@@ -380,11 +379,8 @@
     <string name="refresh_metadata">Làm mới metadata</string>
     <string name="reload_cover">Tải lại ảnh bìa</string>
     <string name="refresh_metadata_error">Không thể cập nhật metadata.</string>
-    <string name="view_credits">Xem credits</string>
     <string name="source_musicbrainz">MusicBrainz</string>
-    <string name="credits_source_summary">Đã tổng hợp từ: %1$s</string>
     <string name="credits_open_source">Mở trang</string>
-    <string name="credits_title">Ê-kíp</string>
     <string name="credits_reload">Tải lại credits</string>
     <string name="credits_progress">Đang tổng hợp credits… (%1$d/%2$d nguồn)</string>
     <string name="credits_progress_loading">Đang tải các nguồn credits đã bật…</string>
@@ -396,7 +392,6 @@
     <string name="credits_needs_token">Cần token</string>
     <string name="credits_source_empty">Không có credits</string>
     <string name="credits_no_match">Không tìm thấy bài khớp</string>
-    <string name="credits_empty">Các nguồn hiện có chưa lưu credits cho mục này.</string>
     <string name="credits_no_mbid">Mục này chưa có liên kết MusicBrainz; tag nhúng và các nguồn đang bật vẫn có thể cung cấp credits.</string>
     <string name="credits_link_musicbrainz">Liên kết với MusicBrainz</string>
     <string name="credits_try_other_release">Thử release khác</string>
@@ -497,6 +492,7 @@
     <string name="a11y_cover_fullscreen">Ảnh bìa album, toàn màn hình</string>
     <string name="a11y_palette_swatch">Màu %1$s, nhấn giữ để xem mã</string>
     <string name="menu_search_cover_online">Tìm ảnh bìa trực tuyến</string>
+    <string name="search_on_google">Tìm trên Google</string>
     <string name="cover_search_title">Tìm ảnh bìa</string>
     <string name="cover_search_official_pending">Đang mở tích hợp ảnh bìa chính thức…</string>
     <string name="cover_fallback_hint">Nếu trang nhúng không trả kết quả, hãy nhấn giữ ảnh bìa, lưu ảnh rồi nhập từ thư viện.</string>
