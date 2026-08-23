@@ -125,6 +125,7 @@
     <string name="stats_quality_distribution">Audio quality</string>
     <string name="stats_year_summary">Year summary</string>
     <string name="stats_share_image">Share summary image</string>
+    <string name="stats_share_title">My music stats</string>
     <string name="share_tracks_rated">Tracks rated</string>
     <string name="share_average_score">Average score</string>
     <string name="share_tracks_analyzed">Tracks analyzed</string>

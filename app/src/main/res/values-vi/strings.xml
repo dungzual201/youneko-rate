@@ -125,6 +125,7 @@
     <string name="stats_quality_distribution">Chất lượng audio</string>
     <string name="stats_year_summary">Tổng kết năm</string>
     <string name="stats_share_image">Chia sẻ ảnh tổng kết</string>
+    <string name="stats_share_title">Thống kê của tôi</string>
     <string name="share_tracks_rated">Bài hát đã đánh giá</string>
     <string name="share_average_score">Điểm trung bình</string>
     <string name="share_tracks_analyzed">Bài hát đã phân tích</string>

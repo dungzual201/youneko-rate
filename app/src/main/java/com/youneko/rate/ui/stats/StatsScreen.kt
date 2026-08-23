@@ -8,6 +8,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.view.ViewGroup
 import android.os.Build
+import android.util.Log
 import android.provider.MediaStore
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -20,6 +21,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -110,6 +112,8 @@ import kotlinx.coroutines.withContext
 import androidx.compose.animation.core.animateFloatAsState
 
 internal data class ShareStatsLabels(
+    val title: String,
+    val subtitle: String,
     val appName: String,
     val tracksRated: String,
     val averageScore: String,
@@ -172,6 +176,8 @@ fun StatsScreen(contentPadding: PaddingValues = PaddingValues(), viewModel: Stat
     val renderHost = LocalView.current.rootView as? ViewGroup
     val savedStateOwner = lifecycleOwner as SavedStateRegistryOwner
     val labels = ShareStatsLabels(
+        title = stringResource(R.string.stats_share_title),
+        subtitle = stringResource(R.string.app_name),
         appName = stringResource(R.string.app_name),
         tracksRated = stringResource(R.string.share_tracks_rated),
         averageScore = stringResource(R.string.share_average_score),
@@ -257,11 +263,22 @@ fun StatsScreen(contentPadding: PaddingValues = PaddingValues(), viewModel: Stat
 }
 
 private fun shareColorScheme(context: Context, fallback: ColorScheme): ColorScheme {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return fallback
-    val night = (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
-    return runCatching {
-        if (night) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-    }.getOrDefault(fallback)
+    val selected = if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+        fallback
+    } else {
+        val night = (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        runCatching { if (night) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context) }.getOrDefault(fallback)
+    }
+    Log.d("CONTRAST", "header=${contrastRatio(selected.onPrimaryContainer, selected.primaryContainer)} footer=${contrastRatio(selected.onSurface, selected.surface)}")
+    return selected
+}
+
+private fun contrastRatio(foreground: Color, background: Color): String {
+    fun linear(value: Float): Double = if (value <= 0.03928f) value / 12.92 else Math.pow(((value + 0.055f) / 1.055f).toDouble(), 2.4)
+    fun luminance(color: Color): Double = 0.2126 * linear(color.red) + 0.7152 * linear(color.green) + 0.0722 * linear(color.blue)
+    val first = luminance(foreground) + 0.05
+    val second = luminance(background) + 0.05
+    return "%.2f:1".format(Locale.US, maxOf(first, second) / minOf(first, second))
 }
 
 private fun formatShareCount(value: Int): String = NumberFormat.getIntegerInstance(Locale.getDefault()).format(value)
@@ -310,25 +327,27 @@ internal fun ShareStatsCard(state: StatsUiState, labels: ShareStatsLabels, times
             .clip(RoundedCornerShape(48.dp))
             .background(Brush.verticalGradient(listOf(colors.primaryContainer, colors.surface)))
             .padding(72.dp),
+        verticalArrangement = Arrangement.SpaceBetween,
     ) {
-        Text(labels.appName, style = MaterialTheme.typography.headlineMedium, color = colors.onPrimaryContainer, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Spacer(Modifier.height(36.dp))
-        ShareMetricCard(Icons.Default.Star, formatShareCount(state.tracksRated), labels.tracksRated)
-        Spacer(Modifier.height(32.dp))
-        val average = state.averageScore?.let { NumberFormat.getNumberInstance(Locale.getDefault()).apply { minimumFractionDigits = 1; maximumFractionDigits = 1 }.format(it) + " ★" } ?: "—"
-        ShareMetricCard(Icons.Default.Grade, average, labels.averageScore)
-        Spacer(Modifier.height(32.dp))
-        ShareMetricCard(Icons.Default.GraphicEq, formatShareCount(state.tracksAnalyzed), labels.tracksAnalyzed)
-        Spacer(Modifier.weight(1f))
+        Column(Modifier.fillMaxWidth()) {
+            Text(labels.title, style = MaterialTheme.typography.displaySmall, color = colors.onPrimaryContainer, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(labels.subtitle, style = MaterialTheme.typography.labelLarge, color = colors.onPrimaryContainer.copy(alpha = 0.7f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Column(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(36.dp, Alignment.CenterVertically)) {
+            ShareMetricCard(Icons.Default.Star, formatShareCount(state.tracksRated), labels.tracksRated)
+            val average = state.averageScore?.let { NumberFormat.getNumberInstance(Locale.getDefault()).apply { minimumFractionDigits = 1; maximumFractionDigits = 1 }.format(it) } ?: "—"
+            ShareMetricCard(Icons.Default.Grade, average, labels.averageScore)
+            ShareMetricCard(Icons.Default.GraphicEq, formatShareCount(state.tracksAnalyzed), labels.tracksAnalyzed)
+        }
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                Icon(painter = painterResource(com.youneko.rate.R.drawable.ic_paw), contentDescription = null, tint = colors.onSurface, modifier = Modifier.size(64.dp))
+                Icon(painter = painterResource(com.youneko.rate.R.drawable.ic_paw), contentDescription = null, tint = colors.onSurface, modifier = Modifier.size(72.dp))
                 Spacer(Modifier.width(16.dp))
                 Text(labels.appName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = colors.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             Column(horizontalAlignment = Alignment.End) {
-                Text(timestamp.format(DateTimeFormatter.ofPattern("HH:mm")), style = MaterialTheme.typography.labelLarge, color = colors.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(timestamp.format(DateTimeFormatter.ofPattern("dd-MM-yyyy")), style = MaterialTheme.typography.labelLarge, color = colors.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(timestamp.format(DateTimeFormatter.ofPattern("HH:mm", Locale.getDefault())), style = MaterialTheme.typography.labelLarge, color = colors.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(timestamp.format(DateTimeFormatter.ofPattern("dd-MM-yyyy", Locale.getDefault())), style = MaterialTheme.typography.labelLarge, color = colors.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
@@ -337,12 +356,12 @@ internal fun ShareStatsCard(state: StatsUiState, labels: ShareStatsLabels, times
 @Composable
 private fun ShareMetricCard(icon: androidx.compose.ui.graphics.vector.ImageVector, value: String, label: String) {
     val colors = MaterialTheme.colorScheme
-    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(32.dp), colors = CardDefaults.cardColors(containerColor = colors.surface.copy(alpha = 0.78f))) {
-        Row(Modifier.fillMaxWidth().padding(28.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-            Icon(icon, contentDescription = null, tint = colors.onSurface, modifier = Modifier.size(56.dp))
+    Card(Modifier.fillMaxWidth().heightIn(min = 230.dp), shape = RoundedCornerShape(40.dp), colors = CardDefaults.cardColors(containerColor = colors.surface.copy(alpha = 0.88f))) {
+        Row(Modifier.fillMaxSize().padding(40.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(32.dp)) {
+            Icon(icon, contentDescription = null, tint = colors.onSurface, modifier = Modifier.size(88.dp))
             Column(Modifier.weight(1f)) {
-                Text(value, style = MaterialTheme.typography.displayLarge.copy(fontWeight = FontWeight.Bold), color = colors.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(label, style = MaterialTheme.typography.titleMedium, color = colors.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(value, fontSize = 110.sp, lineHeight = 118.sp, fontWeight = FontWeight.Bold, color = colors.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(label, fontSize = 30.sp, lineHeight = 36.sp, color = colors.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
