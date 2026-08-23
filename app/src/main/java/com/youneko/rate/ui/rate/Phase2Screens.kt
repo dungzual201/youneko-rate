@@ -61,6 +61,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FilterList
@@ -147,7 +148,9 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.content.FileProvider
 import com.youneko.rate.data.SettingsDataStore
+import com.youneko.rate.data.CrashLogStore
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -1247,8 +1250,11 @@ fun SettingsScreen(
     val settingsStore = remember(appContext) { SettingsDataStore(appContext) }
     val themeModeName by settingsStore.themeMode.collectAsStateWithLifecycle(initialValue = ThemeMode.SYSTEM.name)
     val settingsScope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val noCrashLogMessage = stringResource(R.string.no_crash_log)
     BackHandler(onBack = onBack)
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 modifier = Modifier.padding(horizontal = 16.dp),
@@ -1407,6 +1413,24 @@ fun SettingsScreen(
         TextButton(onClick = viewModel::refreshMusicData) { Text(stringResource(R.string.refresh_music_data)) }
         TextButton(onClick = viewModel::reloadAllCovers) { Text(stringResource(R.string.reload_all_covers)) }
         TextButton(onClick = viewModel::clearMetadataCache) { Text(stringResource(R.string.metadata_cache_clear)) }
+        SettingsSectionHeader(stringResource(R.string.diagnostics), Icons.Default.BugReport)
+        OutlinedButton(
+            onClick = {
+                val crashFile = CrashLogStore.latest(appContext)
+                if (crashFile == null) {
+                    settingsScope.launch { snackbarHostState.showSnackbar(noCrashLogMessage) }
+                } else {
+                    val uri = FileProvider.getUriForFile(appContext, "${appContext.packageName}.fileprovider", crashFile)
+                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_STREAM, uri)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    appContext.startActivity(Intent.createChooser(shareIntent, appContext.getString(R.string.crash_log_share_title)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text(stringResource(R.string.send_crash_log)) }
         Text(stringResource(R.string.settings_body), style = MaterialTheme.typography.bodyMedium)
     }
     }

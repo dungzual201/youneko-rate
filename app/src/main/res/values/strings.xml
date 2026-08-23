@@ -565,5 +565,9 @@
     <string name="backup_restore_failed">Restore failed and the previous database was kept.</string>
     <string name="backup_no_manifest">manifest.json is missing or is not the first entry.</string>
     <string name="backup_schema_too_new">This database schema is newer than the app supports.</string>
-    <string name="palette_copied">Copied %1$s</string>
+        <string name="palette_copied">Copied %1$s</string>
+    <string name="diagnostics">Diagnostics</string>
+    <string name="send_crash_log">Send crash log</string>
+    <string name="no_crash_log">No crash log is available.</string>
+    <string name="crash_log_share_title">Share crash log</string>
 </resources>

@@ -565,5 +565,9 @@
     <string name="batch_cover_search_title">Tìm ảnh bìa còn thiếu</string>
     <string name="batch_cover_search_not_implemented">Chưa khả dụng: tìm hàng loạt</string>
     <string name="batch_cover_search_reason">CHƯA LÀM: tạm tắt yêu cầu hàng loạt cho đến khi hoàn thiện giới hạn truy cập và xác nhận của người dùng.</string>
-    <string name="palette_copied">Đã sao chép %1$s</string>
+        <string name="palette_copied">Đã sao chép %1$s</string>
+    <string name="diagnostics">Chẩn đoán</string>
+    <string name="send_crash_log">Gửi log lỗi</string>
+    <string name="no_crash_log">Không có log lỗi.</string>
+    <string name="crash_log_share_title">Chia sẻ log lỗi</string>
 </resources>
