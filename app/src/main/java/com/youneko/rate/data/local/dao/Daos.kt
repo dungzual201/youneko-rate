@@ -137,6 +137,12 @@ interface StatsDao {
     @Query("SELECT COUNT(DISTINCT albumId) FROM tracks WHERE stars IS NOT NULL")
     suspend fun ratedAlbumCount(): Int
 
+    @Query("SELECT COUNT(*) FROM tracks WHERE stars IS NOT NULL")
+    suspend fun ratedTrackCount(): Int
+
+    @Query("SELECT COUNT(DISTINCT trackId) FROM audio_analysis WHERE trackId IS NOT NULL")
+    suspend fun analyzedTrackCount(): Int
+
     @Query("SELECT AVG(stars) AS value FROM tracks WHERE stars IS NOT NULL")
     suspend fun averageTrackScore(): StatsAverageRow
 

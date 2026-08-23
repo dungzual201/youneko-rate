@@ -125,6 +125,13 @@
     <string name="stats_quality_distribution">Chất lượng audio</string>
     <string name="stats_year_summary">Tổng kết năm</string>
     <string name="stats_share_image">Chia sẻ ảnh tổng kết</string>
+    <string name="share_tracks_rated">Bài hát đã đánh giá</string>
+    <string name="share_average_score">Điểm trung bình</string>
+    <string name="share_tracks_analyzed">Bài hát đã phân tích</string>
+    <string name="stats_share_preview">Xem trước ảnh chia sẻ</string>
+    <string name="stats_share_action">Chia sẻ</string>
+    <string name="stats_share_save">Lưu vào thư viện</string>
+    <string name="stats_share_failed">Không thể tạo ảnh chia sẻ</string>
     <string name="stats_top_album">Album điểm cao nhất</string>
     <string name="stats_no_data">Chưa đủ dữ liệu đã chấm.</string>
     <string name="review_history">Lịch sử review: %1$d bản gần nhất</string>
