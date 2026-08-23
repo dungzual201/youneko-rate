@@ -40,7 +40,7 @@ class UiOverhaulInvariantTest {
         assertTrue("Album titles must reserve two lines", components.contains("minLines = 2"))
         assertTrue("Bitrate note must be a caption", analyze.contains("metricCaptionIndent"))
         assertTrue("Analyze content must reserve bottom space", analyze.contains("navigationSafe"))
-        assertTrue("Permission callback must enqueue indexing", access.contains("enqueueMediaScan(context, forceFull = true)"))
+        assertTrue("Permission callback must start labeled indexing", access.contains("startScan(context, forceFull = true, trigger = \"permission-result\")"))
     }
 
     @Test

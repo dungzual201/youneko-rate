@@ -13,6 +13,9 @@ import com.youneko.rate.data.artwork.ArtworkStore
 import com.youneko.rate.data.importer.AudioTag
 import com.youneko.rate.data.importer.ImportDedupe
 import com.youneko.rate.data.importer.LocalAudioTagReader
+import com.youneko.rate.data.local.ScanDedupe
+import com.youneko.rate.data.local.ScanDedupeStats
+import com.youneko.rate.data.local.ScanNaturalKey
 import com.youneko.rate.data.local.YounekoDatabase
 import com.youneko.rate.data.local.dao.AlbumDao
 import com.youneko.rate.data.local.dao.ArtistDao
@@ -162,10 +165,12 @@ class MediaStoreScanner @Inject constructor(
             val albumId = resolveAlbumId(row, null)
             val now = System.currentTimeMillis()
             if (current == null) {
+                val title = row.title?.takeIf(String::isNotBlank) ?: row.displayName
                 inserts += TrackEntity(
                     id = UUID.randomUUID().toString(),
                     albumId = albumId,
-                    title = row.title?.takeIf(String::isNotBlank) ?: row.displayName,
+                    title = title,
+                    scanNaturalKey = ScanNaturalKey.track(albumId, title, row.discNumber, row.trackNumber),
                     trackNumber = row.trackNumber,
                     discNumber = row.discNumber,
                     durationMs = row.durationMs,
@@ -187,6 +192,7 @@ class MediaStoreScanner @Inject constructor(
                     current.copy(
                         albumId = albumId ?: current.albumId,
                         isStandalone = albumId == null && current.albumId == null,
+                        scanNaturalKey = current.scanNaturalKey ?: ScanNaturalKey.track(albumId ?: current.albumId, row.title ?: current.title, row.discNumber ?: current.discNumber, row.trackNumber ?: current.trackNumber),
                         sourceUri = row.uri.toString(),
                         fileName = row.displayName,
                         mediaStoreId = row.id,
@@ -230,13 +236,26 @@ class MediaStoreScanner @Inject constructor(
         return MediaScanResult(rows.size, inserts.size, updates.size, missing)
     }
 
+    suspend fun dedupeIfNeeded(): ScanDedupeStats {
+        if (scanStore.dedupeCompleted.first()) {
+            val existingAlbums = albumDao.findAll().size
+            val stats = ScanDedupeStats(merged = 0, deleted = 0, albumsRemaining = existingAlbums)
+            Log.d(SCAN_TAG, "dedupe merged=0 deleted=0 albums remaining=$existingAlbums")
+            return stats
+        }
+        val stats = database.withTransaction { ScanDedupe.run(database.openHelper.writableDatabase) }
+        scanStore.markDedupeCompleted()
+        Log.d(SCAN_TAG, "dedupe merged=${stats.merged} deleted=${stats.deleted} albums remaining=${stats.albumsRemaining}")
+        return stats
+    }
+
     suspend fun hasSafRoots(): Boolean = scanRootDao.findAll().isNotEmpty()
 
     suspend fun scanSafRoots(onProgress: (done: Int, total: Int) -> Unit = { _, _ -> }): MediaScanResult {
         val uris = scanRootDao.findAll().flatMap { root -> tagReader.collectAudioUris(Uri.parse(root.uri), isTree = true) }
         if (uris.isEmpty()) return MediaScanResult(0, 0, 0, 0)
         val tags = tagReader.readAll(uris).tags
-        val existing = trackDao.findAll()
+        val existing = trackDao.findAll().toMutableList()
         var added = 0
         var updated = 0
         tags.forEachIndexed { index, tag ->
@@ -244,7 +263,9 @@ class MediaStoreScanner @Inject constructor(
             val size = StableMediaKey.sizeBytes(context, uri)
             val hash = StableMediaKey.first64kHash(context, uri)
             val stableKey = StableMediaKey.from(size, tag.durationMs, hash)
-            val current = existing.firstOrNull { it.sourceUri == tag.uri || (stableKey != null && it.stableKey == stableKey) }
+            val title = tag.title?.takeIf(String::isNotBlank) ?: tag.fileName
+            val trackNaturalKey = ScanNaturalKey.track(null, title, tag.discNumber, tag.trackNumber)
+            val current = existing.firstOrNull { it.sourceUri == tag.uri || (stableKey != null && it.stableKey == stableKey) || (trackNaturalKey != null && it.scanNaturalKey == ScanNaturalKey.track(it.albumId, title, tag.discNumber, tag.trackNumber)) }
             val row = MediaStoreAudioRow(
                 id = Long.MIN_VALUE,
                 uri = uri,
@@ -269,7 +290,8 @@ class MediaStoreScanner @Inject constructor(
                 val now = System.currentTimeMillis()
                 val created = TrackEntity(
                     id = UUID.randomUUID().toString(), albumId = albumId,
-                    title = tag.title?.takeIf(String::isNotBlank) ?: tag.fileName,
+                    title = title,
+                    scanNaturalKey = ScanNaturalKey.track(albumId, title, tag.discNumber, tag.trackNumber),
                     isStandalone = albumId == null,
                     isMissing = false,
                     trackNumber = tag.trackNumber, discNumber = tag.discNumber, durationMs = tag.durationMs,
@@ -277,10 +299,11 @@ class MediaStoreScanner @Inject constructor(
                     stableKey = stableKey, fileSizeBytes = size, fileHash64k = hash,
                 )
                 trackDao.insert(created)
+                existing += created
                 ftsDao.upsert(LibrarySearchFtsEntity(created.id, "track", "${created.title} ${tag.artist.orEmpty()}"))
                 added++
             } else {
-                trackDao.update(current.copy(sourceUri = tag.uri, fileName = tag.fileName, stableKey = stableKey ?: current.stableKey, fileSizeBytes = size ?: current.fileSizeBytes, fileHash64k = hash ?: current.fileHash64k, isMissing = false, missingSince = null, updatedAt = System.currentTimeMillis()))
+                trackDao.update(current.copy(sourceUri = tag.uri, fileName = tag.fileName, scanNaturalKey = current.scanNaturalKey ?: ScanNaturalKey.track(albumId, title, tag.discNumber, tag.trackNumber), stableKey = stableKey ?: current.stableKey, fileSizeBytes = size ?: current.fileSizeBytes, fileHash64k = hash ?: current.fileHash64k, isMissing = false, missingSince = null, updatedAt = System.currentTimeMillis()))
                 updated++
             }
             onProgress(index + 1, tags.size)
@@ -378,13 +401,18 @@ class MediaStoreScanner @Inject constructor(
             artist != null && ImportDedupe.normalize(candidate.title) == ImportDedupe.normalize(album) &&
                 ImportDedupe.normalize(artist.name) == ImportDedupe.normalize(artistName) && candidate.releaseYear == year
         }
-        if (existing != null) return existing.id
+        val naturalKey = ScanNaturalKey.album(album, artistName)
+        if (existing != null) {
+            if (existing.scanNaturalKey != naturalKey) albumDao.update(existing.copy(scanNaturalKey = naturalKey))
+            return existing.id
+        }
         val now = System.currentTimeMillis()
         val artist = artistDao.findByName(artistName) ?: ArtistEntity(UUID.randomUUID().toString(), artistName, createdAt = now, updatedAt = now).also { artistDao.insert(it) }
         val created = AlbumEntity(
             id = UUID.randomUUID().toString(),
             title = album,
             artistId = artist.id,
+            scanNaturalKey = ScanNaturalKey.album(album, artistName),
             releaseYear = year,
             createdAt = now,
             updatedAt = now,

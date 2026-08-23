@@ -75,6 +75,7 @@ class MediaScanStore(private val context: Context) {
         val lastScanTimeMs = longPreferencesKey("media_scan_last_time_ms")
         val lastGeneration = longPreferencesKey("media_scan_last_generation")
         val providerVersion = stringPreferencesKey("media_scan_provider_version")
+        val dedupeCompleted = booleanPreferencesKey("media_scan_dedupe_completed_v1")
     }
 
     val checkpoint: Flow<MediaScanCheckpoint> = context.settingsDataStore.data.map {
@@ -91,6 +92,12 @@ class MediaScanStore(private val context: Context) {
             it[Keys.lastGeneration] = lastGeneration
             it[Keys.providerVersion] = providerVersion
         }
+    }
+
+    val dedupeCompleted: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.dedupeCompleted] ?: false }
+
+    suspend fun markDedupeCompleted() {
+        context.settingsDataStore.edit { it[Keys.dedupeCompleted] = true }
     }
 
     suspend fun reset() {

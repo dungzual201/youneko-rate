@@ -11,7 +11,8 @@ import com.youneko.rate.data.artwork.CoverPalette
 import com.youneko.rate.data.artwork.CoverPaletteStore
 import com.youneko.rate.data.SettingsStore
 import com.youneko.rate.data.MediaScanStore
-import com.youneko.rate.data.scan.enqueueMediaScan
+import com.youneko.rate.data.scan.UNIQUE_ON_RESUME
+import com.youneko.rate.data.scan.startScan
 import com.youneko.rate.data.musicbrainz.AlbumMetadataRefreshService
 import com.youneko.rate.data.credits.CreditSourceId
 import com.youneko.rate.data.discogs.DiscogsCreditsService
@@ -391,13 +392,18 @@ class ScoreSettingsViewModel @Inject constructor(
     fun testDiscogsToken(token: String) = viewModelScope.launch(Dispatchers.IO) { _tokenTestResult.value = _tokenTestResult.value + ("discogs" to discogsService.testToken(token)) }
     fun testGeniusToken(token: String) = viewModelScope.launch(Dispatchers.IO) { _tokenTestResult.value = _tokenTestResult.value + ("genius" to geniusService.testToken(token)) }
     fun clearMetadataCache() = viewModelScope.launch(Dispatchers.IO) { remoteMetadataCacheDao.deleteAll() }
+    fun rescanAllMusic() = viewModelScope.launch(Dispatchers.IO) {
+        mediaScanStore.reset()
+        startScan(context, forceFull = true, trigger = "settings-rescan-all")
+    }
+
     fun refreshMusicData() = viewModelScope.launch(Dispatchers.IO) {
         mediaScanStore.reset()
-        enqueueMediaScan(context, forceFull = true)
+        startScan(context, forceFull = true, trigger = "settings-refresh")
     }
     fun reloadAllCovers() = viewModelScope.launch(Dispatchers.IO) {
         artworkStore.clearCachedCovers()
         albumDao.clearAutomaticCovers()
-        enqueueMediaScan(context, forceFull = true)
+        startScan(context, forceFull = true, trigger = "settings-reload-covers")
     }
 }

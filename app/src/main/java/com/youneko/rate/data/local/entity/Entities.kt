@@ -29,7 +29,7 @@ data class ArtistEntity(
             onDelete = ForeignKey.CASCADE,
         ),
     ],
-    indices = [Index(value = ["artistId"]), Index(value = ["mbid"], unique = false)],
+    indices = [Index(value = ["artistId"]), Index(value = ["mbid"], unique = false), Index(value = ["scanNaturalKey"], unique = true)],
 )
 data class AlbumEntity(
     @PrimaryKey val id: String,
@@ -59,6 +59,7 @@ data class AlbumEntity(
     val metadataFetchedAt: Long? = null,
     val createdAt: Long,
     val updatedAt: Long,
+    val scanNaturalKey: String? = null,
 )
 
 @Entity(tableName = "album_palette")
@@ -90,6 +91,7 @@ data class AlbumPaletteEntity(
         Index(value = ["recordingMbid"], unique = false),
         Index(value = ["mediaStoreId"]),
         Index(value = ["stableKey"]),
+        Index(value = ["scanNaturalKey"], unique = true),
     ],
 )
 data class TrackEntity(
@@ -120,6 +122,7 @@ data class TrackEntity(
     val isMissing: Boolean = false,
     val missingSince: Long? = null,
     val mediaStoreModifiedSeconds: Long? = null,
+    val scanNaturalKey: String? = null,
 )
 
 @Entity(

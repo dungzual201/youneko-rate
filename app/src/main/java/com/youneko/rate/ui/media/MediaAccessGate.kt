@@ -66,7 +66,7 @@ import com.youneko.rate.data.scan.MediaStoreScanWorker
 import com.youneko.rate.data.scan.UNIQUE_ON_RESUME
 import com.youneko.rate.data.scan.ScanPhase
 import com.youneko.rate.data.scan.ScanState
-import com.youneko.rate.data.scan.enqueueMediaScan
+import com.youneko.rate.data.scan.startScan
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -139,7 +139,7 @@ fun MediaAccessGate(
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
         permissionGranted = hasAudioPermission(context)
         showEducation = !permissionGranted
-        if (permissionGranted) enqueueMediaScan(context, forceFull = true)
+        if (permissionGranted) startScan(context, forceFull = true, trigger = "permission-result")
     }
     val treeLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri != null) {
@@ -148,7 +148,7 @@ fun MediaAccessGate(
             }
             val name = androidx.documentfile.provider.DocumentFile.fromTreeUri(context, uri)?.name
             viewModel.addScanRoot(uri, name)
-            enqueueMediaScan(context)
+            startScan(context, trigger = "tree-added")
         }
     }
     LaunchedEffect(Unit) { permissionGranted = hasAudioPermission(context) }
@@ -252,7 +252,7 @@ fun MediaScanRootManager(viewModel: MediaAccessViewModel = hiltViewModel()) {
             runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
             val name = androidx.documentfile.provider.DocumentFile.fromTreeUri(context, uri)?.name
             viewModel.addScanRoot(uri, name)
-            enqueueMediaScan(context)
+            startScan(context, trigger = "tree-added")
         }
     }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {

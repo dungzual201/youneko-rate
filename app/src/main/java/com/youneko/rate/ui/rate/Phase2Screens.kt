@@ -229,7 +229,7 @@ fun LibraryScreen(
     val refresh: () -> Unit = {
         if (!refreshing) {
             refreshing = true
-            com.youneko.rate.data.scan.enqueueMediaScan(context, forceFull = false)
+            com.youneko.rate.data.scan.startScan(context, forceFull = false, trigger = "library-refresh")
         }
     }
     LaunchedEffect(refreshing) {

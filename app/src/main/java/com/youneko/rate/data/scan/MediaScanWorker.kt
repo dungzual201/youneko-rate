@@ -39,6 +39,7 @@ import dagger.hilt.components.SingletonComponent
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.withContext
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -76,41 +77,51 @@ class MediaStoreScanWorker(appContext: Context, params: WorkerParameters) : Coro
     }
 
     private suspend fun doWorkInternal(): Result {
-        Log.i(SCAN_TAG, "SCAN: WorkInfo.State=RUNNING exception=null")
-        val scanner = EntryPointAccessors.fromApplication(applicationContext, MediaScanWorkerEntryPoint::class.java).scanner()
-        if (!hasPermission() && !scanner.hasSafRoots()) {
-            Log.i(SCAN_TAG, "SCAN: WorkInfo.State=SUCCEEDED exception=null reason=no-access")
-            return Result.success(workDataOf(KEY_SKIPPED to true))
+        if (!MediaStoreScanWorker.PROCESS_GATE.compareAndSet(false, true)) {
+            Log.i(SCAN_TAG, "SCAN: WorkInfo.State=SUCCEEDED exception=null reason=already-running")
+            return Result.success(workDataOf(MediaStoreScanWorker.KEY_SKIPPED to true))
         }
-        setForegroundSafely(0, 0)
-        return runCatching {
-            val forceFull = inputData.getBoolean(KEY_FORCE_FULL, false)
-            var phase = ScanPhase.METADATA
-            setProgressAsync(progressData(phase, 0, 0))
-            val result = scanner.scan(
-                forceFull,
-                onProgress = { done, total ->
-                    setProgressAsync(progressData(phase, done, total))
-                    runCatching { setForegroundAsync(createForegroundInfo(done, total)) }
-                        .onFailure { Log.w(SCAN_TAG, "SCAN: progress notification skipped: ${it.message}") }
-                },
-                onPhaseChanged = { nextPhase ->
-                    phase = nextPhase
+        return try {
+            Log.i(SCAN_TAG, "SCAN: WorkInfo.State=RUNNING exception=null")
+            val scanner = EntryPointAccessors.fromApplication(applicationContext, MediaScanWorkerEntryPoint::class.java).scanner()
+            if (!hasPermission() && !scanner.hasSafRoots()) {
+                Log.i(SCAN_TAG, "SCAN: WorkInfo.State=SUCCEEDED exception=null reason=no-access")
+                Result.success(workDataOf(MediaStoreScanWorker.KEY_SKIPPED to true))
+            } else {
+                setForegroundSafely(0, 0)
+                runCatching {
+                    scanner.dedupeIfNeeded()
+                    val forceFull = inputData.getBoolean(KEY_FORCE_FULL, false)
+                    var phase = ScanPhase.METADATA
                     setProgressAsync(progressData(phase, 0, 0))
-                },
-            )
-            val safResult = scanner.scanSafRoots { done, total ->
-                setProgressAsync(progressData(phase, done, total))
-                runCatching { setForegroundAsync(createForegroundInfo(done, total)) }
-                    .onFailure { Log.w(SCAN_TAG, "SCAN: progress notification skipped: ${it.message}") }
+                    val result = scanner.scan(
+                        forceFull,
+                        onProgress = { done, total ->
+                            setProgressAsync(progressData(phase, done, total))
+                            runCatching { setForegroundAsync(createForegroundInfo(done, total)) }
+                                .onFailure { Log.w(SCAN_TAG, "SCAN: progress notification skipped: ${it.message}") }
+                        },
+                        onPhaseChanged = { nextPhase ->
+                            phase = nextPhase
+                            setProgressAsync(progressData(phase, 0, 0))
+                        },
+                    )
+                    val safResult = scanner.scanSafRoots { done, total ->
+                        setProgressAsync(progressData(phase, done, total))
+                        runCatching { setForegroundAsync(createForegroundInfo(done, total)) }
+                            .onFailure { Log.w(SCAN_TAG, "SCAN: progress notification skipped: ${it.message}") }
+                    }
+                    Log.i(SCAN_TAG, "SCAN: WorkInfo.State=SUCCEEDED exception=null")
+                    Result.success(workDataOf(KEY_SCANNED to result.scanned + safResult.scanned, KEY_ADDED to result.added + safResult.added, KEY_MISSING to result.missing + safResult.missing, KEY_SKIPPED to (result.skipped && safResult.scanned == 0)))
+                }.getOrElse { throwable ->
+                    val nextState = if (runAttemptCount < 2) "RETRY" else "FAILED"
+                    Log.e(SCAN_TAG, "SCAN: WorkInfo.State=$nextState exception=${throwable::class.java.simpleName}: ${throwable.message}", throwable)
+                    CrashLogStore.write(applicationContext, Thread.currentThread(), throwable)
+                    if (runAttemptCount < 2) Result.retry() else Result.failure(workDataOf(KEY_ERROR to throwable.message.orEmpty()))
+                }
             }
-            Log.i(SCAN_TAG, "SCAN: WorkInfo.State=SUCCEEDED exception=null")
-            Result.success(workDataOf(KEY_SCANNED to result.scanned + safResult.scanned, KEY_ADDED to result.added + safResult.added, KEY_MISSING to result.missing + safResult.missing, KEY_SKIPPED to (result.skipped && safResult.scanned == 0)))
-        }.getOrElse { throwable ->
-            val nextState = if (runAttemptCount < 2) "RETRY" else "FAILED"
-            Log.e(SCAN_TAG, "SCAN: WorkInfo.State=$nextState exception=${throwable::class.java.simpleName}: ${throwable.message}", throwable)
-            CrashLogStore.write(applicationContext, Thread.currentThread(), throwable)
-            if (runAttemptCount < 2) Result.retry() else Result.failure(workDataOf(KEY_ERROR to throwable.message.orEmpty()))
+        } finally {
+            MediaStoreScanWorker.PROCESS_GATE.set(false)
         }
     }
 
@@ -158,6 +169,7 @@ class MediaStoreScanWorker(appContext: Context, params: WorkerParameters) : Coro
     }
 
     companion object {
+        private val PROCESS_GATE = AtomicBoolean(false)
         const val KEY_FORCE_FULL = "force_full"
         const val KEY_PHASE = "phase"
         const val KEY_DONE = "done"
@@ -170,17 +182,22 @@ class MediaStoreScanWorker(appContext: Context, params: WorkerParameters) : Coro
     }
 }
 
-fun enqueueMediaScan(context: Context, forceFull: Boolean = false) {
+fun startScan(context: Context, forceFull: Boolean = false, trigger: String) {
+    val alreadyRunning = runCatching {
+        WorkManager.getInstance(context).getWorkInfosForUniqueWork(UNIQUE_ON_RESUME).get(250L, TimeUnit.MILLISECONDS)
+            .any { it.state == androidx.work.WorkInfo.State.RUNNING || it.state == androidx.work.WorkInfo.State.ENQUEUED }
+    }.getOrDefault(false)
+    Log.d(SCAN_TAG, "startScan called, alreadyRunning=$alreadyRunning, trigger=$trigger")
+    if (alreadyRunning) return
     val request = OneTimeWorkRequestBuilder<MediaStoreScanWorker>()
         .setInputData(workDataOf(MediaStoreScanWorker.KEY_FORCE_FULL to forceFull))
         .build()
-    WorkManager.getInstance(context).enqueueUniqueWork(UNIQUE_ON_RESUME, ExistingWorkPolicy.REPLACE, request)
-}
-
-fun ensureMediaScan(context: Context) {
-    val request = OneTimeWorkRequestBuilder<MediaStoreScanWorker>().build()
     WorkManager.getInstance(context).enqueueUniqueWork(UNIQUE_ON_RESUME, ExistingWorkPolicy.KEEP, request)
 }
+
+fun enqueueMediaScan(context: Context, forceFull: Boolean = false) = startScan(context, forceFull, "legacy-enqueue")
+
+fun ensureMediaScan(context: Context) = startScan(context, trigger = "activity-resume")
 
 fun schedulePeriodicMediaScan(context: Context) {
     val request = PeriodicWorkRequestBuilder<MediaStoreScanWorker>(15, TimeUnit.MINUTES)
@@ -199,7 +216,7 @@ class MediaScanCoordinator @Inject constructor(
     private val observer = object : android.database.ContentObserver(handler) {
         override fun onChange(selfChange: Boolean) {
             handler.removeCallbacksAndMessages(this)
-            handler.postDelayed({ enqueueMediaScan(context) }, 2_000L)
+            handler.postDelayed({ startScan(context, trigger = "media-observer") }, 2_000L)
         }
     }
 
