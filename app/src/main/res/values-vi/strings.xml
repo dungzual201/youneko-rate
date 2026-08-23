@@ -232,6 +232,7 @@
     <string name="load_more">Tải thêm</string>
     <string name="close">Đóng</string>
     <string name="a11y_back">Quay lại</string>
+    <string name="back">Quay lại</string>
     <string name="network_offline">Đang bật chế độ ngoại tuyến.</string>
     <string name="network_no_connection">Không có kết nối mạng.</string>
     <string name="network_timeout">Kết nối MusicBrainz quá thời gian.</string>

@@ -232,6 +232,7 @@
     <string name="load_more">Load more</string>
     <string name="close">Close</string>
     <string name="a11y_back">Back</string>
+    <string name="back">Back</string>
     <string name="cover_save">Save cover</string>
     <string name="palette_title">Cover palette</string>
     <string name="palette_hex">Color code: %1$s</string>
