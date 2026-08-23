@@ -114,7 +114,7 @@ class MediaStoreScanWorker(appContext: Context, params: WorkerParameters) : Coro
             manager.createNotificationChannel(NotificationChannel(CHANNEL_ID, applicationContext.getString(R.string.media_scan_channel), NotificationManager.IMPORTANCE_LOW))
         }
         val notification: Notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.stat_notify_sync)
+            .setSmallIcon(R.drawable.ic_notification_paw)
             .setContentTitle(applicationContext.getString(R.string.media_scan_notification_title))
             .setContentText(applicationContext.getString(R.string.media_scan_progress, done, total))
             .setOngoing(true)

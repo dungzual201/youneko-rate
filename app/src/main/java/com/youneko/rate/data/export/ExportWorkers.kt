@@ -182,7 +182,7 @@ private fun backupForegroundInfo(context: Context, title: String, workId: UUID, 
     manager.createNotificationChannel(NotificationChannel("background_tasks", "Tác vụ nền", NotificationManager.IMPORTANCE_LOW))
     val cancel = WorkManager.getInstance(context).createCancelPendingIntent(workId)
     return ForegroundInfo(2202, androidx.core.app.NotificationCompat.Builder(context, "background_tasks")
-        .setSmallIcon(android.R.drawable.stat_sys_upload)
+        .setSmallIcon(R.drawable.ic_notification_paw)
         .setContentTitle(context.getString(R.string.app_name))
         .setContentText(title)
         .setOngoing(true)
