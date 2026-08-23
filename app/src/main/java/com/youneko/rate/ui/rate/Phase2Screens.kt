@@ -33,6 +33,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
@@ -57,6 +58,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ArrowBack
@@ -553,6 +555,7 @@ private fun StandaloneDialog(onDismiss: () -> Unit) {
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AlbumEditorScreen(onSaved: (String) -> Unit, onCancel: () -> Unit, viewModel: AlbumEditorViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -564,7 +567,17 @@ fun AlbumEditorScreen(onSaved: (String) -> Unit, onCancel: () -> Unit, viewModel
         }
     }
     var quickCount by rememberSaveable { mutableStateOf("") }
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    BackHandler(onBack = onCancel)
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                title = { Text(stringResource(R.string.album_title)) },
+                navigationIcon = { IconButton(onClick = onCancel) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back)) } },
+            )
+        },
+    ) { innerPadding ->
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(innerPadding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         OutlinedTextField(state.title, viewModel::setTitle, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.album_title)) }, singleLine = true)
         OutlinedTextField(state.artist, viewModel::setArtist, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.artist_name)) }, singleLine = true)
         OutlinedTextField(state.year, viewModel::setYear, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.release_year)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true)
@@ -594,6 +607,7 @@ fun AlbumEditorScreen(onSaved: (String) -> Unit, onCancel: () -> Unit, viewModel
             TextButton(onClick = onCancel) { Text(stringResource(R.string.cancel)) }
             Button(onClick = { viewModel.save() }) { Text(stringResource(R.string.save)) }
         }
+    }
     }
     if (quickCount.isNotBlank()) {
         AlertDialog(
@@ -1204,10 +1218,12 @@ private fun SettingsSectionHeader(title: String, icon: ImageVector) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     onOpenExport: () -> Unit = {},
     onOpenImport: () -> Unit = onOpenExport,
+    onBack: () -> Unit = {},
     viewModel: ScoreSettingsViewModel = hiltViewModel(),
 ) {
     val mode by viewModel.scoreMode.collectAsStateWithLifecycle()
@@ -1231,7 +1247,21 @@ fun SettingsScreen(
     val settingsStore = remember(appContext) { SettingsDataStore(appContext) }
     val themeModeName by settingsStore.themeMode.collectAsStateWithLifecycle(initialValue = ThemeMode.SYSTEM.name)
     val settingsScope = rememberCoroutineScope()
-    Column(Modifier.fillMaxSize().padding(YounekoSpacing.md), verticalArrangement = Arrangement.spacedBy(YounekoSpacing.sm)) {
+    BackHandler(onBack = onBack)
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                title = { Text(stringResource(R.string.settings)) },
+                navigationIcon = {
+                    IconButton(onClick = onBack, modifier = Modifier.size(48.dp)) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
+                    }
+                },
+            )
+        },
+    ) { padding ->
+    Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = YounekoSpacing.md), verticalArrangement = Arrangement.spacedBy(YounekoSpacing.sm)) {
         SettingsSectionHeader(stringResource(R.string.language), Icons.Default.Language)
         FilterChip(
             selected = applicationLanguage.isBlank(),
@@ -1378,5 +1408,6 @@ fun SettingsScreen(
         TextButton(onClick = viewModel::reloadAllCovers) { Text(stringResource(R.string.reload_all_covers)) }
         TextButton(onClick = viewModel::clearMetadataCache) { Text(stringResource(R.string.metadata_cache_clear)) }
         Text(stringResource(R.string.settings_body), style = MaterialTheme.typography.bodyMedium)
+    }
     }
 }

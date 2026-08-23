@@ -158,6 +158,7 @@ fun YounekoNavHost() {
             composable("stats") { StatsScreen() }
             composable("settings") {
                 SettingsScreen(
+                    onBack = { navController.popBackStack() },
                     onOpenExport = { navController.navigate("export?intent=export") },
                     onOpenImport = { navController.navigate("export?intent=import") },
                 )
@@ -174,7 +175,7 @@ fun YounekoNavHost() {
             composable("advancedSearch") { AdvancedSearchScreen(onBack = { navController.popBackStack() }) }
             composable("collections") { CollectionsScreen(onBack = { navController.popBackStack() }) }
             composable("importTags") {
-                ImportScreen(onDone = {
+                ImportScreen(onBack = { navController.popBackStack() }, onDone = {
                     Log.d("ImportNavigation", "before success route=${backStackEntry?.destination?.route}")
                     navController.navigate("rate") {
                         popUpTo("importTags") { inclusive = true }
