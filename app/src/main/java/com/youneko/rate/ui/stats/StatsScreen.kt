@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.res.Configuration
 import android.content.Intent
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.view.ViewGroup
 import android.os.Build
 import android.util.Log
@@ -49,16 +48,21 @@ import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.CompositionContext
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCompositionContext
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberCompositionContext
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -122,6 +126,8 @@ internal data class ShareStatsLabels(
     val averageScore: String,
     val tracksAnalyzed: String,
 )
+
+internal data class ShareStatsImage(val file: File, val bitmap: Bitmap)
 
 data class StatsUiState(
     val loading: Boolean = true,
@@ -187,7 +193,7 @@ fun StatsScreen(contentPadding: PaddingValues = PaddingValues(), viewModel: Stat
         tracksAnalyzed = stringResource(R.string.share_tracks_analyzed),
     )
     var shareLoading by remember { mutableStateOf(false) }
-    var shareFile by remember { mutableStateOf<File?>(null) }
+    var shareImage by remember { mutableStateOf<ShareStatsImage?>(null) }
     var shareError by remember { mutableStateOf<String?>(null) }
 
     if (state.loading) {
@@ -223,9 +229,9 @@ fun StatsScreen(contentPadding: PaddingValues = PaddingValues(), viewModel: Stat
                 onClick = {
                     shareError = null
                     shareLoading = true
-                    scope.launch {
+                    scope.launch(Dispatchers.Default) {
                         runCatching { renderStatsImage(context, state, labels, shareColors, parentCompositionContext, lifecycleOwner, savedStateOwner, renderHost) }
-                            .onSuccess { shareFile = it }
+                            .onSuccess { shareImage = it }
                             .onFailure { shareError = it.message ?: shareFailureFallback }
                         shareLoading = false
                     }
@@ -255,12 +261,26 @@ fun StatsScreen(contentPadding: PaddingValues = PaddingValues(), viewModel: Stat
             confirmButton = { TextButton(onClick = { shareError = null }) { Text(stringResource(R.string.backup_cancel)) } },
         )
     }
-    shareFile?.let { file ->
+    if (shareLoading || shareImage != null) {
         SharePreviewDialog(
-            file = file,
-            onDismiss = { shareFile = null },
-            onShare = { shareStatsFile(context, file); shareFile = null },
-            onSave = { saveStatsFile(context, file); shareFile = null },
+            file = shareImage?.file,
+            bitmap = shareImage?.bitmap,
+            loading = shareLoading,
+            onDismiss = {
+                shareImage?.bitmap?.recycle()
+                shareImage = null
+                shareLoading = false
+            },
+            onShare = {
+                shareImage?.file?.let { shareStatsFile(context, it) }
+                shareImage?.bitmap?.recycle()
+                shareImage = null
+            },
+            onSave = {
+                shareImage?.file?.let { saveStatsFile(context, it) }
+                shareImage?.bitmap?.recycle()
+                shareImage = null
+            },
         )
     }
 }
@@ -286,7 +306,7 @@ private fun contrastRatio(foreground: Color, background: Color): String {
 
 private fun formatShareCount(value: Int): String = NumberFormat.getIntegerInstance(Locale.getDefault()).format(value)
 
-internal suspend fun renderStatsImage(context: Context, state: StatsUiState, labels: ShareStatsLabels, colors: ColorScheme, parentCompositionContext: CompositionContext, lifecycleOwner: androidx.lifecycle.LifecycleOwner, savedStateOwner: SavedStateRegistryOwner, renderHost: ViewGroup?): File {
+internal suspend fun renderStatsImage(context: Context, state: StatsUiState, labels: ShareStatsLabels, colors: ColorScheme, parentCompositionContext: CompositionContext, lifecycleOwner: androidx.lifecycle.LifecycleOwner, savedStateOwner: SavedStateRegistryOwner, renderHost: ViewGroup?): ShareStatsImage {
     val (file, bitmap) = withContext(Dispatchers.Main.immediate) {
         val directory = File(context.cacheDir, "share").apply { mkdirs() }
         val timestamp = LocalDateTime.now(ZoneId.systemDefault())
@@ -318,9 +338,8 @@ internal suspend fun renderStatsImage(context: Context, state: StatsUiState, lab
     }
     withContext(Dispatchers.IO) {
         file.outputStream().use { output -> check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)) }
-        bitmap.recycle()
     }
-    return file
+    return ShareStatsImage(file, bitmap)
 }
 
 @Composable
@@ -422,17 +441,29 @@ private fun ShareMetricCard(icon: androidx.compose.ui.graphics.vector.ImageVecto
 }
 
 @Composable
-private fun SharePreviewDialog(file: File, onDismiss: () -> Unit, onShare: () -> Unit, onSave: () -> Unit) {
-    val bitmap = remember(file) { BitmapFactory.decodeFile(file.absolutePath)?.asImageBitmap() }
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+private fun SharePreviewDialog(file: File?, bitmap: Bitmap?, loading: Boolean, onDismiss: () -> Unit, onShare: () -> Unit, onSave: () -> Unit) {
+    LaunchedEffect(bitmap, loading) {
+        if (bitmap != null && !loading) Log.d("SHARE", "preview shows bitmap ${bitmap.width}x${bitmap.height}, live-compose path removed")
+    }
+    Dialog(onDismissRequest = { if (!loading) onDismiss() }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Card(Modifier.fillMaxWidth(0.92f), shape = RoundedCornerShape(24.dp)) {
-            Column(Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                Modifier.fillMaxWidth().heightIn(max = 760.dp).verticalScroll(rememberScrollState()).padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
                 Text(stringResource(R.string.stats_share_preview), style = MaterialTheme.typography.titleLarge)
-                bitmap?.let { Image(it, contentDescription = stringResource(R.string.stats_share_preview), modifier = Modifier.fillMaxWidth().height(420.dp), contentScale = androidx.compose.ui.layout.ContentScale.Fit) }
+                Box(Modifier.fillMaxWidth().aspectRatio(1080f / 1350f), contentAlignment = Alignment.Center) {
+                    if (bitmap != null) {
+                        Image(bitmap = bitmap.asImageBitmap(), contentDescription = null, modifier = Modifier.fillMaxWidth().aspectRatio(1080f / 1350f), contentScale = ContentScale.Fit)
+                    } else {
+                        CircularProgressIndicator()
+                    }
+                }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.backup_cancel)) }
-                    TextButton(onClick = onSave, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.stats_share_save)) }
-                    Button(onClick = onShare, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.stats_share_action)) }
+                    TextButton(onClick = onDismiss, enabled = !loading, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.backup_cancel)) }
+                    TextButton(onClick = onSave, enabled = !loading && file != null, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.stats_share_save)) }
+                    Button(onClick = onShare, enabled = !loading && file != null, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.stats_share_action)) }
                 }
             }
         }
