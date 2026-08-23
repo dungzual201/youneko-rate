@@ -6,8 +6,12 @@ import com.youneko.rate.ui.YounekoLoadingState
 import com.youneko.rate.ui.YounekoSpacing
 import com.youneko.rate.ui.YnDimens
 
+import android.content.Context
 import android.content.Intent
 import androidx.annotation.StringRes
+import android.media.MediaCodecList
+import android.media.MediaExtractor
+import android.media.MediaFormat
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -103,6 +107,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
@@ -112,6 +117,8 @@ import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.workDataOf
 import com.youneko.rate.R
+import com.youneko.rate.data.CrashLogStore
+import com.youneko.rate.data.audio.AnalyzeInputException
 import com.youneko.rate.data.audio.AudioAnalysisWorker
 import com.youneko.rate.data.audio.CachedSpectrogram
 import com.youneko.rate.data.audio.SpectrogramCache
@@ -150,6 +157,17 @@ enum class AnalyzeStep(@StringRes val labelRes: Int) {
     SAVING(R.string.analyze_step_saving),
 }
 
+data class SelectedAudioFile(
+    val uri: String,
+    val displayName: String,
+    val sizeBytes: Long,
+    val declaredMime: String?,
+    val trackMime: String,
+    val durationMs: Long,
+    val sampleRate: Int,
+    val channels: Int,
+)
+
 data class AnalyzeHeader(
     val title: String,
     val artist: String? = null,
@@ -159,6 +177,7 @@ data class AnalyzeHeader(
 
 sealed interface AnalyzeEvent {
     data object Cancelled : AnalyzeEvent
+    data class Failed(val reason: String) : AnalyzeEvent
 }
 
 sealed interface AnalyzeUiState {
@@ -196,10 +215,12 @@ private fun WorkInfo?.toAnalyzeUiState(): AnalyzeUiState {
 
 @HiltViewModel
 class AudioAnalysisViewModel @Inject constructor(
-    @ApplicationContext private val context: android.content.Context,
+    @ApplicationContext     private val context: Context,
     dao: AudioAnalysisDao,
     private val trackDao: TrackDao,
+    private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
+
     private val workManager = WorkManager.getInstance(context)
     private val settings = SettingsDataStore(context)
     private val _libraryTracks = MutableStateFlow<List<TrackEntity>>(emptyList())
@@ -211,6 +232,8 @@ class AudioAnalysisViewModel @Inject constructor(
     private var userRequestedCancel = false
     private val _header = MutableStateFlow<AnalyzeHeader?>(null)
     val header = _header.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    private val _selectedFile = MutableStateFlow<SelectedAudioFile?>(null)
+    val selectedFile = _selectedFile.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
     val analyses = dao.observeAll().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     private val workInfosFlow = workManager.getWorkInfosForUniqueWorkFlow(AudioAnalysisWorker.UNIQUE_WORK)
     val workInfos = workInfosFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -240,14 +263,18 @@ class AudioAnalysisViewModel @Inject constructor(
     }
 
     fun enqueue(uri: String) {
+        savedStateHandle[KEY_SELECTED_URI] = uri
         viewModelScope.launch(Dispatchers.IO) {
-            settings.addAnalyzeRecentUri(uri)
-            val parsedUri = Uri.parse(uri)
-            val fileName = parsedUri.lastPathSegment.orEmpty().substringAfterLast('/').ifBlank { "audio" }
-            val tag = runCatching { LocalAudioTagReader(context, ArtworkStore(context)).readAll(listOf(parsedUri)).tags.firstOrNull() }.getOrNull()
-            _header.value = tag.toAnalyzeHeader(fileName)
-            userRequestedCancel = false
-            val request = OneTimeWorkRequestBuilder<AudioAnalysisWorker>()
+            try {
+                val parsedUri = Uri.parse(uri)
+                val selected = inspectAudioUri(parsedUri)
+                _selectedFile.value = selected
+                settings.addAnalyzeRecentUri(uri)
+                val fileName = selected.displayName
+                val tag = LocalAudioTagReader(context, ArtworkStore(context)).readAll(listOf(parsedUri)).tags.firstOrNull()
+                _header.value = tag.toAnalyzeHeader(fileName)
+                userRequestedCancel = false
+                val request = OneTimeWorkRequestBuilder<AudioAnalysisWorker>()
                 .setInputData(workDataOf(
                     AudioAnalysisWorker.KEY_URI to uri,
                     AudioAnalysisWorker.KEY_FILE_NAME to fileName,
@@ -256,9 +283,65 @@ class AudioAnalysisViewModel @Inject constructor(
                 ))
                 .setBackoffCriteria(androidx.work.BackoffPolicy.EXPONENTIAL, 10, TimeUnit.SECONDS)
                 .build()
-            currentWorkId = request.id
-            workManager.enqueueUniqueWork(AudioAnalysisWorker.UNIQUE_WORK, ExistingWorkPolicy.REPLACE, request)
+                currentWorkId = request.id
+                workManager.enqueueUniqueWork(AudioAnalysisWorker.UNIQUE_WORK, ExistingWorkPolicy.REPLACE, request)
+            } catch (error: OutOfMemoryError) {
+                CrashLogStore.write(context, Thread.currentThread(), error)
+                _events.trySend(AnalyzeEvent.Failed(context.getString(R.string.analyze_file_read_error, context.getString(R.string.analyze_error_out_of_memory))))
+            } catch (error: SecurityException) {
+                CrashLogStore.write(context, Thread.currentThread(), error)
+                _events.trySend(AnalyzeEvent.Failed(context.getString(R.string.analyze_file_read_error, context.getString(R.string.analyze_error_permission))))
+            } catch (error: java.io.FileNotFoundException) {
+                CrashLogStore.write(context, Thread.currentThread(), error)
+                _events.trySend(AnalyzeEvent.Failed(context.getString(R.string.analyze_file_read_error, context.getString(R.string.analyze_error_file_not_found))))
+            } catch (error: IllegalArgumentException) {
+                CrashLogStore.write(context, Thread.currentThread(), error)
+                _events.trySend(AnalyzeEvent.Failed(context.getString(R.string.analyze_file_read_error, error.message ?: context.getString(R.string.analyze_error_invalid_file))))
+            } catch (error: IllegalStateException) {
+                CrashLogStore.write(context, Thread.currentThread(), error)
+                _events.trySend(AnalyzeEvent.Failed(context.getString(R.string.analyze_file_read_error, error.message ?: context.getString(R.string.analyze_error_invalid_file))))
+            }
         }
+    }
+
+    private fun inspectAudioUri(uri: Uri): SelectedAudioFile {
+        val resolver = context.contentResolver
+        val displayName = resolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+            val index = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+            if (index >= 0 && cursor.moveToFirst() && !cursor.isNull(index)) cursor.getString(index) else null
+        }?.takeIf { it.isNotBlank() } ?: uri.lastPathSegment.orEmpty().substringAfterLast('/').ifBlank { "audio" }
+        val declaredMime = resolver.getType(uri)
+        val pfd = resolver.openFileDescriptor(uri, "r") ?: throw java.io.FileNotFoundException(uri.toString())
+        pfd.use { descriptor ->
+            val size = descriptor.statSize.takeIf { it > 0L } ?: resolver.openAssetFileDescriptor(uri, "r")?.use { it.length }?.takeIf { it > 0L } ?: 0L
+            if (size > MAX_ANALYZE_BYTES) throw IllegalArgumentException(context.getString(R.string.analyze_error_file_too_large))
+            val extractor = MediaExtractor()
+            try {
+                extractor.setDataSource(descriptor.fileDescriptor)
+                val audioIndex = (0 until extractor.trackCount).firstOrNull { index ->
+                    extractor.getTrackFormat(index).getString(MediaFormat.KEY_MIME).orEmpty().startsWith("audio/")
+                } ?: throw IllegalArgumentException(context.getString(R.string.analyze_error_not_audio))
+                val format = extractor.getTrackFormat(audioIndex)
+                val trackMime = format.getString(MediaFormat.KEY_MIME).orEmpty()
+                if (trackMime.isBlank()) throw IllegalArgumentException(context.getString(R.string.analyze_error_not_audio))
+                if (MediaCodecList(MediaCodecList.REGULAR_CODECS).findDecoderForFormat(format) == null) {
+                    throw AnalyzeInputException.NoDecoder(trackMime)
+                }
+                val durationMs = runCatching { format.getLong(MediaFormat.KEY_DURATION) / 1_000L }.getOrDefault(0L)
+                val sampleRate = runCatching { format.getInteger(MediaFormat.KEY_SAMPLE_RATE) }.getOrDefault(0)
+                val channels = runCatching { format.getInteger(MediaFormat.KEY_CHANNEL_COUNT) }.getOrDefault(0)
+                if (durationMs <= 0L || sampleRate <= 0 || channels <= 0) throw IllegalArgumentException(context.getString(R.string.analyze_error_invalid_format))
+                android.util.Log.d("ANALYZE", "file size=$size duration=$durationMs sampleRate=$sampleRate channels=$channels")
+                return SelectedAudioFile(uri.toString(), displayName, size, declaredMime, trackMime, durationMs, sampleRate, channels)
+            } finally {
+                extractor.release()
+            }
+        }
+    }
+
+    companion object {
+        private const val KEY_SELECTED_URI = "analyze_selected_uri"
+        private const val MAX_ANALYZE_BYTES = 512L * 1024L * 1024L
     }
 
     fun onCancelClicked() {
@@ -273,11 +356,11 @@ fun AudioAnalysisScreen(initialUri: String? = null, viewModel: AudioAnalysisView
     val analyses by viewModel.analyses.collectAsStateWithLifecycle()
     val workInfos by viewModel.workInfos.collectAsStateWithLifecycle()
     val header by viewModel.header.collectAsStateWithLifecycle()
+    val selectedFile by viewModel.selectedFile.collectAsStateWithLifecycle()
     var explain by rememberSaveable { mutableStateOf(false) }
     val context = LocalContext.current
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         uri ?: return@rememberLauncherForActivityResult
-        runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
         viewModel.enqueue(uri.toString())
     }
     val latest = analyses.firstOrNull()
@@ -307,6 +390,10 @@ fun AudioAnalysisScreen(initialUri: String? = null, viewModel: AudioAnalysisView
                 AnalyzeEvent.Cancelled -> {
                     snackbarHostState.currentSnackbarData?.dismiss()
                     snackbarHostState.showSnackbar(cancelledMessage)
+                }
+                is AnalyzeEvent.Failed -> {
+                    snackbarHostState.currentSnackbarData?.dismiss()
+                    snackbarHostState.showSnackbar(event.reason)
                 }
             }
         }
@@ -352,6 +439,11 @@ fun AudioAnalysisScreen(initialUri: String? = null, viewModel: AudioAnalysisView
                             Icon(Icons.Rounded.LibraryMusic, contentDescription = null)
                             Text(stringResource(R.string.audio_analysis_choose_another))
                         }
+                    }
+                }
+                item {
+                    selectedFile?.let { file ->
+                        SelectedAudioFileCard(file)
                     }
                 }
                 item {
@@ -457,6 +549,26 @@ fun AudioAnalysisScreen(initialUri: String? = null, viewModel: AudioAnalysisView
             confirmButton = { TextButton(onClick = { explain = false }) { Text(stringResource(R.string.close)) } },
         )
     }
+}
+
+@Composable
+private fun SelectedAudioFileCard(file: SelectedAudioFile) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(file.displayName, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(
+                stringResource(R.string.analyze_selected_file_details, formatBytes(LocalContext.current, file.sizeBytes), file.trackMime),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+private fun formatBytes(context: Context, bytes: Long): String = when {
+    bytes >= 1024L * 1024L -> context.getString(R.string.analyze_size_mb, bytes / (1024.0 * 1024.0))
+    bytes >= 1024L -> context.getString(R.string.analyze_size_kb, bytes / 1024.0)
+    else -> context.getString(R.string.analyze_size_bytes, bytes)
 }
 
 @Composable

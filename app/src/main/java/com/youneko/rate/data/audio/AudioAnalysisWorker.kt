@@ -1,5 +1,7 @@
 package com.youneko.rate.data.audio
 
+import android.annotation.SuppressLint
+import android.app.ForegroundServiceStartNotAllowedException
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -13,6 +15,7 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import com.youneko.rate.R
+import com.youneko.rate.data.CrashLogStore
 import android.util.Log
 import com.youneko.rate.data.local.dao.AudioAnalysisDao
 import dagger.hilt.android.EntryPointAccessors
@@ -20,6 +23,8 @@ import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.withContext
 
 @EntryPoint
 @InstallIn(SingletonComponent::class)
@@ -31,12 +36,21 @@ class AudioAnalysisWorker(
     appContext: Context,
     workerParams: WorkerParameters,
 ) : CoroutineWorker(appContext, workerParams) {
-    override suspend fun doWork(): Result {
+    private val analyzeExceptionHandler = CoroutineExceptionHandler { _, throwable ->
+        CrashLogStore.write(applicationContext, Thread.currentThread(), throwable)
+        Log.e("ANALYZE", "ANALYZE: uncaught coroutine exception", throwable)
+    }
+
+    override suspend fun doWork(): Result = withContext(analyzeExceptionHandler) {
+        doWorkInternal()
+    }
+
+    private suspend fun doWorkInternal(): Result {
         val uri = inputData.getString(KEY_URI) ?: return Result.failure(workDataOf(KEY_ERROR to "Thiếu URI file audio"))
         val fileName = inputData.getString(KEY_FILE_NAME).orEmpty().ifBlank { uri.substringAfterLast('/').ifBlank { "audio" } }
         val fileIndex = inputData.getInt(KEY_FILE_INDEX, 1)
         val totalFiles = inputData.getInt(KEY_TOTAL_FILES, 1)
-        setForeground(createForegroundInfo(fileName, fileIndex, totalFiles, 0f))
+        setForegroundSafely(createForegroundInfo(fileName, fileIndex, totalFiles, 0f))
         return try {
             publish(AudioAnalysisProgress(AudioAnalysisStep.READING_HEADER, 0f), fileName, fileIndex, totalFiles)
             val result = StreamingAudioAnalysisEngine(applicationContext).analyze(
@@ -75,11 +89,30 @@ class AudioAnalysisWorker(
             Result.success(workDataOf(KEY_ANALYSIS_ID to result.id))
         } catch (cancelled: CancellationException) {
             Result.failure(workDataOf(KEY_CANCELLED to true, KEY_ERROR to (cancelled.message ?: "Đã huỷ phân tích")))
+        } catch (error: OutOfMemoryError) {
+            val message = classifyAnalyzeError(error)
+            CrashLogStore.write(applicationContext, Thread.currentThread(), error)
+            Log.e("ANALYZE", "ANALYZE: uri=$uri err=$message", error)
+            Result.failure(workDataOf(KEY_ERROR to message, KEY_FILE_NAME to fileName))
         } catch (error: Throwable) {
             val message = classifyAnalyzeError(error)
+            CrashLogStore.write(applicationContext, Thread.currentThread(), error)
             Log.e("ANALYZE", "ANALYZE: uri=$uri mime=? codec=? sampleRate=? ch=? pcmEnc=? err=$message", error)
             if (runAttemptCount < 2 && !isStopped && !error.isPermanentAnalyzeError()) Result.retry()
             else Result.failure(workDataOf(KEY_ERROR to message, KEY_FILE_NAME to fileName))
+        }
+    }
+
+    @SuppressLint("NewApi")
+    private suspend fun setForegroundSafely(info: ForegroundInfo) {
+        try {
+            setForeground(info)
+        } catch (error: ForegroundServiceStartNotAllowedException) {
+            Log.w("ANALYZE", "ANALYZE: foreground start not allowed; continuing without notification", error)
+        } catch (error: SecurityException) {
+            Log.w("ANALYZE", "ANALYZE: notification permission unavailable; continuing without notification", error)
+        } catch (error: IllegalStateException) {
+            Log.w("ANALYZE", "ANALYZE: foreground promotion unavailable; continuing without notification", error)
         }
     }
 
@@ -106,7 +139,7 @@ class AudioAnalysisWorker(
             KEY_PROGRESS to (progress.stepProgress.coerceIn(0f, 1f) * 100f).toInt(),
         )
         setProgressAsync(data)
-        setForeground(createForegroundInfo(fileName, index, total, progress.stepProgress))
+        setForegroundSafely(createForegroundInfo(fileName, index, total, progress.stepProgress))
     }
 
     private fun createForegroundInfo(fileName: String, index: Int, total: Int, progress: Float): ForegroundInfo {
@@ -128,7 +161,11 @@ class AudioAnalysisWorker(
             .setProgress(100, (progress.coerceIn(0f, 1f) * 100).toInt(), progress < 0f)
             .addAction(R.drawable.ic_cat_cover, applicationContext.getString(R.string.audio_analysis_cancel), cancelPendingIntent)
             .build()
-        return ForegroundInfo(NOTIFICATION_ID, notification)
+        return if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            ForegroundInfo(NOTIFICATION_ID, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+        } else {
+            ForegroundInfo(NOTIFICATION_ID, notification)
+        }
     }
 
     companion object {
