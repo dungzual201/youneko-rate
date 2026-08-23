@@ -336,11 +336,11 @@ internal fun ShareStatsCard(state: StatsUiState, labels: ShareStatsLabels, times
             .background(Brush.verticalGradient(listOf(colors.primaryContainer, colors.surface))),
     ) {
         ShareStatsDecorations(colors)
-        Column(Modifier.fillMaxSize().padding(72.dp), verticalArrangement = Arrangement.SpaceBetween) {
+        Column(Modifier.fillMaxSize().padding(64.dp), verticalArrangement = Arrangement.SpaceBetween) {
             Box(Modifier.fillMaxWidth()) {
-                Column(Modifier.fillMaxWidth()) {
-                    Text(labels.title, style = MaterialTheme.typography.displaySmall, color = colors.onPrimaryContainer, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(labels.subtitle, style = MaterialTheme.typography.labelLarge, color = colors.onPrimaryContainer.copy(alpha = 0.7f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(labels.title, fontSize = 68.sp, lineHeight = 72.sp, color = colors.onPrimaryContainer, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
+                    Text(labels.subtitle, fontSize = 30.sp, lineHeight = 34.sp, color = colors.onPrimaryContainer.copy(alpha = 0.75f), maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
                 }
                 Icon(
                     painter = painterResource(R.drawable.ic_cat_chibi_peek),
@@ -349,29 +349,31 @@ internal fun ShareStatsCard(state: StatsUiState, labels: ShareStatsLabels, times
                     modifier = Modifier.align(Alignment.TopEnd).size(140.dp).offset(y = (-16).dp).graphicsLayer { alpha = 1f },
                 )
             }
-            Column(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(36.dp, Alignment.CenterVertically)) {
-                ShareMetricCard(Icons.Default.Star, formatShareCount(state.tracksRated), labels.tracksRated)
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(32.dp)) {
                 val average = state.averageScore?.let { NumberFormat.getNumberInstance(locale).apply { minimumFractionDigits = 1; maximumFractionDigits = 1 }.format(it) } ?: "—"
+                Log.d("SHARE", "cards rated=${state.tracksRated} avg=$average analyzed=${state.tracksAnalyzed}")
+                ShareMetricCard(Icons.Default.Star, formatShareCount(state.tracksRated), labels.tracksRated)
                 ShareMetricCard(Icons.Default.Grade, average, labels.averageScore)
                 ShareMetricCard(Icons.Default.GraphicEq, formatShareCount(state.tracksAnalyzed), labels.tracksAnalyzed)
             }
             Box(Modifier.fillMaxWidth().height(200.dp)) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_cat_chibi_sit),
-                    contentDescription = null,
-                    tint = colors.primary,
-                    modifier = Modifier.align(Alignment.BottomEnd).size(200.dp).graphicsLayer { alpha = 0.9f },
-                )
+                                    Icon(
+                        painter = painterResource(R.drawable.ic_cat_chibi_sit),
+                        contentDescription = null,
+                        tint = colors.primary,
+                        modifier = Modifier.align(Alignment.BottomEnd).size(200.dp).graphicsLayer { alpha = 0.9f },
+                    )
+
             }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                     Icon(painter = painterResource(com.youneko.rate.R.drawable.ic_paw), contentDescription = null, tint = colors.onSurface, modifier = Modifier.size(72.dp))
                     Spacer(Modifier.width(16.dp))
-                    Text(labels.appName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = colors.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(labels.appName, fontSize = 32.sp, lineHeight = 36.sp, fontWeight = FontWeight.Bold, color = colors.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
                 }
                 Column(horizontalAlignment = Alignment.End) {
-                    Text(timestamp.format(DateTimeFormatter.ofPattern("HH:mm", locale)), style = MaterialTheme.typography.labelLarge, color = colors.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(timestamp.format(DateTimeFormatter.ofPattern("dd-MM-yyyy", locale)), style = MaterialTheme.typography.labelLarge, color = colors.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(timestamp.format(DateTimeFormatter.ofPattern("HH:mm", locale)), fontSize = 32.sp, lineHeight = 36.sp, color = colors.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
+                    Text(timestamp.format(DateTimeFormatter.ofPattern("dd-MM-yyyy", locale)), fontSize = 30.sp, lineHeight = 34.sp, color = colors.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
                 }
             }
         }
@@ -408,12 +410,12 @@ private fun ShareStatsDecorations(colors: ColorScheme) {
 @Composable
 private fun ShareMetricCard(icon: androidx.compose.ui.graphics.vector.ImageVector, value: String, label: String) {
     val colors = MaterialTheme.colorScheme
-    Card(Modifier.fillMaxWidth().heightIn(min = 230.dp), shape = RoundedCornerShape(40.dp), colors = CardDefaults.cardColors(containerColor = colors.surface.copy(alpha = 0.88f))) {
-        Row(Modifier.fillMaxSize().padding(40.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(32.dp)) {
-            Icon(icon, contentDescription = null, tint = colors.onSurface, modifier = Modifier.size(88.dp))
-            Column(Modifier.weight(1f)) {
-                Text(value, fontSize = 110.sp, lineHeight = 118.sp, fontWeight = FontWeight.Bold, color = colors.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(label, fontSize = 30.sp, lineHeight = 36.sp, color = colors.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    Card(Modifier.fillMaxWidth().height(260.dp), shape = RoundedCornerShape(40.dp), colors = CardDefaults.cardColors(containerColor = colors.surface.copy(alpha = 0.55f))) {
+        Row(Modifier.fillMaxSize().padding(44.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(36.dp)) {
+            Icon(icon, contentDescription = null, tint = colors.onSurface, modifier = Modifier.size(96.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(value, fontSize = 128.sp, lineHeight = 132.sp, fontWeight = FontWeight.Bold, color = colors.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
+                Text(label, fontSize = 34.sp, lineHeight = 38.sp, color = colors.onSurface.copy(alpha = 0.85f), maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
             }
         }
     }
