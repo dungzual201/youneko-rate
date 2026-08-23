@@ -203,6 +203,12 @@
     <string name="export_restore_started">Restore validation started</string>
     <string name="export_open">Export, backup and sharing</string>
     <string name="refresh_music_data">Refresh music data</string>
+    <string name="rescan_all_music">Rescan all music</string>
+    <string name="rescan_all_title">Rescan the complete library?</string>
+    <string name="rescan_all_body">This rechecks every visible audio file and may take time. Ratings, reviews, and cover art are kept.</string>
+    <string name="rescan_all_confirm">Rescan all</string>
+    <string name="rescan_all_started">Full library rescan started.</string>
+    <string name="rescan_all_progress">Rescanning: %1$d/%2$d</string>
     <string name="reload_all_covers">Reload all album covers</string>
     <string name="choose_manual_cover">Choose cover image</string>
     <string name="collections_title">Collections</string>

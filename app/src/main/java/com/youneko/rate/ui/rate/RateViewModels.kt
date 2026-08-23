@@ -53,6 +53,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
 import kotlinx.coroutines.launch
 
 enum class LibrarySort { NEWEST, SCORE_HIGH, SCORE_LOW, TITLE, YEAR, LISTENED_DATE }
@@ -353,6 +355,9 @@ class ScoreSettingsViewModel @Inject constructor(
     val creditsMergeMode = settings.creditsMergeMode.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
     private val _tokenTestResult = MutableStateFlow<Map<String, Int>>(emptyMap())
     val tokenTestResult: StateFlow<Map<String, Int>> = _tokenTestResult.asStateFlow()
+    private val scanWorkManager = WorkManager.getInstance(context)
+    val scanWorkInfos = scanWorkManager.getWorkInfosForUniqueWorkFlow(UNIQUE_ON_RESUME)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun setRatingScale(scale: RatingScale) = viewModelScope.launch(Dispatchers.IO) { settings.setRatingScale(scale.name) }
     fun setScoreMode(mode: ScoreMode) = viewModelScope.launch(Dispatchers.IO) {

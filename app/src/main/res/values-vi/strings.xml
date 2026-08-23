@@ -203,6 +203,12 @@
     <string name="export_restore_started">Đã bắt đầu kiểm tra bản sao lưu</string>
     <string name="export_open">Xuất, sao lưu và chia sẻ</string>
     <string name="refresh_music_data">Làm mới dữ liệu nhạc</string>
+    <string name="rescan_all_music">Quét lại toàn bộ nhạc</string>
+    <string name="rescan_all_title">Quét lại toàn bộ thư viện?</string>
+    <string name="rescan_all_body">Ứng dụng sẽ kiểm tra lại mọi tệp audio nhìn thấy và có thể mất thời gian. Điểm, nhận xét và ảnh bìa vẫn được giữ nguyên.</string>
+    <string name="rescan_all_confirm">Quét lại toàn bộ</string>
+    <string name="rescan_all_started">Đã bắt đầu quét lại toàn bộ thư viện.</string>
+    <string name="rescan_all_progress">Đang quét lại: %1$d/%2$d</string>
     <string name="reload_all_covers">Tải lại toàn bộ ảnh bìa</string>
     <string name="choose_manual_cover">Chọn ảnh bìa</string>
     <string name="collections_title">Bộ sưu tập</string>

@@ -94,6 +94,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -1252,6 +1253,10 @@ fun SettingsScreen(
     val settingsScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     val noCrashLogMessage = stringResource(R.string.no_crash_log)
+    val scanWorkInfos by viewModel.scanWorkInfos.collectAsStateWithLifecycle()
+    val scanWork = scanWorkInfos.firstOrNull()
+    val scanActive = scanWork?.state == androidx.work.WorkInfo.State.ENQUEUED || scanWork?.state == androidx.work.WorkInfo.State.RUNNING
+    var showRescanConfirmation by rememberSaveable { mutableStateOf(false) }
     BackHandler(onBack = onBack)
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -1412,6 +1417,15 @@ fun SettingsScreen(
         }
         TextButton(onClick = viewModel::refreshMusicData) { Text(stringResource(R.string.refresh_music_data)) }
         TextButton(onClick = viewModel::reloadAllCovers) { Text(stringResource(R.string.reload_all_covers)) }
+        Button(onClick = { showRescanConfirmation = true }, enabled = !scanActive, modifier = Modifier.fillMaxWidth()) {
+            Text(stringResource(R.string.rescan_all_music))
+        }
+        if (scanActive) {
+            val done = scanWork?.progress?.getInt(com.youneko.rate.data.scan.MediaStoreScanWorker.KEY_DONE, 0) ?: 0
+            val total = scanWork?.progress?.getInt(com.youneko.rate.data.scan.MediaStoreScanWorker.KEY_TOTAL, 0) ?: 0
+            Text(stringResource(R.string.rescan_all_progress, done, total), style = MaterialTheme.typography.bodySmall)
+            if (total > 0) LinearProgressIndicator(progress = { (done.toFloat() / total).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth()) else LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+        }
         TextButton(onClick = viewModel::clearMetadataCache) { Text(stringResource(R.string.metadata_cache_clear)) }
         SettingsSectionHeader(stringResource(R.string.diagnostics), Icons.Default.BugReport)
         OutlinedButton(
@@ -1433,5 +1447,22 @@ fun SettingsScreen(
         ) { Text(stringResource(R.string.send_crash_log)) }
         Text(stringResource(R.string.settings_body), style = MaterialTheme.typography.bodyMedium)
     }
+    }
+    if (showRescanConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showRescanConfirmation = false },
+            title = { Text(stringResource(R.string.rescan_all_title)) },
+            text = { Text(stringResource(R.string.rescan_all_body)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showRescanConfirmation = false
+                    viewModel.rescanAllMusic()
+                    settingsScope.launch { snackbarHostState.showSnackbar(appContext.getString(R.string.rescan_all_started)) }
+                }) { Text(stringResource(R.string.rescan_all_confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRescanConfirmation = false }) { Text(stringResource(R.string.cancel)) }
+            },
+        )
     }
 }
