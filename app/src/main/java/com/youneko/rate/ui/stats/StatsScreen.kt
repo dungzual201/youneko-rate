@@ -297,7 +297,7 @@ internal suspend fun renderStatsImage(context: Context, state: StatsUiState, lab
         view.setViewTreeSavedStateRegistryOwner(savedStateOwner)
         view.setParentCompositionContext(parentCompositionContext)
         view.setContent {
-            CompositionLocalProvider(LocalDensity provides Density(1f)) {
+            CompositionLocalProvider(LocalDensity provides Density(density = 1f, fontScale = 1f)) {
                 MaterialTheme(colorScheme = colors) {
                     ShareStatsCard(state, labels, timestamp)
                 }
@@ -308,8 +308,10 @@ internal suspend fun renderStatsImage(context: Context, state: StatsUiState, lab
         val heightSpec = android.view.View.MeasureSpec.makeMeasureSpec(1350, android.view.View.MeasureSpec.EXACTLY)
         view.measure(widthSpec, heightSpec)
         view.layout(0, 0, 1080, 1350)
+        Log.d("SHARE", "view density=${view.resources.displayMetrics.density} canvas=1080x1350 titleSp=36 numberSp=110")
         val bitmap = Bitmap.createBitmap(1080, 1350, Bitmap.Config.ARGB_8888)
         view.draw(android.graphics.Canvas(bitmap))
+        Log.d("SHARE", "bitmap w=${bitmap.width} h=${bitmap.height}")
         view.disposeComposition()
         renderHost?.removeView(view)
         file to bitmap
@@ -324,9 +326,11 @@ internal suspend fun renderStatsImage(context: Context, state: StatsUiState, lab
 @Composable
 internal fun ShareStatsCard(state: StatsUiState, labels: ShareStatsLabels, timestamp: LocalDateTime) {
     val colors = MaterialTheme.colorScheme
+    Log.d("SHARE", "density=${LocalDensity.current.density} canvas=1080x1350 titleSp=36 numberSp=110")
     val locale = LocalConfiguration.current.locales.get(0)
     Box(
         Modifier
+            .size(1080.dp, 1350.dp)
             .fillMaxSize()
             .clip(RoundedCornerShape(48.dp))
             .background(Brush.verticalGradient(listOf(colors.primaryContainer, colors.surface))),
