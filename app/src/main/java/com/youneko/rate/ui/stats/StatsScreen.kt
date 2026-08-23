@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -62,9 +63,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.setViewTreeLifecycleOwner
@@ -321,35 +324,80 @@ internal suspend fun renderStatsImage(context: Context, state: StatsUiState, lab
 @Composable
 internal fun ShareStatsCard(state: StatsUiState, labels: ShareStatsLabels, timestamp: LocalDateTime) {
     val colors = MaterialTheme.colorScheme
-    Column(
+    val locale = LocalConfiguration.current.locales.get(0)
+    Box(
         Modifier
             .fillMaxSize()
             .clip(RoundedCornerShape(48.dp))
-            .background(Brush.verticalGradient(listOf(colors.primaryContainer, colors.surface)))
-            .padding(72.dp),
-        verticalArrangement = Arrangement.SpaceBetween,
+            .background(Brush.verticalGradient(listOf(colors.primaryContainer, colors.surface))),
     ) {
-        Column(Modifier.fillMaxWidth()) {
-            Text(labels.title, style = MaterialTheme.typography.displaySmall, color = colors.onPrimaryContainer, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(labels.subtitle, style = MaterialTheme.typography.labelLarge, color = colors.onPrimaryContainer.copy(alpha = 0.7f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-        Column(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(36.dp, Alignment.CenterVertically)) {
-            ShareMetricCard(Icons.Default.Star, formatShareCount(state.tracksRated), labels.tracksRated)
-            val average = state.averageScore?.let { NumberFormat.getNumberInstance(Locale.getDefault()).apply { minimumFractionDigits = 1; maximumFractionDigits = 1 }.format(it) } ?: "—"
-            ShareMetricCard(Icons.Default.Grade, average, labels.averageScore)
-            ShareMetricCard(Icons.Default.GraphicEq, formatShareCount(state.tracksAnalyzed), labels.tracksAnalyzed)
-        }
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                Icon(painter = painterResource(com.youneko.rate.R.drawable.ic_paw), contentDescription = null, tint = colors.onSurface, modifier = Modifier.size(72.dp))
-                Spacer(Modifier.width(16.dp))
-                Text(labels.appName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = colors.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        ShareStatsDecorations(colors)
+        Column(Modifier.fillMaxSize().padding(72.dp), verticalArrangement = Arrangement.SpaceBetween) {
+            Box(Modifier.fillMaxWidth()) {
+                Column(Modifier.fillMaxWidth()) {
+                    Text(labels.title, style = MaterialTheme.typography.displaySmall, color = colors.onPrimaryContainer, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(labels.subtitle, style = MaterialTheme.typography.labelLarge, color = colors.onPrimaryContainer.copy(alpha = 0.7f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                Icon(
+                    painter = painterResource(R.drawable.ic_cat_chibi_peek),
+                    contentDescription = null,
+                    tint = colors.primary,
+                    modifier = Modifier.align(Alignment.TopEnd).size(140.dp).offset(y = (-16).dp).graphicsLayer { alpha = 1f },
+                )
             }
-            Column(horizontalAlignment = Alignment.End) {
-                Text(timestamp.format(DateTimeFormatter.ofPattern("HH:mm", Locale.getDefault())), style = MaterialTheme.typography.labelLarge, color = colors.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(timestamp.format(DateTimeFormatter.ofPattern("dd-MM-yyyy", Locale.getDefault())), style = MaterialTheme.typography.labelLarge, color = colors.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Column(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(36.dp, Alignment.CenterVertically)) {
+                ShareMetricCard(Icons.Default.Star, formatShareCount(state.tracksRated), labels.tracksRated)
+                val average = state.averageScore?.let { NumberFormat.getNumberInstance(locale).apply { minimumFractionDigits = 1; maximumFractionDigits = 1 }.format(it) } ?: "—"
+                ShareMetricCard(Icons.Default.Grade, average, labels.averageScore)
+                ShareMetricCard(Icons.Default.GraphicEq, formatShareCount(state.tracksAnalyzed), labels.tracksAnalyzed)
+            }
+            Box(Modifier.fillMaxWidth().height(200.dp)) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_cat_chibi_sit),
+                    contentDescription = null,
+                    tint = colors.primary,
+                    modifier = Modifier.align(Alignment.BottomEnd).size(200.dp).graphicsLayer { alpha = 0.9f },
+                )
+            }
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                    Icon(painter = painterResource(com.youneko.rate.R.drawable.ic_paw), contentDescription = null, tint = colors.onSurface, modifier = Modifier.size(72.dp))
+                    Spacer(Modifier.width(16.dp))
+                    Text(labels.appName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = colors.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(timestamp.format(DateTimeFormatter.ofPattern("HH:mm", locale)), style = MaterialTheme.typography.labelLarge, color = colors.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(timestamp.format(DateTimeFormatter.ofPattern("dd-MM-yyyy", locale)), style = MaterialTheme.typography.labelLarge, color = colors.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun ShareStatsDecorations(colors: ColorScheme) {
+    val rotations = listOf(12f, -20f, 35f, -8f, 25f, -40f, 15f)
+    val positions = listOf(
+        90 to 270,
+        880 to 260,
+        140 to 610,
+        820 to 650,
+        90 to 960,
+        700 to 1000,
+        470 to 1120,
+    )
+    Box(Modifier.fillMaxSize()) {
+    positions.forEachIndexed { index, (x, y) ->
+        Icon(
+            painter = painterResource(R.drawable.ic_paw_small),
+            contentDescription = null,
+            tint = colors.onPrimaryContainer,
+            modifier = Modifier.offset(x = x.dp, y = y.dp).size(32.dp).graphicsLayer {
+                rotationZ = rotations[index]
+                alpha = 0.1f
+            },
+        )
+    }
     }
 }
 
