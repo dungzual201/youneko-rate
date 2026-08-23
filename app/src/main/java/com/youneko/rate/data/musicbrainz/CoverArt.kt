@@ -7,8 +7,6 @@ import android.net.Uri
 import com.youneko.rate.data.discogs.CoverDiscogsProvider
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
-import java.net.URLEncoder
-import java.nio.charset.StandardCharsets
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Singleton
@@ -90,7 +88,6 @@ sealed interface CoverResult {
 
 @Singleton
 class CoverArtService @Inject constructor(
-    private val itunesApi: ItunesCoverApi,
     private val deezerApi: DeezerCoverApi,
     private val discogsService: CoverDiscogsProvider,
     @Named("coverArt") private val httpClient: OkHttpClient,
@@ -99,7 +96,6 @@ class CoverArtService @Inject constructor(
     private var legacyCoverArtApi: CoverArtApi? = null
 
     constructor(api: CoverArtApi, context: Context) : this(
-        itunesApi = EmptyItunesApi,
         deezerApi = EmptyDeezerApi,
         discogsService = EmptyDiscogsProvider,
         httpClient = OkHttpClient.Builder().followRedirects(true).followSslRedirects(true).build(),
@@ -178,19 +174,6 @@ class CoverArtService @Inject constructor(
     ): List<CoverCandidate> = coroutineScope {
         val query = listOfNotNull(albumTitle?.trim(), artistName?.trim()).filter { it.isNotEmpty() }.joinToString(" ")
         val remote = if (query.isBlank()) emptyList() else listOf(
-            async {
-                runCatching {
-                    val term = URLEncoder.encode(query, StandardCharsets.UTF_8.toString())
-                    itunesApi.searchAlbums(term).results.flatMap { result ->
-                        val score = matchScore(albumTitle, artistName, result.collectionName, result.artistName)
-                        if (!metadataMatches(score, trackCount, result.trackCount, releaseYear, result.releaseDate, allowMissingMetadata = trackCount == null && releaseYear == null)) emptyList()
-                        else listOfNotNull(
-                            result.artworkUrl100?.let { url -> CoverCandidate(url.replace("100x100bb", "3000x3000bb"), "itunes", result.collectionName, result.artistName, result.trackCount, result.releaseDate, score, score != null, 3000) },
-                            result.artworkUrl100?.let { url -> CoverCandidate(url.replace("100x100bb", "1200x1200bb"), "itunes", result.collectionName, result.artistName, result.trackCount, result.releaseDate, score, score != null, 1200) },
-                        )
-                    }
-                }.getOrDefault(emptyList())
-            },
             async {
                 runCatching {
                     deezerApi.searchAlbums(query).data.flatMap { result ->
@@ -276,7 +259,6 @@ class CoverArtService @Inject constructor(
         }.getOrElse { candidate.bitmap.recycle(); CoverResult.Error(it) }
     }
 
-    private object EmptyItunesApi : ItunesCoverApi { override suspend fun searchAlbums(term: String, entity: String, limit: Int, country: String) = ItunesSearchResponse() }
     private object EmptyDeezerApi : DeezerCoverApi { override suspend fun searchAlbums(query: String, limit: Int) = DeezerSearchResponse() }
     private object EmptyDiscogsProvider : CoverDiscogsProvider { override suspend fun loadCover(albumId: String, title: String, artist: String): String? = null }
     private data class DownloadedCover(val bitmap: Bitmap, val width: Int, val sourceProvider: String)

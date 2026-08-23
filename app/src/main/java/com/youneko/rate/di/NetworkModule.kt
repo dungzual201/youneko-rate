@@ -7,7 +7,6 @@ import com.youneko.rate.data.discogs.DiscogsApi
 import com.youneko.rate.data.musicbrainz.MusicBrainzReleaseGroupApi
 import com.youneko.rate.data.musicbrainz.CoverArtApi
 import com.youneko.rate.data.musicbrainz.DeezerCoverApi
-import com.youneko.rate.data.musicbrainz.ItunesCoverApi
 import com.youneko.rate.data.musicbrainz.MusicBrainzRetryInterceptor
 import com.youneko.rate.data.genius.GeniusApi
 import com.youneko.rate.data.musicbrainz.TokenBucket
@@ -137,24 +136,6 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    @Named("coverSearchBucket")
-    fun provideCoverSearchBucket(): TokenBucket = TokenBucket(capacity = 1, refillMillis = 1_000L)
-
-    @Provides
-    @Singleton
-    @Named("coverSearch")
-    fun provideCoverSearchClient(@Named("coverSearchBucket") bucket: TokenBucket): OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .writeTimeout(15, TimeUnit.SECONDS)
-        .addInterceptor { chain ->
-            chain.proceed(chain.request().newBuilder().header("User-Agent", "YounekoRate/${BuildConfig.VERSION_NAME}").build())
-        }
-        .addInterceptor(TokenBucketInterceptor(bucket))
-        .build()
-
-    @Provides
-    @Singleton
     @Named("coverArt")
     fun provideCoverArtClient(@ApplicationContext context: Context): OkHttpClient = OkHttpClient.Builder()
         .followRedirects(true)
@@ -164,15 +145,6 @@ object NetworkModule {
         .writeTimeout(30, TimeUnit.SECONDS)
         .cache(Cache(context.cacheDir.resolve("cover-art-http"), 20L * 1024L * 1024L))
         .build()
-
-    @Provides
-    @Singleton
-    fun provideItunesCoverApi(@Named("coverSearch") client: OkHttpClient, json: Json): ItunesCoverApi = Retrofit.Builder()
-        .baseUrl("https://itunes.apple.com/")
-        .client(client)
-        .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
-        .build()
-        .create(ItunesCoverApi::class.java)
 
     @Provides
     @Singleton
