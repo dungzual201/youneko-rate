@@ -1,13 +1,16 @@
 package com.youneko.rate.data.scan
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.content.pm.PackageManager
+import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.Handler
+import android.app.ForegroundServiceStartNotAllowedException
 import android.os.Looper
 import android.provider.MediaStore
 import android.util.Log
@@ -27,12 +30,15 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import com.youneko.rate.R
+import com.youneko.rate.data.CrashLogStore
 import dagger.hilt.EntryPoint
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -60,14 +66,23 @@ interface MediaScanWorkerEntryPoint {
 }
 
 class MediaStoreScanWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
-    override suspend fun doWork(): Result {
+    private val scanExceptionHandler = CoroutineExceptionHandler { _, throwable ->
+        CrashLogStore.write(applicationContext, Thread.currentThread(), throwable)
+        Log.e(SCAN_TAG, "SCAN: uncaught coroutine exception", throwable)
+    }
+
+    override suspend fun doWork(): Result = withContext(scanExceptionHandler) {
+        doWorkInternal()
+    }
+
+    private suspend fun doWorkInternal(): Result {
         Log.i(SCAN_TAG, "SCAN: WorkInfo.State=RUNNING exception=null")
         val scanner = EntryPointAccessors.fromApplication(applicationContext, MediaScanWorkerEntryPoint::class.java).scanner()
         if (!hasPermission() && !scanner.hasSafRoots()) {
             Log.i(SCAN_TAG, "SCAN: WorkInfo.State=SUCCEEDED exception=null reason=no-access")
             return Result.success(workDataOf(KEY_SKIPPED to true))
         }
-        setForeground(createForegroundInfo(0, 0))
+        setForegroundSafely(0, 0)
         return runCatching {
             val forceFull = inputData.getBoolean(KEY_FORCE_FULL, false)
             var phase = ScanPhase.METADATA
@@ -76,7 +91,8 @@ class MediaStoreScanWorker(appContext: Context, params: WorkerParameters) : Coro
                 forceFull,
                 onProgress = { done, total ->
                     setProgressAsync(progressData(phase, done, total))
-                    setForegroundAsync(createForegroundInfo(done, total))
+                    runCatching { setForegroundAsync(createForegroundInfo(done, total)) }
+                        .onFailure { Log.w(SCAN_TAG, "SCAN: progress notification skipped: ${it.message}") }
                 },
                 onPhaseChanged = { nextPhase ->
                     phase = nextPhase
@@ -85,13 +101,15 @@ class MediaStoreScanWorker(appContext: Context, params: WorkerParameters) : Coro
             )
             val safResult = scanner.scanSafRoots { done, total ->
                 setProgressAsync(progressData(phase, done, total))
-                setForegroundAsync(createForegroundInfo(done, total))
+                runCatching { setForegroundAsync(createForegroundInfo(done, total)) }
+                    .onFailure { Log.w(SCAN_TAG, "SCAN: progress notification skipped: ${it.message}") }
             }
             Log.i(SCAN_TAG, "SCAN: WorkInfo.State=SUCCEEDED exception=null")
             Result.success(workDataOf(KEY_SCANNED to result.scanned + safResult.scanned, KEY_ADDED to result.added + safResult.added, KEY_MISSING to result.missing + safResult.missing, KEY_SKIPPED to (result.skipped && safResult.scanned == 0)))
         }.getOrElse { throwable ->
             val nextState = if (runAttemptCount < 2) "RETRY" else "FAILED"
             Log.e(SCAN_TAG, "SCAN: WorkInfo.State=$nextState exception=${throwable::class.java.simpleName}: ${throwable.message}", throwable)
+            CrashLogStore.write(applicationContext, Thread.currentThread(), throwable)
             if (runAttemptCount < 2) Result.retry() else Result.failure(workDataOf(KEY_ERROR to throwable.message.orEmpty()))
         }
     }
@@ -108,6 +126,19 @@ class MediaStoreScanWorker(appContext: Context, params: WorkerParameters) : Coro
         return ContextCompat.checkSelfPermission(applicationContext, permission) == PackageManager.PERMISSION_GRANTED
     }
 
+    @SuppressLint("NewApi")
+    private suspend fun setForegroundSafely(done: Int, total: Int) {
+        try {
+            setForeground(createForegroundInfo(done, total))
+        } catch (error: ForegroundServiceStartNotAllowedException) {
+            Log.w(SCAN_TAG, "SCAN: foreground start not allowed; continuing without notification", error)
+        } catch (error: SecurityException) {
+            Log.w(SCAN_TAG, "SCAN: foreground notification permission unavailable; continuing without notification", error)
+        } catch (error: IllegalStateException) {
+            Log.w(SCAN_TAG, "SCAN: foreground promotion unavailable; continuing without notification", error)
+        }
+    }
+
     private fun createForegroundInfo(done: Int, total: Int): ForegroundInfo {
         val manager = applicationContext.getSystemService(NotificationManager::class.java)
         if (Build.VERSION.SDK_INT >= 26) {
@@ -119,7 +150,11 @@ class MediaStoreScanWorker(appContext: Context, params: WorkerParameters) : Coro
             .setContentText(applicationContext.getString(R.string.media_scan_progress, done, total))
             .setOngoing(true)
             .build()
-        return ForegroundInfo(NOTIFICATION_ID, notification)
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            ForegroundInfo(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+        } else {
+            ForegroundInfo(NOTIFICATION_ID, notification)
+        }
     }
 
     companion object {
@@ -142,6 +177,11 @@ fun enqueueMediaScan(context: Context, forceFull: Boolean = false) {
     WorkManager.getInstance(context).enqueueUniqueWork(UNIQUE_ON_RESUME, ExistingWorkPolicy.REPLACE, request)
 }
 
+fun ensureMediaScan(context: Context) {
+    val request = OneTimeWorkRequestBuilder<MediaStoreScanWorker>().build()
+    WorkManager.getInstance(context).enqueueUniqueWork(UNIQUE_ON_RESUME, ExistingWorkPolicy.KEEP, request)
+}
+
 fun schedulePeriodicMediaScan(context: Context) {
     val request = PeriodicWorkRequestBuilder<MediaStoreScanWorker>(15, TimeUnit.MINUTES)
         .setConstraints(Constraints.Builder().setRequiresBatteryNotLow(true).build())
@@ -154,7 +194,7 @@ class MediaScanCoordinator @Inject constructor(
     @ApplicationContext private val context: Context,
 ) : DefaultLifecycleObserver {
     private val handler = Handler(Looper.getMainLooper())
-    private var registered = false
+    private var attachedOwner: LifecycleOwner? = null
     private var observedUris: List<android.net.Uri> = emptyList()
     private val observer = object : android.database.ContentObserver(handler) {
         override fun onChange(selfChange: Boolean) {
@@ -164,8 +204,10 @@ class MediaScanCoordinator @Inject constructor(
     }
 
     fun attach(owner: LifecycleOwner) {
-        if (registered) return
-        registered = true
+        if (attachedOwner === owner) return
+        attachedOwner?.lifecycle?.removeObserver(this)
+        unregisterObservers()
+        attachedOwner = owner
         owner.lifecycle.addObserver(this)
     }
 
@@ -176,11 +218,15 @@ class MediaScanCoordinator @Inject constructor(
             listOf(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI)
         }.ifEmpty { listOf(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI) }
         observedUris.forEach { uri -> context.contentResolver.registerContentObserver(uri, true, observer) }
-        enqueueMediaScan(context)
+        ensureMediaScan(context)
         schedulePeriodicMediaScan(context)
     }
 
     override fun onStop(owner: LifecycleOwner) {
+        unregisterObservers()
+    }
+
+    private fun unregisterObservers() {
         if (observedUris.isNotEmpty()) runCatching { context.contentResolver.unregisterContentObserver(observer) }
         observedUris = emptyList()
         handler.removeCallbacksAndMessages(observer)

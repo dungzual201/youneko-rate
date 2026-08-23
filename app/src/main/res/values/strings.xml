@@ -570,4 +570,5 @@
     <string name="send_crash_log">Send crash log</string>
     <string name="no_crash_log">No crash log is available.</string>
     <string name="crash_log_share_title">Share crash log</string>
+    <string name="scan_failed">Scan failed: %1$s</string>
 </resources>

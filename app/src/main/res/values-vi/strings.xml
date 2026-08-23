@@ -570,4 +570,5 @@
     <string name="send_crash_log">Gửi log lỗi</string>
     <string name="no_crash_log">Không có log lỗi.</string>
     <string name="crash_log_share_title">Chia sẻ log lỗi</string>
+    <string name="scan_failed">Quét thất bại: %1$s</string>
 </resources>

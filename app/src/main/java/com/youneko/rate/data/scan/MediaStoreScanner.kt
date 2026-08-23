@@ -24,6 +24,7 @@ import com.youneko.rate.data.local.entity.ArtistEntity
 import com.youneko.rate.data.local.entity.LibrarySearchFtsEntity
 import com.youneko.rate.data.local.entity.TrackEntity
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.io.File
 import java.security.MessageDigest
 import java.util.UUID
 import javax.inject.Inject
@@ -429,6 +430,7 @@ class MediaStoreScanner @Inject constructor(
         val volumes = mediaVolumeUris()
         val projection = buildList {
             add(MediaStore.Audio.Media._ID)
+            add(MediaStore.Audio.Media.DATA)
             add(MediaStore.Audio.Media.TITLE)
             add(MediaStore.Audio.Media.ARTIST)
             add(MediaStore.Audio.Media.ALBUM)
@@ -454,6 +456,8 @@ class MediaStoreScanner @Inject constructor(
         val args = changedAfterMs?.let { arrayOf((it / 1000L).toString()) }
         var rawCount = 0
         var afterIsMusic = 0
+        var skipped = 0
+        var firstError: String? = null
         val result = mutableListOf<MediaStoreAudioRow>()
         volumes.forEach { uri ->
             rawCount += countRows(resolver, uri, null, null)
@@ -461,33 +465,52 @@ class MediaStoreScanner @Inject constructor(
             runCatching {
                 resolver.query(uri, projection, selection, args, "${MediaStore.Audio.Media.DATE_MODIFIED} ASC")?.use { cursor ->
                     val index = { name: String -> cursor.getColumnIndex(name) }
+                    val idIndex = index(MediaStore.Audio.Media._ID)
+                    if (idIndex < 0) error("missing _id column")
                     while (cursor.moveToNext()) {
-                        val id = cursor.getLong(index(MediaStore.Audio.Media._ID))
-                        result += MediaStoreAudioRow(
-                            id = id,
-                            uri = ContentUris.withAppendedId(uri, id),
-                            title = cursor.string(index(MediaStore.Audio.Media.TITLE)),
-                            artist = cursor.string(index(MediaStore.Audio.Media.ARTIST)),
-                            album = cursor.string(index(MediaStore.Audio.Media.ALBUM)),
-                            albumArtist = cursor.string(index(MediaStore.Audio.Media.ALBUM_ARTIST)),
-                            mediaStoreAlbumId = cursor.long(index(MediaStore.Audio.Media.ALBUM_ID)),
-                            trackNumber = cursor.int(index(MediaStore.Audio.Media.TRACK)),
-                            discNumber = cursor.int(index(MediaStore.Audio.Media.DISC_NUMBER)),
-                            year = cursor.int(index(MediaStore.Audio.Media.YEAR)),
-                            durationMs = cursor.long(index(MediaStore.Audio.Media.DURATION)),
-                            mimeType = cursor.string(index(MediaStore.Audio.Media.MIME_TYPE)),
-                            sizeBytes = cursor.long(index(MediaStore.Audio.Media.SIZE)),
-                            relativePath = cursor.string(index(MediaStore.Audio.Media.RELATIVE_PATH)),
-                            displayName = cursor.string(index(MediaStore.Audio.Media.DISPLAY_NAME)) ?: "audio_$id",
-                            dateModifiedSeconds = cursor.long(index(MediaStore.Audio.Media.DATE_MODIFIED)) ?: 0L,
-                            dateAddedSeconds = cursor.long(index(MediaStore.Audio.Media.DATE_ADDED)) ?: 0L,
-                        )
+                        val row = runCatching {
+                            val id = cursor.long(idIndex) ?: error("null _id")
+                            val data = cursor.string(index(MediaStore.Audio.Media.DATA)) ?: error("null DATA")
+                            require(File(data).exists()) { "file not found" }
+                            val displayName = cursor.string(index(MediaStore.Audio.Media.DISPLAY_NAME)) ?: error("null DISPLAY_NAME")
+                            val durationMs = cursor.long(index(MediaStore.Audio.Media.DURATION)) ?: error("null DURATION")
+                            require(durationMs > 0L) { "zero DURATION" }
+                            MediaStoreAudioRow(
+                                id = id,
+                                uri = ContentUris.withAppendedId(uri, id),
+                                title = cursor.string(index(MediaStore.Audio.Media.TITLE)),
+                                artist = cursor.string(index(MediaStore.Audio.Media.ARTIST)),
+                                album = cursor.string(index(MediaStore.Audio.Media.ALBUM)),
+                                albumArtist = cursor.string(index(MediaStore.Audio.Media.ALBUM_ARTIST)),
+                                mediaStoreAlbumId = cursor.long(index(MediaStore.Audio.Media.ALBUM_ID)),
+                                trackNumber = cursor.int(index(MediaStore.Audio.Media.TRACK)),
+                                discNumber = cursor.int(index(MediaStore.Audio.Media.DISC_NUMBER)),
+                                year = cursor.int(index(MediaStore.Audio.Media.YEAR)),
+                                durationMs = durationMs,
+                                mimeType = cursor.string(index(MediaStore.Audio.Media.MIME_TYPE)),
+                                sizeBytes = cursor.long(index(MediaStore.Audio.Media.SIZE)),
+                                relativePath = cursor.string(index(MediaStore.Audio.Media.RELATIVE_PATH)),
+                                displayName = displayName,
+                                dateModifiedSeconds = cursor.long(index(MediaStore.Audio.Media.DATE_MODIFIED)) ?: 0L,
+                                dateAddedSeconds = cursor.long(index(MediaStore.Audio.Media.DATE_ADDED)) ?: 0L,
+                            )
+                        }.getOrElse { error ->
+                            skipped++
+                            if (firstError == null) firstError = error.message ?: error::class.java.simpleName
+                            null
+                        }
+                        if (row != null) result += row
                     }
                 }
-            }.onFailure { Log.e(SCAN_TAG, "SCAN: volume query exception uri=$uri", it) }
+            }.onFailure { error ->
+                skipped++
+                if (firstError == null) firstError = error.message ?: error::class.java.simpleName
+                Log.e(SCAN_TAG, "SCAN: volume query exception uri=$uri", error)
+            }
         }
         Log.i(SCAN_TAG, "SCAN: cursor rawCount=$rawCount")
         Log.i(SCAN_TAG, "SCAN: afterIsMusic=$afterIsMusic")
+        Log.d(SCAN_TAG, "SCAN: skipped=$skipped total=$rawCount reason sample=${firstError ?: "none"}")
         return result
     }
 

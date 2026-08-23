@@ -33,6 +33,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
@@ -86,7 +88,8 @@ class MediaAccessViewModel @Inject constructor(
 ) : ViewModel() {
     private val workManager = WorkManager.getInstance(context)
     val scanRoots = scanRootDao.observeAll().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-    val scanState = workManager.getWorkInfosForUniqueWorkFlow(UNIQUE_ON_RESUME)
+    private val scanInfos = workManager.getWorkInfosForUniqueWorkFlow(UNIQUE_ON_RESUME)
+    val scanState = scanInfos
         .map { infos ->
             val info = infos.firstOrNull()
             if (info == null || info.state !in setOf(WorkInfo.State.ENQUEUED, WorkInfo.State.RUNNING)) {
@@ -99,6 +102,9 @@ class MediaAccessViewModel @Inject constructor(
                 )
             }
         }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    val scanError = scanInfos
+        .map { infos -> infos.firstOrNull()?.takeIf { it.state == WorkInfo.State.FAILED }?.outputData?.getString(MediaStoreScanWorker.KEY_ERROR) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     fun cancelScan() = workManager.cancelUniqueWork(UNIQUE_ON_RESUME)
@@ -122,6 +128,12 @@ fun MediaAccessGate(
     val context = LocalContext.current
     val roots by viewModel.scanRoots.collectAsStateWithLifecycle()
     val scanState by viewModel.scanState.collectAsStateWithLifecycle()
+    val scanError by viewModel.scanError.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scanFailedMessage = stringResource(R.string.scan_failed)
+    LaunchedEffect(scanError) {
+        scanError?.takeIf { it.isNotBlank() }?.let { snackbarHostState.showSnackbar(scanFailedMessage.format(it)) }
+    }
     var permissionGranted by rememberSaveable { mutableStateOf(hasAudioPermission(context)) }
     var showEducation by rememberSaveable { mutableStateOf(!permissionGranted) }
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
@@ -150,6 +162,7 @@ fun MediaAccessGate(
         ) {
             scanState?.let { current -> ScanProgressBanner(current, onCancel = viewModel::cancelScan) }
         }
+        SnackbarHost(hostState = snackbarHostState, modifier = Modifier.align(Alignment.BottomCenter))
         if (!permissionGranted) {
             Card(
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
