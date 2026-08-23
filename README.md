@@ -1,123 +1,148 @@
-# Youneko Rate!
+<p align="center">
+  <img src="docs/images/logo_paw.png" width="140" alt="Youneko Rate paw logo">
+</p>
 
-> Ứng dụng Android offline-first để **chấm điểm, review album và track, quản lý credits, đọc lyrics local và phân tích chất lượng audio**.
->
-> Đây là dự án beta. Youneko Rate! **không phải trình phát nhạc và sẽ không có chức năng phát nhạc**.
+# Youneko Rate! 🐾
 
-[![Android Build](https://github.com/dungzual201/youneko-rate/actions/workflows/android-build.yml/badge.svg)](https://github.com/dungzual201/youneko-rate/actions/workflows/android-build.yml)
-[![Repository](https://img.shields.io/badge/repository-private-lightgrey)](https://github.com/dungzual201/youneko-rate)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+> A small Android app for rating albums and tracks, writing reviews, reading local credits and lyrics, and inspecting audio quality.
 
-## Youneko Rate! là gì?
+[Đọc README tiếng Việt](README.vi.md)
 
-Youneko Rate! dành cho người nghe nhạc theo album và muốn lưu lại cảm nhận một cách có hệ thống. Ứng dụng đọc thư viện audio local, cho phép chấm điểm từng bài, tính điểm album, viết review, gắn thẻ, ghi listening log, tra credits và xem lyrics có sẵn trong file hoặc sidecar. Audio được giải mã **chỉ để phân tích**, không được gửi ra thiết bị âm thanh.
+[![Platform: Android](https://img.shields.io/badge/platform-Android-3DDC84.svg)](https://developer.android.com/)
+[![minSdk: 26](https://img.shields.io/badge/minSdk-26-blue.svg)](app/build.gradle.kts)
+[![Kotlin: 2.4.10](https://img.shields.io/badge/Kotlin-2.4.10-7F52FF.svg)](gradle/libs.versions.toml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 
-### Vì sao không có chức năng phát nhạc?
+Youneko Rate! is a personal, offline-first companion for people who like to keep thoughtful album notes. It reads the local audio library, stores ratings and reviews in Room, and provides analysis and organization tools without becoming another music player.
 
-Đây là quyết định thiết kế cố ý: ứng dụng tập trung vào đánh giá, phân tích và bảo toàn dữ liệu người dùng, không cạnh tranh với trình phát nhạc chuyên dụng và không phải xử lý MediaSession, audio focus hay điều khiển notification. Regression guard trong repository kiểm tra rằng source không chứa `MediaPlayer`, `ExoPlayer`, `androidx.media3`, `MediaSession`, `AudioTrack` hoặc `previewUrl`.
+## ✨ Features
 
-> `MediaExtractor`, `MediaCodec` và `MediaMetadataRetriever` chỉ phục vụ đọc metadata, artwork và decode dữ liệu cho phân tích. Không có luồng playback.
+<img src="docs/images/cat_peek.png" width="90" align="right" alt="Chibi cat peeking">
 
-## Tính năng hiện có trong code
+The four main tabs are real parts of the current app:
 
-| Khu vực | Hành vi đã triển khai |
+| Tab | What it does |
 |---|---|
-| Quét thư viện | MediaStore nhiều volume, `READ_MEDIA_AUDIO`/`READ_EXTERNAL_STORAGE`, SAF tree, incremental generation/`DATE_MODIFIED`, ContentObserver debounce và PeriodicWorkManager. Scan có hai pha sẵn có: metadata rồi artwork/enrichment. Banner tiến trình cấp app chiếm trọn hàng header, hiển thị pha, số đếm và nút huỷ; khi xong header trở lại. |
-| Metadata và artwork | Đọc tag local; artwork ưu tiên embedded picture, ảnh cùng thư mục và MediaStore albumart; cache tại `filesDir/covers/{albumId}.jpg`. Scan không gọi mạng để lấy cover. |
-| Rate và review | Thang 5 sao/10 điểm/100 điểm với canonical storage 5 sao, điểm album simple/weighted/manual, review autosave, tags và listening log. |
-| Lyrics | Đọc ID3 `USLT`/`SYLT`, Vorbis `LYRICS`, atom `©lyr`, sidecar `.lrc`/`.ttml`; TTML dùng `XmlPullParser`, `WordTiming`, agent và offset-time. Ứng dụng không crawl lyrics web. |
-| Credits | File tags, MusicBrainz, Discogs, Genius, Deezer và iTunes metadata/provider theo code. Có source picker, chế độ riêng/gộp, link/MBID thủ công và nhập credits hàng loạt. Credit thủ công không bị fetch tự động ghi đè. |
-| Audio analysis | Decode-only bằng `MediaExtractor`/`MediaCodec`, FFT 4096 điểm với cửa sổ Hann, thông tin codec/bitrate/sample rate/bit depth/channel/cutoff/slope/clipping/true peak/dynamic range/crest factor khi dữ liệu có sẵn. Verdict lossless/lossy là heuristic. |
-| Sao lưu và khôi phục | Định dạng `.younekorate` là ZIP có manifest, database checkpoint WAL, covers, settings an toàn và CSV/JSON UTF-8 BOM; hỗ trợ import preview, replace có rollback, merge stable-key, remap cover và auto-backup SAF giữ 5 bản. ZIP không chứa file nhạc hoặc API token. |
-| Stats/collection | Code hiện có module thống kê, chia sẻ ảnh qua FileProvider, collection, tìm kiếm nâng cao và trang nghệ sĩ; mức hoàn thiện chính thức phải đối chiếu `docs/PROGRESS.md`. |
+| **Library** | Scans MediaStore and optional SAF folders in two phases, with a visible progress banner. It discovers local metadata and then enriches artwork without fetching covers during the scan. |
+| **Rate** | Lets you rate tracks manually, review albums and tracks, manage tags and listening logs, and see album gradients generated from Palette data. |
+| **Analyze** | Decodes audio for inspection only. The STFT/FFT analysis reports codec, bitrate, sample rate, bit depth and spectral indicators when available, then shows a heuristic codec-quality verdict. |
+| **Stats** | Summarizes saved ratings and analyses, shows distributions and rankings, and can render a 1080×1350 share image with a preview, share action and local save action. |
 
-Bốn tab chính là **Library**, **Rate**, **Analyze** và **Stats**. Library và Rate phục vụ quản lý/chấm điểm; Analyze chỉ giải mã để đo chất lượng; Stats tổng hợp dữ liệu đã lưu.
+The app also includes local credits and lyrics readers, collections, advanced search and an artist page. For cover art, **Find cover** uses a two-step flow: open the COV website in the external browser for the user to search and download an image, then choose that image from the Android gallery. The app does not call the private COV API. Backup export/import uses a `.younekorate` ZIP with database, covers, settings and JSON/CSV data. English and Vietnamese resources are provided, with Material 3 / Material You theming, a paw launcher icon and splash screen.
 
-## Bảo toàn dữ liệu người dùng
+## 📸 Screenshots
 
-Dữ liệu review, điểm, tag, listening log, credits thủ công và metadata local được lưu trong Room trên thiết bị. Ứng dụng không yêu cầu tài khoản, không có đồng bộ cloud trong code hiện tại và không sửa file nhạc của người dùng. File bị mất chỉ được đánh dấu `isMissing`; scanner không xoá rating, review hoặc credit thủ công.
+The repository is still in beta and does not include fabricated device screenshots. The four cells below are deliberate placeholders for future screenshots.
 
-Lyrics chỉ được đọc từ tag/sidecar local; ứng dụng không crawl lyrics web. Repository không dùng `fallbackToDestructiveMigration()` và không dùng `MANAGE_EXTERNAL_STORAGE`.
-
-## Công nghệ và kiến trúc thực tế
-
-| Thành phần | Giá trị thực tế trong repository |
+| Library | Rate |
 |---|---|
-| Ngôn ngữ/UI | Kotlin `2.4.10`, Jetpack Compose Material 3, Compose BOM `2026.08.00` |
+| <!-- ![Library](docs/images/screenshot_library.png) --> <!-- TODO: add a real device screenshot --> | <!-- ![Rate](docs/images/screenshot_rate.png) --> <!-- TODO: add a real device screenshot --> |
+
+| Album detail | Stats |
+|---|---|
+| <!-- ![Album detail](docs/images/screenshot_album_detail.png) --> <!-- TODO: add a real device screenshot --> | <!-- ![Stats](docs/images/screenshot_stats.png) --> <!-- TODO: add a real device screenshot --> |
+
+## 🛠️ Technology and architecture
+
+The versions below are read from `gradle/libs.versions.toml` and `app/build.gradle.kts` rather than guessed from the UI.
+
+| Area | Actual dependency or implementation |
+|---|---|
+| Language and UI | Kotlin `2.4.10`, Jetpack Compose, Compose BOM `2026.08.00`, Material 3 |
 | Android build | Android Gradle Plugin `9.3.1`, Gradle wrapper `9.5.0`, compile SDK `37`, min SDK `26`, target SDK `36` |
-| Java | JDK `17`; `sourceCompatibility`, `targetCompatibility` và Kotlin JVM target đều là 17 |
-| Local data | Room `2.8.4` với KSP, exported schemas và migration tới database version 16; DataStore Preferences `1.2.1` |
-| DI/background | Hilt `2.60.1` (không dùng Koin), WorkManager `2.11.2` |
-| HTTP/JSON | Retrofit `2.11.0`, OkHttp `4.12.0`, `kotlinx.serialization` `1.11.0`; không dùng Gson/Moshi làm JSON library chính |
-| Media/tag/analysis | jaudiotagger `3.0.1`, MediaExtractor, MediaCodec, MediaMetadataRetriever, JTransforms `3.1`, Coil `2.7.0`, XmlPullParser |
+| Local data | Room `2.8.4` with KSP and exported schemas; DataStore Preferences `1.2.1` |
+| Dependency injection | Hilt `2.60.1` and Hilt Navigation Compose `1.4.0` |
+| Background work | WorkManager `2.11.2`; scan, analysis and backup tasks run in workers where appropriate |
+| Networking and JSON | Retrofit `2.11.0`, OkHttp `4.12.0`, kotlinx.serialization JSON `1.11.0` |
+| Images and artwork | Coil `2.7.0`, AndroidX Palette `1.0.0`, AndroidX ExifInterface `1.3.7` |
+| Audio and tags | MediaExtractor, MediaCodec, MediaMetadataRetriever, jaudiotagger `3.0.1`, JTransforms `3.1` |
+| Platform support | core-ktx `1.19.0`, core-splashscreen `1.0.1`, Activity Compose `1.13.0`, Navigation Compose `2.9.8` |
 
-Kiến trúc hiện tại là **MVVM theo hướng repository/data layer** trên Compose. Composable quan sát `StateFlow` từ ViewModel; ViewModel điều phối repository/use case và worker; Room DAO cung cấp `Flow`; DataStore giữ settings/checkpoint; Hilt cung cấp dependency; WorkManager xử lý scan, backup/restore và phân tích nền. Đây không phải một Clean Architecture tách package tuyệt đối.
+The code follows a practical MVVM and repository/data-layer structure. Compose screens observe `StateFlow` from ViewModels; DAOs provide Room data, Hilt supplies dependencies, DataStore stores preferences and scan state, and WorkManager handles longer operations. It is intentionally not presented as a perfectly separated Clean Architecture implementation.
 
-## Build từ source
+## 📱 Requirements
 
-### Yêu cầu
+The project currently pins the following Android build targets:
 
-Repository pin **JDK 17**, Gradle wrapper **9.5.0**, AGP **9.3.1**, compile SDK **37**, min SDK **26** và target SDK **36**. Android Studio không được pin bằng một file version trong repository; hãy dùng bản stable tương thích với AGP `9.3.1` và JDK `17`. Máy build cần có Android SDK platform 37 hoặc đặt `ANDROID_HOME`/`ANDROID_SDK_ROOT` trỏ tới SDK hợp lệ.
+| Setting | Value |
+|---|---:|
+| `minSdk` | 26 |
+| `targetSdk` | 36 |
+| `compileSdk` | 37 |
+| Java/JDK | 17 |
+| Kotlin | 2.4.10 |
 
-### Clone và assemble debug APK
+## 🚀 Build from source
 
 ```bash
 git clone https://github.com/dungzual201/youneko-rate.git
 cd youneko-rate
 cp local.properties.example local.properties
-# Nếu cần, điền đường dẫn SDK thật, ví dụ:
-# sdk.dir=/absolute/path/to/android-sdk
+# Set sdk.dir if Android Studio does not find your SDK automatically.
 ./gradlew assembleDebug
 ```
 
-APK được tạo tại:
+The debug APK is written to:
 
 ```text
 app/build/outputs/apk/debug/app-debug.apk
 ```
 
-`gradlew`, `gradlew.bat`, `gradle/wrapper/*`, `gradle/libs.versions.toml` và `app/schemas/` được commit để clone có thể build bằng wrapper và chạy migration/schema tests. File `local.properties` chỉ là cấu hình máy local và bị ignore.
+A full local verification can also run:
 
-### Token provider tuỳ chọn
+```bash
+./gradlew assembleDebug testDebugUnitTest lintDebug compileDebugAndroidTestKotlin
+```
 
-Audit source và Git history không phát hiện token hardcode. Vì vậy code hiện tại **không cần BuildConfig credential fields** và không tự đọc Discogs/Genius/Last.fm token từ `local.properties`. Token được nhập trong app tại **Cài đặt → Nguồn credits**, mã hoá cục bộ bằng Android Keystore và không được đưa vào backup. Không nhập token thì provider tương ứng bị tắt hoặc báo cần token; app vẫn chạy với dữ liệu local và nguồn không yêu cầu token.
+## 🔐 Permissions
 
-`local.properties.example` chỉ để trống `sdk.dir` nhằm tránh đưa đường dẫn SDK cá nhân vào repository. Không đặt secret thật vào file này.
-
-## Quyền Android
-
-| Quyền | Mục đích |
+| Permission | Why the app requests it |
 |---|---|
-| `READ_MEDIA_AUDIO` trên Android 13+ | Đọc audio trong MediaStore |
-| `READ_EXTERNAL_STORAGE` trên Android 12 trở xuống | Đọc audio trên Android cũ |
-| `FOREGROUND_SERVICE` và `FOREGROUND_SERVICE_DATA_SYNC` | Chạy scan/sync nền có notification |
-| `INTERNET` | Provider credits và cover/metadata online khi người dùng yêu cầu |
+| `READ_MEDIA_AUDIO` on Android 13+ | Read audio metadata from MediaStore. |
+| `READ_EXTERNAL_STORAGE` on Android 12 and older | Read the equivalent local audio library on older Android versions. |
+| `INTERNET` | Access the explicitly enabled online metadata and credits providers when the user asks for them. |
+| `FOREGROUND_SERVICE` and `FOREGROUND_SERVICE_DATA_SYNC` | Keep long-running scans and backup/data-sync workers visible with a notification. |
 
-Ứng dụng không dùng `MANAGE_EXTERNAL_STORAGE`.
+The app does not request `MANAGE_EXTERNAL_STORAGE`.
 
-## Tình trạng phát triển
+## 📂 Project structure
 
-`docs/PROGRESS.md` là nguồn trạng thái chính thức. Một module có code không tự động có nghĩa là phase đã nghiệm thu hoàn tất; còn phải xét build, regression tests, tài liệu và kiểm thử thiết bị thật. Tại thời điểm setup repository, backup/export/import đã có bốn commit riêng (`f535995`, `85c3f6f`, `b19f792`, `48e5c11`), local verification và CI đều đã pass; một số phase cũ trong tài liệu tiến độ vẫn cần cập nhật trạng thái chính thức vì chúng được viết trước các commit mới.
+```text
+app/src/main/java/com/youneko/rate/
+├── data/          # Room entities/DAOs, repositories, import, scan, artwork and workers
+├── di/            # Hilt and HTTP/database dependency wiring
+├── navigation/    # Compose navigation graph and routes
+├── ui/
+│   ├── analyze/   # Decode-only audio analysis and spectrogram UI
+│   ├── artwork/   # Cover display, palette and cache-aware image loading
+│   ├── components/ # Shared Material 3 components and design tokens
+│   ├── coversearch/ # External COV browser and gallery import flow
+│   ├── export/    # Backup/export/restore screens
+│   ├── importer/  # Local audio import preview and save flow
+│   ├── phase12/   # Collections, advanced search and artist page
+│   ├── rate/      # Library, Rate, album detail, settings and editors
+│   └── stats/     # Statistics and share-card rendering
+└── res/           # Bilingual strings, themes, launcher/splash and vector assets
+```
 
-Sandbox không có emulator/ADB, vì vậy không thể cài APK, chạy kiểm thử thiết bị thật hoặc tạo screenshot thiết bị. Repository không chứa screenshot giả.
+## ⚠️ Boundaries and data safety
 
-## Tài liệu
+Youneko Rate! is **not a music player**. There is no playback flow, no audio output, no lyric crawling and no original audio tag writing. Audio is decoded only for metadata and analysis. A missing source file is marked `isMissing` rather than deleting its rating, review or manual credit.
 
-Các specification, báo cáo, quyết định kiến trúc, nguồn dependency và progress report được đặt trong [`docs/`](docs/):
+Imported artwork is stored privately under `filesDir/covers/`; it is not written back into the original audio file. Backups do not include audio files or provider tokens. Database migrations are explicit; the project does not use `fallbackToDestructiveMigration()`.
 
-- [`docs/SPEC.md`](docs/SPEC.md) — đặc tả dự án.
-- [`docs/PROGRESS.md`](docs/PROGRESS.md) — tiến độ chính thức.
-- [`docs/DECISIONS.md`](docs/DECISIONS.md) — các quyết định kiến trúc.
-- Các `PHASE*.md`, `FIX_*.md`, `BUILD_SOURCES*.md` và `NETWORK_SOURCES*.md` — báo cáo và tài liệu theo giai đoạn.
+## 🌐 External data sources
 
-## Release và license
+Online providers are used only when the corresponding feature is requested. Credits and metadata providers are configured in the app, while COV is opened as an external website so the user can search and download the image themselves. The app does not call COV `/api/*`, use a WebView, proxy requests or spoof headers. Please respect each provider's terms and rate limits.
 
-Bản build phát hành được đăng tại [GitHub Releases](https://github.com/dungzual201/youneko-rate/releases). Repository dùng [MIT License](LICENSE).
+## 🐾 Thanks and disclaimer
 
-## Nguồn dữ liệu online
+Thanks to the open-source Android ecosystem and to the COV project for the public website that users can open in their browser. This is a personal beta project: behavior, provider availability and UI details may change.
 
-Các nguồn online hiện có gồm [iTunes Search](https://developer.apple.com/library/archive/documentation/AudioVideo/Conceptual/iTuneSearchAPI/), [MusicBrainz](https://musicbrainz.org) và [Cover Art Archive](https://coverartarchive.org) cho cover, cùng các provider credits theo code như [Discogs](https://www.discogs.com), [Genius](https://genius.com) và [Deezer](https://www.deezer.com). Các request có giới hạn tối đa 1 request/giây ở luồng tương ứng và User-Agent định danh hợp lệ. COV chỉ mở bằng trình duyệt ngoài để người dùng xem; ứng dụng không gọi API nội bộ của COV. Người dùng cần tôn trọng điều khoản sử dụng và giới hạn tốc độ của từng dịch vụ. Luồng scan MediaStore local và lyrics parser không gọi các dịch vụ này.
+<p align="center">
+  <img src="docs/images/cat_sit.png" width="120" alt="Chibi cat sitting">
+</p>
 
-## Giấy phép
+<p align="center"><sub>Made with 🐾 and too much coffee.</sub></p>
 
-Copyright (c) 2026 dungzual201. Xem toàn văn tại [`LICENSE`](LICENSE).
+The project is released under the [MIT License](LICENSE).
