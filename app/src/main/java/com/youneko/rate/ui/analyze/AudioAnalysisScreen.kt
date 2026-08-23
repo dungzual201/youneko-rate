@@ -9,9 +9,6 @@ import com.youneko.rate.ui.YnDimens
 import android.content.Context
 import android.content.Intent
 import androidx.annotation.StringRes
-import android.media.MediaCodecList
-import android.media.MediaExtractor
-import android.media.MediaFormat
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -120,6 +117,8 @@ import com.youneko.rate.R
 import com.youneko.rate.data.CrashLogStore
 import com.youneko.rate.data.audio.AnalyzeInputException
 import com.youneko.rate.data.audio.AudioAnalysisWorker
+import com.youneko.rate.data.audio.AudioSourceInfo
+import com.youneko.rate.data.audio.AudioSourceInspector
 import com.youneko.rate.data.audio.CachedSpectrogram
 import com.youneko.rate.data.audio.SpectrogramCache
 import com.youneko.rate.data.artwork.ArtworkStore
@@ -156,17 +155,6 @@ enum class AnalyzeStep(@StringRes val labelRes: Int) {
     COMPUTING(R.string.analyze_step_computing),
     SAVING(R.string.analyze_step_saving),
 }
-
-data class SelectedAudioFile(
-    val uri: String,
-    val displayName: String,
-    val sizeBytes: Long,
-    val declaredMime: String?,
-    val trackMime: String,
-    val durationMs: Long,
-    val sampleRate: Int,
-    val channels: Int,
-)
 
 data class AnalyzeHeader(
     val title: String,
@@ -232,7 +220,7 @@ class AudioAnalysisViewModel @Inject constructor(
     private var userRequestedCancel = false
     private val _header = MutableStateFlow<AnalyzeHeader?>(null)
     val header = _header.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
-    private val _selectedFile = MutableStateFlow<SelectedAudioFile?>(null)
+    private val _selectedFile = MutableStateFlow<AudioSourceInfo?>(null)
     val selectedFile = _selectedFile.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
     val analyses = dao.observeAll().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     private val workInfosFlow = workManager.getWorkInfosForUniqueWorkFlow(AudioAnalysisWorker.UNIQUE_WORK)
@@ -267,7 +255,7 @@ class AudioAnalysisViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val parsedUri = Uri.parse(uri)
-                val selected = inspectAudioUri(parsedUri)
+                val selected = AudioSourceInspector.inspect(context, parsedUri)
                 _selectedFile.value = selected
                 settings.addAnalyzeRecentUri(uri)
                 val fileName = selected.displayName
@@ -304,44 +292,8 @@ class AudioAnalysisViewModel @Inject constructor(
         }
     }
 
-    private fun inspectAudioUri(uri: Uri): SelectedAudioFile {
-        val resolver = context.contentResolver
-        val displayName = resolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
-            val index = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
-            if (index >= 0 && cursor.moveToFirst() && !cursor.isNull(index)) cursor.getString(index) else null
-        }?.takeIf { it.isNotBlank() } ?: uri.lastPathSegment.orEmpty().substringAfterLast('/').ifBlank { "audio" }
-        val declaredMime = resolver.getType(uri)
-        val pfd = resolver.openFileDescriptor(uri, "r") ?: throw java.io.FileNotFoundException(uri.toString())
-        pfd.use { descriptor ->
-            val size = descriptor.statSize.takeIf { it > 0L } ?: resolver.openAssetFileDescriptor(uri, "r")?.use { it.length }?.takeIf { it > 0L } ?: 0L
-            if (size > MAX_ANALYZE_BYTES) throw IllegalArgumentException(context.getString(R.string.analyze_error_file_too_large))
-            val extractor = MediaExtractor()
-            try {
-                extractor.setDataSource(descriptor.fileDescriptor)
-                val audioIndex = (0 until extractor.trackCount).firstOrNull { index ->
-                    extractor.getTrackFormat(index).getString(MediaFormat.KEY_MIME).orEmpty().startsWith("audio/")
-                } ?: throw IllegalArgumentException(context.getString(R.string.analyze_error_not_audio))
-                val format = extractor.getTrackFormat(audioIndex)
-                val trackMime = format.getString(MediaFormat.KEY_MIME).orEmpty()
-                if (trackMime.isBlank()) throw IllegalArgumentException(context.getString(R.string.analyze_error_not_audio))
-                if (MediaCodecList(MediaCodecList.REGULAR_CODECS).findDecoderForFormat(format) == null) {
-                    throw AnalyzeInputException.NoDecoder(trackMime)
-                }
-                val durationMs = runCatching { format.getLong(MediaFormat.KEY_DURATION) / 1_000L }.getOrDefault(0L)
-                val sampleRate = runCatching { format.getInteger(MediaFormat.KEY_SAMPLE_RATE) }.getOrDefault(0)
-                val channels = runCatching { format.getInteger(MediaFormat.KEY_CHANNEL_COUNT) }.getOrDefault(0)
-                if (durationMs <= 0L || sampleRate <= 0 || channels <= 0) throw IllegalArgumentException(context.getString(R.string.analyze_error_invalid_format))
-                android.util.Log.d("ANALYZE", "file size=$size duration=$durationMs sampleRate=$sampleRate channels=$channels")
-                return SelectedAudioFile(uri.toString(), displayName, size, declaredMime, trackMime, durationMs, sampleRate, channels)
-            } finally {
-                extractor.release()
-            }
-        }
-    }
-
     companion object {
         private const val KEY_SELECTED_URI = "analyze_selected_uri"
-        private const val MAX_ANALYZE_BYTES = 512L * 1024L * 1024L
     }
 
     fun onCancelClicked() {
@@ -552,7 +504,7 @@ fun AudioAnalysisScreen(initialUri: String? = null, viewModel: AudioAnalysisView
 }
 
 @Composable
-private fun SelectedAudioFileCard(file: SelectedAudioFile) {
+private fun SelectedAudioFileCard(file: AudioSourceInfo) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(file.displayName, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)

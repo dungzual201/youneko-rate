@@ -8,6 +8,7 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import androidx.core.app.NotificationCompat
 import androidx.work.CoroutineWorker
 import androidx.work.ForegroundInfo
@@ -52,6 +53,8 @@ class AudioAnalysisWorker(
         val totalFiles = inputData.getInt(KEY_TOTAL_FILES, 1)
         setForegroundSafely(createForegroundInfo(fileName, fileIndex, totalFiles, 0f))
         return try {
+            val source = AudioSourceInspector.inspect(applicationContext, Uri.parse(uri))
+            Log.d("ANALYZE", "preflight displayName=${source.displayName} declaredMime=${source.declaredMime} trackMime=${source.trackMime} size=${source.sizeBytes}")
             publish(AudioAnalysisProgress(AudioAnalysisStep.READING_HEADER, 0f), fileName, fileIndex, totalFiles)
             val result = StreamingAudioAnalysisEngine(applicationContext).analyze(
                 uriString = uri,
