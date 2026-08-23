@@ -272,7 +272,7 @@ fun YnAlbumCard(item: LibraryAlbum, onClick: () -> Unit, onLongClick: (() -> Uni
     ) {
         Column(Modifier.padding(YnDimens.space3), verticalArrangement = Arrangement.spacedBy(YnDimens.space2)) {
             Box(Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(YnDimens.radiusSm))) {
-                CoverArtImage(item.album.coverUri, Modifier.fillMaxSize(), placeholderSeed = item.album.id, placeholderLabel = item.album.title)
+                CoverArtImage(item.album.coverUri, Modifier.fillMaxSize(), placeholderSeed = item.album.id, placeholderLabel = item.album.title, cacheVersion = item.album.coverUpdatedAt)
                 YnRatingBadge(item.score?.effectiveScore, Modifier.align(Alignment.BottomEnd).padding(YnDimens.space2))
             }
             Column(verticalArrangement = Arrangement.spacedBy(YnDimens.space1)) {

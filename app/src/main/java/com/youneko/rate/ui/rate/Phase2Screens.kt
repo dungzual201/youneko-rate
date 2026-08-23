@@ -422,7 +422,7 @@ private fun AlbumListRow(item: LibraryAlbum, onOpen: (String) -> Unit, onAnalyze
     var showTrackMenu by rememberSaveable(item.album.id) { mutableStateOf(false) }
     Card(shape = RoundedCornerShape(YounekoRadius.lg), modifier = Modifier.fillMaxWidth().combinedClickable(onClick = { onOpen(item.album.id) }, onLongClick = { showTrackMenu = true })) {
         Row(Modifier.padding(YounekoSpacing.md), verticalAlignment = Alignment.CenterVertically) {
-            CoverArtImage(item.album.coverUri, Modifier.size(64.dp), placeholderSeed = item.album.id, placeholderLabel = item.album.title)
+            CoverArtImage(item.album.coverUri, Modifier.size(64.dp), placeholderSeed = item.album.id, placeholderLabel = item.album.title, cacheVersion = item.album.coverUpdatedAt)
             Column(Modifier.weight(1f).padding(start = YounekoSpacing.md)) {
                 Text(item.album.title, style = MaterialTheme.typography.titleMedium)
                 Text(item.artist?.name.orEmpty(), style = MaterialTheme.typography.bodySmall)
@@ -772,6 +772,7 @@ fun AlbumDetailScreen(
                         contentScale = ContentScale.Fit,
                         placeholderSeed = value.album.id,
                         placeholderLabel = value.album.title,
+                        cacheVersion = value.album.coverUpdatedAt,
                     )
                 }
                 Text(value.album.title, style = MaterialTheme.typography.displaySmall, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = YnDimens.space5))
@@ -852,6 +853,7 @@ fun AlbumDetailScreen(
         (state as? AlbumDetailUiState.Content)?.album?.album?.coverUri?.let { coverUri ->
             CoverArtFullscreenDialog(
                 model = coverUri,
+                cacheVersion = (state as? AlbumDetailUiState.Content)?.album?.album?.coverUpdatedAt,
                 palette = albumPalette,
                 onDismiss = { showFullCover = false },
                 onCopied = { hex -> scope.launch { snackbarHost.showSnackbar(paletteCopiedPattern.replace("%1\$s", hex)) } },
@@ -877,6 +879,7 @@ fun AlbumDetailScreen(
 @Composable
 internal fun CoverArtFullscreenDialog(
     model: Any,
+    cacheVersion: Long? = null,
     palette: CoverPalette?,
     onDismiss: () -> Unit,
     onSave: () -> Unit = {},
@@ -913,6 +916,7 @@ internal fun CoverArtFullscreenDialog(
                         .graphicsLayer { scaleX = scale; scaleY = scale; translationX = offset.x; translationY = offset.y }
                         .transformable(transformState),
                     contentScale = ContentScale.Fit,
+                    cacheVersion = cacheVersion,
                 )
                 IconButton(onClick = onDismiss, modifier = Modifier.align(Alignment.TopStart).padding(12.dp)) {
                     Icon(Icons.Default.Close, contentDescription = stringResource(R.string.close), tint = Color.White)

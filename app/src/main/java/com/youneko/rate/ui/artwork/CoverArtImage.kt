@@ -32,6 +32,7 @@ import androidx.lifecycle.ViewModel
 import coil.ImageLoader
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import java.io.File
 import com.youneko.rate.R
 import com.youneko.rate.ui.YnDimens
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -50,7 +51,8 @@ fun CoverArtImage(
     placeholderSeed: String = "",
     placeholderLabel: String? = null,
     contentScale: ContentScale = ContentScale.Crop,
-) = CoverArtImage(listOfNotNull(model), modifier, placeholder, placeholderSeed, placeholderLabel, contentScale)
+    cacheVersion: Long? = null,
+) = CoverArtImage(listOfNotNull(model), modifier, placeholder, placeholderSeed, placeholderLabel, contentScale, cacheVersion)
 
 @Composable
 fun CoverArtImage(
@@ -60,6 +62,7 @@ fun CoverArtImage(
     placeholderSeed: String = "",
     placeholderLabel: String? = null,
     contentScale: ContentScale = ContentScale.Crop,
+    cacheVersion: Long? = null,
 ) {
     val imageLoader = hiltViewModel<CoverArtImageViewModel>().imageLoader
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -69,11 +72,16 @@ fun CoverArtImage(
         .clip(shape)
         .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), shape)
     val model = models.getOrNull(index)
+    val requestModel = (model as? String)?.takeIf { it.startsWith("/") }?.let(::File) ?: model
+    val cacheKey = "${requestModel}-${cacheVersion ?: 0L}"
     if (model == null) {
         CoverArtPlaceholder(clipped, placeholderSeed, placeholderLabel, placeholder)
     } else {
         AsyncImage(
-            model = ImageRequest.Builder(context).data(model).size(512).memoryCacheKey("album_${placeholderSeed}_${placeholderLabel.orEmpty()}_$model").allowHardware(true).crossfade(150).build(),
+            model = ImageRequest.Builder(context).data(requestModel).size(512)
+                .memoryCacheKey(cacheKey)
+                .diskCacheKey(cacheKey)
+                .allowHardware(true).crossfade(150).build(),
             imageLoader = imageLoader,
             contentDescription = null,
             modifier = clipped,
