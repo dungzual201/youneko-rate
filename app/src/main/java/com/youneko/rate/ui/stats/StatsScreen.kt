@@ -346,7 +346,7 @@ internal fun ShareStatsCard(state: StatsUiState, labels: ShareStatsLabels, times
                     painter = painterResource(R.drawable.ic_cat_chibi_peek),
                     contentDescription = null,
                     tint = colors.primary,
-                    modifier = Modifier.align(Alignment.TopEnd).size(140.dp).offset(y = (-16).dp).graphicsLayer { alpha = 1f },
+                    modifier = Modifier.align(Alignment.TopEnd).size(150.dp).offset(y = (-16).dp).graphicsLayer { alpha = 1f },
                 )
             }
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(32.dp)) {
@@ -361,7 +361,7 @@ internal fun ShareStatsCard(state: StatsUiState, labels: ShareStatsLabels, times
                         painter = painterResource(R.drawable.ic_cat_chibi_sit),
                         contentDescription = null,
                         tint = colors.primary,
-                        modifier = Modifier.align(Alignment.BottomEnd).size(200.dp).graphicsLayer { alpha = 0.9f },
+                        modifier = Modifier.align(Alignment.BottomEnd).size(210.dp).graphicsLayer { alpha = 0.9f },
                     )
 
             }
