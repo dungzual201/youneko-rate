@@ -156,8 +156,21 @@ fun YounekoNavHost() {
                 AudioAnalysisScreen(initialUri = initialUri)
             }
             composable("stats") { StatsScreen() }
-            composable("settings") { SettingsScreen(onOpenExport = { navController.navigate("export") }) }
-            composable("export") { ExportScreen(onBack = { navController.popBackStack() }) }
+            composable("settings") {
+                SettingsScreen(
+                    onOpenExport = { navController.navigate("export?intent=export") },
+                    onOpenImport = { navController.navigate("export?intent=import") },
+                )
+            }
+            composable(
+                route = "export?intent={intent}",
+                arguments = listOf(navArgument("intent") { type = NavType.StringType; nullable = true; defaultValue = "export" }),
+            ) { entry ->
+                ExportScreen(
+                    onBack = { navController.popBackStack() },
+                    openImportOnStart = entry.arguments?.getString("intent") == "import",
+                )
+            }
             composable("advancedSearch") { AdvancedSearchScreen(onBack = { navController.popBackStack() }) }
             composable("collections") { CollectionsScreen(onBack = { navController.popBackStack() }) }
             composable("importTags") {

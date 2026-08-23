@@ -88,6 +88,7 @@ suspend fun writeBackupArchive(
         verifyCountsAgainstManifest(tempDb, manifest.counts)
         ZipOutputStream(output).use { zip ->
             writeEntry(zip, BACKUP_MANIFEST, backupJson.encodeToString(manifest).toByteArray(Charsets.UTF_8))
+            writeEntry(zip, BACKUP_DATA_ENTRY, backupJson.encodeToString(snapshot).toByteArray(Charsets.UTF_8))
             check(!isCancelled()) { "Đã huỷ" }
             onProgress(BackupProgress("Đang ghi tệp database…", 0, 1))
             zip.putNextEntry(ZipEntry(BACKUP_DATABASE_ENTRY))

@@ -18,6 +18,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Divider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -46,6 +47,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.workDataOf
 import com.youneko.rate.R
@@ -81,6 +83,7 @@ import java.text.SimpleDateFormat
 import java.time.Instant
 import java.util.Date
 import java.util.Locale
+import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -92,6 +95,7 @@ class ExportViewModel @Inject constructor(private val database: YounekoDatabase,
     private val _snapshot = MutableStateFlow<LibrarySnapshot?>(null)
     val snapshot = _snapshot.asStateFlow()
     private val _validation = MutableStateFlow<BackupValidation?>(null)
+
     val validation = _validation.asStateFlow()
 
     fun load() = viewModelScope.launch(Dispatchers.IO) { _snapshot.value = database.exportSnapshot() }
@@ -104,7 +108,11 @@ class ExportViewModel @Inject constructor(private val database: YounekoDatabase,
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ExportScreen(onBack: () -> Unit, viewModel: ExportViewModel = hiltViewModel()) {
+fun ExportScreen(
+    onBack: () -> Unit,
+    openImportOnStart: Boolean = false,
+    viewModel: ExportViewModel = hiltViewModel(),
+) {
     val context = LocalContext.current
     val snapshot by viewModel.snapshot.collectAsStateWithLifecycle()
     val validation by viewModel.validation.collectAsStateWithLifecycle()
@@ -113,8 +121,13 @@ fun ExportScreen(onBack: () -> Unit, viewModel: ExportViewModel = hiltViewModel(
     val autoTree by autoStore.treeUri.collectAsStateWithLifecycle(initialValue = null)
     val lastBackupAt by autoStore.lastBackupAt.collectAsStateWithLifecycle(initialValue = null)
     var pendingExportFormat by rememberSaveable { mutableStateOf(EXPORT_FORMAT_JSON) }
+    var activeWorkId by remember { mutableStateOf<UUID?>(null) }
+    val activeWork = if (activeWorkId != null) {
+        WorkManager.getInstance(context).getWorkInfoByIdFlow(activeWorkId!!).collectAsStateWithLifecycle(initialValue = null).value
+    } else null
+    val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
+    val backupProgressFallback = stringResource(R.string.backup_progress_prepare)
     var includeCovers by rememberSaveable { mutableStateOf(true) }
-    var includeExports by rememberSaveable { mutableStateOf(true) }
     var pendingBackupOptions by remember { mutableStateOf(false) }
     var pendingImportUri by remember { mutableStateOf<Uri?>(null) }
     var restoreMode by rememberSaveable { mutableStateOf(BACKUP_RESTORE_REPLACE) }
@@ -124,16 +137,30 @@ fun ExportScreen(onBack: () -> Unit, viewModel: ExportViewModel = hiltViewModel(
     LaunchedEffect(Unit) { viewModel.load() }
 
     fun enqueueExport(uri: Uri, format: String) {
-        WorkManager.getInstance(context).enqueue(OneTimeWorkRequestBuilder<ExportWorker>().setInputData(workDataOf(EXPORT_OUTPUT_URI to uri.toString(), EXPORT_FORMAT to format)).build())
+        val request = OneTimeWorkRequestBuilder<ExportWorker>().setInputData(workDataOf(EXPORT_OUTPUT_URI to uri.toString(), EXPORT_FORMAT to format)).build()
+        activeWorkId = request.id
+        WorkManager.getInstance(context).enqueue(request)
     }
     fun enqueueBackup(uri: Uri) {
-        WorkManager.getInstance(context).enqueue(OneTimeWorkRequestBuilder<BackupWorker>().setInputData(workDataOf(BACKUP_OUTPUT_URI to uri.toString(), "include_covers" to includeCovers, "include_exports" to includeExports)).build())
+        val request = OneTimeWorkRequestBuilder<BackupWorker>().setInputData(workDataOf(BACKUP_OUTPUT_URI to uri.toString(), "include_covers" to includeCovers, "include_exports" to false)).build()
+        activeWorkId = request.id
+        WorkManager.getInstance(context).enqueue(request)
     }
 
-    val createExport = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri -> uri?.let { enqueueExport(it, pendingExportFormat) } }
-    val createBackup = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri -> uri?.let { enqueueBackup(it) } }
+    val createExport = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri -> uri?.let { enqueueExport(it, pendingExportFormat) } }
+    val createBackup = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri -> uri?.let { enqueueBackup(it) } }
     val openBackup = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) { pendingImportUri = uri; viewModel.validate(uri) }
+    }
+    LaunchedEffect(openImportOnStart) {
+        if (openImportOnStart) openBackup.launch(arrayOf("application/zip", "application/octet-stream"))
+    }
+    LaunchedEffect(activeWork?.id, activeWork?.state) {
+        val work = activeWork ?: return@LaunchedEffect
+        if (work.state.isFinished) {
+            val message = work.outputData.getString("message") ?: work.outputData.getString("error") ?: backupProgressFallback
+            snackbarHostState.showSnackbar(message)
+        }
     }
     val selectAutoFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri != null) {
@@ -147,6 +174,7 @@ fun ExportScreen(onBack: () -> Unit, viewModel: ExportViewModel = hiltViewModel(
     }
 
     Scaffold(
+        snackbarHost = { androidx.compose.material3.SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.backup_title)) },
@@ -155,6 +183,14 @@ fun ExportScreen(onBack: () -> Unit, viewModel: ExportViewModel = hiltViewModel(
         },
     ) { innerPadding ->
     Column(Modifier.fillMaxSize().padding(innerPadding).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        activeWork?.takeIf { it.state == WorkInfo.State.RUNNING }?.let { work ->
+            val progress = work.progress
+            val done = progress.getInt("done", 0)
+            val total = progress.getInt("total", 0)
+            if (total > 0) LinearProgressIndicator(progress = (done.toFloat() / total.toFloat()).coerceIn(0f, 1f), modifier = Modifier.fillMaxWidth())
+            else LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            Text(progress.getString("step") ?: stringResource(R.string.backup_progress_prepare), style = MaterialTheme.typography.bodySmall)
+        }
         Text(stringResource(R.string.backup_description), style = MaterialTheme.typography.bodyMedium)
         Divider()
         Button(onClick = { pendingBackupOptions = true }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.backup_export)) }
@@ -184,11 +220,11 @@ fun ExportScreen(onBack: () -> Unit, viewModel: ExportViewModel = hiltViewModel(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) { Switch(includeCovers, { includeCovers = it }); Text(stringResource(R.string.backup_include_covers)) }
-                    Row(verticalAlignment = Alignment.CenterVertically) { Switch(includeExports, { includeExports = it }); Text(stringResource(R.string.backup_include_exports)) }
                     Text(stringResource(R.string.backup_no_token_music), style = MaterialTheme.typography.bodySmall)
                 }
             },
-            confirmButton = { TextButton(onClick = { pendingBackupOptions = false; createBackup.launch("YounekoRate_${SimpleDateFormat("yyyy-MM-dd_HHmm", Locale.US).format(Date())}.younekorate") }) { Text(stringResource(R.string.backup_export)) } },
+                            confirmButton = { TextButton(onClick = { pendingBackupOptions = false; createBackup.launch("youneko-backup-${SimpleDateFormat("yyyyMMdd-HHmm", Locale.US).format(Date())}.zip") }) { Text(stringResource(R.string.backup_export)) } },
+
             dismissButton = { TextButton(onClick = { pendingBackupOptions = false }) { Text(stringResource(R.string.backup_cancel)) } },
         )
     }

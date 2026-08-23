@@ -1201,7 +1201,11 @@ private fun SettingsSectionHeader(title: String, icon: ImageVector) {
 }
 
 @Composable
-fun SettingsScreen(onOpenExport: () -> Unit = {}, viewModel: ScoreSettingsViewModel = hiltViewModel()) {
+fun SettingsScreen(
+    onOpenExport: () -> Unit = {},
+    onOpenImport: () -> Unit = onOpenExport,
+    viewModel: ScoreSettingsViewModel = hiltViewModel(),
+) {
     val mode by viewModel.scoreMode.collectAsStateWithLifecycle()
     val ratingScale by viewModel.ratingScale.collectAsStateWithLifecycle()
     val offlineOnly by viewModel.offlineOnly.collectAsStateWithLifecycle()
@@ -1361,7 +1365,7 @@ fun SettingsScreen(onOpenExport: () -> Unit = {}, viewModel: ScoreSettingsViewMo
                 Text(stringResource(R.string.backup_title), style = MaterialTheme.typography.titleMedium)
                 Text(stringResource(R.string.backup_description), style = MaterialTheme.typography.bodySmall)
                 Button(onClick = onOpenExport, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.backup_export)) }
-                OutlinedButton(onClick = onOpenExport, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.backup_import)) }
+                OutlinedButton(onClick = onOpenImport, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.backup_import)) }
                 OutlinedButton(onClick = onOpenExport, modifier = Modifier.fillMaxWidth()) { Text("${stringResource(R.string.backup_export_csv)} & ${stringResource(R.string.backup_export_json)}") }
                 OutlinedButton(onClick = onOpenExport, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.backup_auto)) }
             }
