@@ -47,15 +47,17 @@ The app also includes local credits and lyrics readers, collections, advanced se
 
 ## 📸 Screenshots
 
-The repository is still in beta and does not include fabricated device screenshots. The four cells below are deliberate placeholders for future screenshots.
+The repository is still in beta and contains no real device screenshots. No screenshot was generated, fetched, or represented by a fabricated image. When the captures exist, each cell is reserved for a 250-pixel-wide image and its caption.
 
 | Library | Rate |
 |---|---|
-| <!-- ![Library](docs/images/screenshot_library.png) --> <!-- TODO: add a real device screenshot --> | <!-- ![Rate](docs/images/screenshot_rate.png) --> <!-- TODO: add a real device screenshot --> |
-
-| Album detail | Stats |
+| **Library**<br>**THIẾU ẢNH:** `docs/images/screenshot_library.png`<br><sub>Real-device capture required</sub> | **Rate**<br>**THIẾU ẢNH:** `docs/images/screenshot_rate.png`<br><sub>Real-device capture required</sub> |
+| Album detail | Analyze |
 |---|---|
-| <!-- ![Album detail](docs/images/screenshot_album_detail.png) --> <!-- TODO: add a real device screenshot --> | <!-- ![Stats](docs/images/screenshot_stats.png) --> <!-- TODO: add a real device screenshot --> |
+| **Album detail**<br>**THIẾU ẢNH:** `docs/images/screenshot_album_detail.png`<br><sub>Real-device capture required</sub> | **Analyze**<br>**THIẾU ẢNH:** `docs/images/screenshot_analyze.png`<br><sub>Real-device capture required</sub> |
+| Stats | — |
+|---|---|
+| **Stats**<br>**THIẾU ẢNH:** `docs/images/screenshot_stats.png`<br><sub>Real-device capture required</sub> | **THIẾU ẢNH:** second cell is intentionally unused |
 
 <hr>
 

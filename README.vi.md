@@ -45,17 +45,19 @@ Bốn tab chính trong code hiện tại là:
 
 App còn có trình đọc credits và lyrics local, collections, tìm kiếm nâng cao và trang nghệ sĩ. Với ảnh bìa, **Find cover** dùng luồng hai bước: mở website COV bằng trình duyệt ngoài để người dùng tự tìm/tải ảnh, sau đó chọn ảnh từ thư viện Android. App không gọi API riêng của COV. Sao lưu/khôi phục dùng ZIP `.younekorate` gồm database, cover, settings và dữ liệu JSON/CSV. App có resource tiếng Việt và tiếng Anh, theme Material 3/Material You, icon chân mèo và splash screen.
 
-## 📸 Screenshots
+## 📸 Ảnh chụp màn hình
 
-Repository vẫn đang ở giai đoạn beta nên không chứa screenshot thiết bị giả. Bốn ô dưới đây là placeholder có chủ đích để bổ sung ảnh chụp thật sau này.
+Repository vẫn đang ở giai đoạn beta và chưa có ảnh chụp trên thiết bị thật. Không ảnh nào được tạo, tải từ ngoài hoặc giả mạo. Khi có ảnh, mỗi ô đã dành sẵn cho ảnh rộng 250 pixel kèm chú thích.
 
 | Library | Rate |
 |---|---|
-| <!-- ![Library](docs/images/screenshot_library.png) --> <!-- TODO: bổ sung screenshot thiết bị thật --> | <!-- ![Rate](docs/images/screenshot_rate.png) --> <!-- TODO: bổ sung screenshot thiết bị thật --> |
-
-| Chi tiết album | Stats |
+| **Library**<br>**THIẾU ẢNH:** `docs/images/screenshot_library.png`<br><sub>Cần ảnh chụp trên thiết bị thật</sub> | **Rate**<br>**THIẾU ẢNH:** `docs/images/screenshot_rate.png`<br><sub>Cần ảnh chụp trên thiết bị thật</sub> |
+| Chi tiết album | Analyze |
 |---|---|
-| <!-- ![Chi tiết album](docs/images/screenshot_album_detail.png) --> <!-- TODO: bổ sung screenshot thiết bị thật --> | <!-- ![Stats](docs/images/screenshot_stats.png) --> <!-- TODO: bổ sung screenshot thiết bị thật --> |
+| **Chi tiết album**<br>**THIẾU ẢNH:** `docs/images/screenshot_album_detail.png`<br><sub>Cần ảnh chụp trên thiết bị thật</sub> | **Analyze**<br>**THIẾU ẢNH:** `docs/images/screenshot_analyze.png`<br><sub>Cần ảnh chụp trên thiết bị thật</sub> |
+| Stats | — |
+|---|---|
+| **Stats**<br>**THIẾU ẢNH:** `docs/images/screenshot_stats.png`<br><sub>Cần ảnh chụp trên thiết bị thật</sub> | **THIẾU ẢNH:** ô thứ hai được để trống có chủ đích |
 
 <hr>
 
