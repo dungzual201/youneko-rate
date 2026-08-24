@@ -7,6 +7,7 @@ import android.os.Build
 import android.content.pm.PackageManager
 import android.provider.MediaStore
 import android.util.Log
+import android.database.sqlite.SQLiteConstraintException
 import androidx.room.withTransaction
 import com.youneko.rate.data.MediaScanStore
 import com.youneko.rate.data.artwork.ArtworkStore
@@ -39,7 +40,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
 
 private const val HASH_BYTES = 64 * 1024
-private const val SCAN_BATCH_SIZE = 400
+private const val SCAN_BATCH_SIZE = 150
 private const val SCAN_TAG = "SCAN"
 
 /** A local MediaStore row. This class never exposes audio playback APIs. */
@@ -69,6 +70,7 @@ data class MediaScanResult(
     val updated: Int,
     val missing: Int,
     val skipped: Boolean = false,
+    val skippedRecords: Int = 0,
 )
 
 object StableMediaKey {
@@ -170,7 +172,14 @@ class MediaStoreScanner @Inject constructor(
                     id = UUID.randomUUID().toString(),
                     albumId = albumId,
                     title = title,
-                    scanNaturalKey = ScanNaturalKey.track(albumId, title, row.discNumber, row.trackNumber),
+                    scanNaturalKey = ScanNaturalKey.track(
+                        mediaStoreId = row.id,
+                        normalizedPath = normalizedFilePath(row.relativePath, row.displayName),
+                        sizeBytes = row.sizeBytes,
+                        albumId = albumId,
+                        title = title,
+                        durationMs = row.durationMs,
+                    ),
                     trackNumber = row.trackNumber,
                     discNumber = row.discNumber,
                     durationMs = row.durationMs,
@@ -192,7 +201,14 @@ class MediaStoreScanner @Inject constructor(
                     current.copy(
                         albumId = albumId ?: current.albumId,
                         isStandalone = albumId == null && current.albumId == null,
-                        scanNaturalKey = current.scanNaturalKey ?: ScanNaturalKey.track(albumId ?: current.albumId, row.title ?: current.title, row.discNumber ?: current.discNumber, row.trackNumber ?: current.trackNumber),
+                        scanNaturalKey = ScanNaturalKey.track(
+                            mediaStoreId = row.id,
+                            normalizedPath = normalizedFilePath(row.relativePath, row.displayName),
+                            sizeBytes = row.sizeBytes,
+                            albumId = albumId ?: current.albumId,
+                            title = row.title ?: current.title,
+                            durationMs = row.durationMs ?: current.durationMs,
+                        ),
                         sourceUri = row.uri.toString(),
                         fileName = row.displayName,
                         mediaStoreId = row.id,
@@ -209,17 +225,57 @@ class MediaStoreScanner @Inject constructor(
             }
             onProgress(index + 1, rows.size)
         }
-        inserts.chunked(SCAN_BATCH_SIZE).forEach { batch ->
+        var skippedRecords = 0
+        inserts.chunked(SCAN_BATCH_SIZE).forEachIndexed { batchIndex, batch ->
+            var batchInserted = 0
+            var batchSkipped = 0
+            var firstError: String? = null
             database.withTransaction {
-                trackDao.insertAll(batch)
-                batch.forEach { track -> ftsDao.upsert(LibrarySearchFtsEntity(track.id, "track", "${track.title} ${track.fileName.orEmpty()}")) }
+                batch.forEach { track ->
+                    try {
+                        val insertedId = trackDao.insert(track)
+                        if (insertedId == -1L) {
+                            batchSkipped++
+                            skippedRecords++
+                            logDuplicateKey(track)
+                        } else {
+                            ftsDao.upsert(LibrarySearchFtsEntity(track.id, "track", "${track.title} ${track.fileName.orEmpty()}"))
+                            batchInserted++
+                        }
+                    } catch (error: SQLiteConstraintException) {
+                        batchSkipped++
+                        skippedRecords++
+                        firstError = firstError ?: error.message
+                        logDuplicateKey(track)
+                    } catch (error: Exception) {
+                        batchSkipped++
+                        skippedRecords++
+                        firstError = firstError ?: error.message
+                        Log.w(SCAN_TAG, "SCAN: row skipped id=${track.id} key=${track.scanNaturalKey}", error)
+                    }
+                }
             }
+            Log.d(SCAN_TAG, "batch=$batchIndex inserted=$batchInserted skipped=$batchSkipped firstError=${firstError ?: "none"}")
         }
-        updates.chunked(SCAN_BATCH_SIZE).forEach { batch ->
+        updates.chunked(SCAN_BATCH_SIZE).forEachIndexed { batchIndex, batch ->
+            var batchUpdated = 0
+            var batchSkipped = 0
+            var firstError: String? = null
             database.withTransaction {
-                trackDao.updateAll(batch)
-                batch.forEach { track -> ftsDao.upsert(LibrarySearchFtsEntity(track.id, "track", "${track.title} ${track.fileName.orEmpty()}")) }
+                batch.forEach { track ->
+                    try {
+                        trackDao.update(track)
+                        ftsDao.upsert(LibrarySearchFtsEntity(track.id, "track", "${track.title} ${track.fileName.orEmpty()}"))
+                        batchUpdated++
+                    } catch (error: Exception) {
+                        batchSkipped++
+                        skippedRecords++
+                        firstError = firstError ?: error.message
+                        Log.w(SCAN_TAG, "SCAN: update skipped id=${track.id} key=${track.scanNaturalKey}", error)
+                    }
+                }
             }
+            Log.d(SCAN_TAG, "batch=${batchIndex + inserts.chunked(SCAN_BATCH_SIZE).size} inserted=$batchUpdated skipped=$batchSkipped firstError=${firstError ?: "none"}")
         }
         val missing = markMissingIfNeeded(rows, full, seenMediaIds)
         val phase1Duration = System.currentTimeMillis() - phase1StartedAt
@@ -233,7 +289,7 @@ class MediaStoreScanner @Inject constructor(
         val albumCount = albumDao.findAll().size
         val trackCount = trackDao.findAll().size
         Log.i(SCAN_TAG, "SCAN: db tracks=$trackCount albums=$albumCount")
-        return MediaScanResult(rows.size, inserts.size, updates.size, missing)
+        return MediaScanResult(rows.size, inserts.size - skippedRecords, updates.size, missing, skippedRecords = skippedRecords)
     }
 
     suspend fun dedupeIfNeeded(): ScanDedupeStats {
@@ -264,8 +320,15 @@ class MediaStoreScanner @Inject constructor(
             val hash = StableMediaKey.first64kHash(context, uri)
             val stableKey = StableMediaKey.from(size, tag.durationMs, hash)
             val title = tag.title?.takeIf(String::isNotBlank) ?: tag.fileName
-            val trackNaturalKey = ScanNaturalKey.track(null, title, tag.discNumber, tag.trackNumber)
-            val current = existing.firstOrNull { it.sourceUri == tag.uri || (stableKey != null && it.stableKey == stableKey) || (trackNaturalKey != null && it.scanNaturalKey == ScanNaturalKey.track(it.albumId, title, tag.discNumber, tag.trackNumber)) }
+            val trackNaturalKey = ScanNaturalKey.track(
+                mediaStoreId = null,
+                normalizedPath = tag.uri,
+                sizeBytes = size,
+                albumId = null,
+                title = title,
+                durationMs = tag.durationMs,
+            )
+            val current = existing.firstOrNull { it.sourceUri == tag.uri || (stableKey != null && it.stableKey == stableKey) || (trackNaturalKey != null && it.scanNaturalKey == trackNaturalKey) }
             val row = MediaStoreAudioRow(
                 id = Long.MIN_VALUE,
                 uri = uri,
@@ -291,7 +354,14 @@ class MediaStoreScanner @Inject constructor(
                 val created = TrackEntity(
                     id = UUID.randomUUID().toString(), albumId = albumId,
                     title = title,
-                    scanNaturalKey = ScanNaturalKey.track(albumId, title, tag.discNumber, tag.trackNumber),
+                    scanNaturalKey = ScanNaturalKey.track(
+                        mediaStoreId = null,
+                        normalizedPath = tag.uri,
+                        sizeBytes = size,
+                        albumId = albumId,
+                        title = title,
+                        durationMs = tag.durationMs,
+                    ),
                     isStandalone = albumId == null,
                     isMissing = false,
                     trackNumber = tag.trackNumber, discNumber = tag.discNumber, durationMs = tag.durationMs,
@@ -303,13 +373,25 @@ class MediaStoreScanner @Inject constructor(
                 ftsDao.upsert(LibrarySearchFtsEntity(created.id, "track", "${created.title} ${tag.artist.orEmpty()}"))
                 added++
             } else {
-                trackDao.update(current.copy(sourceUri = tag.uri, fileName = tag.fileName, scanNaturalKey = current.scanNaturalKey ?: ScanNaturalKey.track(albumId, title, tag.discNumber, tag.trackNumber), stableKey = stableKey ?: current.stableKey, fileSizeBytes = size ?: current.fileSizeBytes, fileHash64k = hash ?: current.fileHash64k, isMissing = false, missingSince = null, updatedAt = System.currentTimeMillis()))
+                trackDao.update(current.copy(sourceUri = tag.uri, fileName = tag.fileName, scanNaturalKey = ScanNaturalKey.track(mediaStoreId = null, normalizedPath = tag.uri, sizeBytes = size ?: current.fileSizeBytes, albumId = albumId ?: current.albumId, title = title, durationMs = tag.durationMs ?: current.durationMs), stableKey = stableKey ?: current.stableKey, fileSizeBytes = size ?: current.fileSizeBytes, fileHash64k = hash ?: current.fileHash64k, isMissing = false, missingSince = null, updatedAt = System.currentTimeMillis()))
                 updated++
             }
             onProgress(index + 1, tags.size)
         }
         return MediaScanResult(tags.size, added, updated, 0)
     }
+
+    private suspend fun logDuplicateKey(incoming: TrackEntity) {
+        val key = incoming.scanNaturalKey ?: return
+        val existing = trackDao.findByScanNaturalKey(key)
+        Log.d(SCAN_TAG, "DUPKEY key=$key | existing: title=${existing?.title} album=${existing?.albumId} dur=${existing?.durationMs} size=${existing?.fileSizeBytes} path=${existing?.sourceUri} mediaStoreId=${existing?.mediaStoreId}")
+        Log.d(SCAN_TAG, "DUPKEY key=$key | incoming: title=${incoming.title} album=${incoming.albumId} dur=${incoming.durationMs} size=${incoming.fileSizeBytes} path=${incoming.sourceUri} mediaStoreId=${incoming.mediaStoreId}")
+    }
+
+    private fun normalizedFilePath(relativePath: String?, displayName: String): String? =
+        listOfNotNull(relativePath?.trim('/').takeIf { !it.isNullOrBlank() }, displayName.trim().takeIf(String::isNotBlank))
+            .joinToString("/")
+            .takeIf(String::isNotBlank)
 
     private suspend fun enrichRows(rows: List<MediaStoreAudioRow>, onProgress: (done: Int, total: Int) -> Unit): Int = coroutineScope {
         val dispatcher = Dispatchers.IO.limitedParallelism(4)
@@ -417,7 +499,8 @@ class MediaStoreScanner @Inject constructor(
             createdAt = now,
             updatedAt = now,
         )
-        albumDao.insert(created)
+        val insertedId = albumDao.insert(created)
+        if (insertedId == -1L) return naturalKey?.let { albumDao.findByScanNaturalKey(it)?.id }
         ftsDao.upsert(LibrarySearchFtsEntity(created.id, "album", "$album $artistName"))
         return created.id
     }

@@ -34,11 +34,14 @@ interface AlbumDao {
     @Query("SELECT * FROM albums")
     suspend fun findAll(): List<AlbumEntity>
 
-    @Insert(onConflict = OnConflictStrategy.ABORT)
-    suspend fun insert(album: AlbumEntity)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insert(album: AlbumEntity): Long
 
-    @Insert(onConflict = OnConflictStrategy.ABORT)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertAll(albums: List<AlbumEntity>)
+
+    @Query("SELECT * FROM albums WHERE scanNaturalKey = :key LIMIT 1")
+    suspend fun findByScanNaturalKey(key: String): AlbumEntity?
 
     @Update(onConflict = OnConflictStrategy.ABORT)
     suspend fun update(album: AlbumEntity)
@@ -103,10 +106,13 @@ interface TrackDao {
     @Query("SELECT * FROM tracks WHERE id = :id LIMIT 1")
     suspend fun findById(id: String): TrackEntity?
 
-    @Insert(onConflict = OnConflictStrategy.ABORT)
-    suspend fun insert(track: TrackEntity)
+    @Query("SELECT * FROM tracks WHERE scanNaturalKey = :key LIMIT 1")
+    suspend fun findByScanNaturalKey(key: String): TrackEntity?
 
-    @Insert(onConflict = OnConflictStrategy.ABORT)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insert(track: TrackEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertAll(tracks: List<TrackEntity>)
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)

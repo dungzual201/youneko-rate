@@ -52,7 +52,7 @@ object AppModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): YounekoDatabase =
         Room.databaseBuilder(context, YounekoDatabase::class.java, "youneko_rate.db")
-            .addMigrations(YounekoDatabase.MIGRATION_1_2, YounekoDatabase.MIGRATION_2_3, YounekoDatabase.MIGRATION_3_4, YounekoDatabase.MIGRATION_4_5, YounekoDatabase.MIGRATION_5_6, YounekoDatabase.MIGRATION_6_7, YounekoDatabase.MIGRATION_7_8, YounekoDatabase.MIGRATION_8_9, YounekoDatabase.MIGRATION_9_10, YounekoDatabase.MIGRATION_10_11, YounekoDatabase.MIGRATION_11_12, YounekoDatabase.MIGRATION_12_13, YounekoDatabase.MIGRATION_13_14, YounekoDatabase.MIGRATION_14_15, YounekoDatabase.MIGRATION_15_16, YounekoDatabase.MIGRATION_16_17, YounekoDatabase.MIGRATION_17_18, YounekoDatabase.MIGRATION_18_19, YounekoDatabase.MIGRATION_19_20, YounekoDatabase.MIGRATION_20_21)
+            .addMigrations(YounekoDatabase.MIGRATION_1_2, YounekoDatabase.MIGRATION_2_3, YounekoDatabase.MIGRATION_3_4, YounekoDatabase.MIGRATION_4_5, YounekoDatabase.MIGRATION_5_6, YounekoDatabase.MIGRATION_6_7, YounekoDatabase.MIGRATION_7_8, YounekoDatabase.MIGRATION_8_9, YounekoDatabase.MIGRATION_9_10, YounekoDatabase.MIGRATION_10_11, YounekoDatabase.MIGRATION_11_12, YounekoDatabase.MIGRATION_12_13, YounekoDatabase.MIGRATION_13_14, YounekoDatabase.MIGRATION_14_15, YounekoDatabase.MIGRATION_15_16, YounekoDatabase.MIGRATION_16_17, YounekoDatabase.MIGRATION_17_18, YounekoDatabase.MIGRATION_18_19, YounekoDatabase.MIGRATION_19_20, YounekoDatabase.MIGRATION_20_21, YounekoDatabase.MIGRATION_21_22)
             .build()
 
     @Provides

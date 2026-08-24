@@ -1,8 +1,17 @@
 package com.youneko.rate.data.local
 
 import androidx.sqlite.db.SupportSQLiteDatabase
+import java.security.MessageDigest
+import java.util.Locale
+
 object ScanNaturalKey {
-    private fun normalize(value: String): String = value.trim().lowercase(java.util.Locale.ROOT)
+    private fun normalize(value: String): String = value.trim().lowercase(Locale.ROOT).replace(Regex("\\s+"), " ")
+
+    private fun normalizePath(value: String): String = normalize(value)
+
+    private fun digest(value: String): String = MessageDigest.getInstance("SHA-256")
+        .digest(value.toByteArray(Charsets.UTF_8))
+        .joinToString("") { "%02x".format(it) }
 
     fun album(title: String?, artist: String?): String? {
         val normalizedTitle = title?.let(::normalize)?.takeIf { it.isNotBlank() } ?: return null
@@ -10,9 +19,24 @@ object ScanNaturalKey {
         return "album|$normalizedTitle|$normalizedArtist"
     }
 
-    fun track(albumId: String?, title: String?, discNumber: Int?, trackNumber: Int?): String? {
+    /** A file identity key: MediaStore id, then normalized path+size, then a metadata fallback. */
+    fun track(
+        mediaStoreId: Long?,
+        normalizedPath: String?,
+        sizeBytes: Long?,
+        albumId: String?,
+        title: String?,
+        durationMs: Long?,
+    ): String? {
+        if (mediaStoreId != null && mediaStoreId > 0L) return "track|mediaStoreId|$mediaStoreId"
+        val path = normalizedPath?.let(::normalizePath)?.takeIf { it.isNotBlank() }
+        if (path != null && sizeBytes != null && sizeBytes >= 0L) {
+            return "track|pathSize|${digest("$path|$sizeBytes")}"
+        }
+        val normalizedAlbum = albumId?.let(::normalize)?.takeIf { it.isNotBlank() } ?: return null
         val normalizedTitle = title?.let(::normalize)?.takeIf { it.isNotBlank() } ?: return null
-        return "track|${albumId.orEmpty()}|$normalizedTitle|${discNumber ?: 0}|${trackNumber ?: 0}"
+        val roundedDuration = durationMs?.div(1_000L) ?: return null
+        return "track|fallback|$normalizedAlbum|$normalizedTitle|$roundedDuration"
     }
 }
 
@@ -20,6 +44,38 @@ data class ScanDedupeStats(val merged: Int, val deleted: Int, val albumsRemainin
 
 /** Idempotent cleanup used by the 20→21 migration and once at startup after upgrade. */
 object ScanDedupe {
+    fun rebuildNaturalKeys(db: SupportSQLiteDatabase) {
+        db.query("SELECT albums.id, albums.title, artists.name FROM albums LEFT JOIN artists ON artists.id = albums.artistId").use { cursor ->
+            val idIndex = cursor.getColumnIndexOrThrow("id")
+            val titleIndex = cursor.getColumnIndexOrThrow("title")
+            val artistIndex = cursor.getColumnIndexOrThrow("name")
+            while (cursor.moveToNext()) {
+                val key = ScanNaturalKey.album(cursor.getString(titleIndex), if (cursor.isNull(artistIndex)) null else cursor.getString(artistIndex))
+                db.execSQL("UPDATE albums SET scanNaturalKey = ? WHERE id = ?", arrayOf(key, cursor.getString(idIndex)))
+            }
+        }
+        db.query("SELECT id, mediaStoreId, sourceUri, fileSizeBytes, albumId, title, durationMs FROM tracks").use { cursor ->
+            val idIndex = cursor.getColumnIndexOrThrow("id")
+            val mediaIdIndex = cursor.getColumnIndexOrThrow("mediaStoreId")
+            val sourceIndex = cursor.getColumnIndexOrThrow("sourceUri")
+            val sizeIndex = cursor.getColumnIndexOrThrow("fileSizeBytes")
+            val albumIndex = cursor.getColumnIndexOrThrow("albumId")
+            val titleIndex = cursor.getColumnIndexOrThrow("title")
+            val durationIndex = cursor.getColumnIndexOrThrow("durationMs")
+            while (cursor.moveToNext()) {
+                val key = ScanNaturalKey.track(
+                    mediaStoreId = if (cursor.isNull(mediaIdIndex)) null else cursor.getLong(mediaIdIndex),
+                    normalizedPath = if (cursor.isNull(sourceIndex)) null else cursor.getString(sourceIndex),
+                    sizeBytes = if (cursor.isNull(sizeIndex)) null else cursor.getLong(sizeIndex),
+                    albumId = if (cursor.isNull(albumIndex)) null else cursor.getString(albumIndex),
+                    title = cursor.getString(titleIndex),
+                    durationMs = if (cursor.isNull(durationIndex)) null else cursor.getLong(durationIndex),
+                )
+                db.execSQL("UPDATE tracks SET scanNaturalKey = ? WHERE id = ?", arrayOf(key, cursor.getString(idIndex)))
+            }
+        }
+    }
+
     fun run(db: SupportSQLiteDatabase): ScanDedupeStats {
         val mergedAlbums = dedupeAlbums(db)
         val mergedTracks = dedupeTracks(db)
@@ -74,7 +130,6 @@ object ScanDedupe {
     }
 
     private fun dedupeTracks(db: SupportSQLiteDatabase): Int {
-        db.execSQL("UPDATE tracks SET scanNaturalKey = 'track|' || lower(trim(COALESCE(albumId, ''))) || '|' || lower(trim(title)) || '|' || COALESCE(discNumber, 0) || '|' || COALESCE(trackNumber, 0) WHERE scanNaturalKey IS NULL AND sourceUri IS NOT NULL")
         db.execSQL("DROP TABLE IF EXISTS temp.round15_track_map")
         db.execSQL(
             """CREATE TEMP TABLE round15_track_map AS

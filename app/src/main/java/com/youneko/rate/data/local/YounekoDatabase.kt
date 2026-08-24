@@ -54,7 +54,7 @@ import com.youneko.rate.data.local.entity.TrackEntity
         ScanRootEntity::class,
         AlbumPaletteEntity::class,
     ],
-    version = 21,
+    version = 22,
     exportSchema = true,
 )
 @TypeConverters(YounekoTypeConverters::class)
@@ -119,6 +119,17 @@ abstract class YounekoDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 addColumnIfMissing(db, "albums", "scanNaturalKey", "TEXT")
                 addColumnIfMissing(db, "tracks", "scanNaturalKey", "TEXT")
+                ScanDedupe.run(db)
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_albums_scanNaturalKey ON albums(scanNaturalKey)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_tracks_scanNaturalKey ON tracks(scanNaturalKey)")
+            }
+        }
+
+        val MIGRATION_21_22: Migration = object : Migration(21, 22) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP INDEX IF EXISTS index_albums_scanNaturalKey")
+                db.execSQL("DROP INDEX IF EXISTS index_tracks_scanNaturalKey")
+                ScanDedupe.rebuildNaturalKeys(db)
                 ScanDedupe.run(db)
                 db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_albums_scanNaturalKey ON albums(scanNaturalKey)")
                 db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_tracks_scanNaturalKey ON tracks(scanNaturalKey)")

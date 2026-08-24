@@ -307,7 +307,8 @@ class Phase6CreditsTest {
         override fun observeForAlbum(albumId: String): Flow<List<TrackEntity>> = flowOf(listOf(track))
         override fun observeStandalone(): Flow<List<TrackEntity>> = flowOf(emptyList())
         override suspend fun findById(id: String): TrackEntity? = track.takeIf { it.id == id }
-        override suspend fun insert(track: TrackEntity) = Unit
+        override suspend fun findByScanNaturalKey(key: String): TrackEntity? = track.takeIf { it.scanNaturalKey == key }
+        override suspend fun insert(track: TrackEntity): Long = 1L
         override suspend fun insertAll(tracks: List<TrackEntity>) = Unit
         override suspend fun insertAllIgnore(tracks: List<TrackEntity>) = Unit
         override suspend fun update(track: TrackEntity) = Unit
