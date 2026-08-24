@@ -1,17 +1,21 @@
-<p align="center">
-  <img src="docs/images/logo_paw.png" width="140" alt="Youneko Rate paw logo">
-</p>
-
-# Youneko Rate! 🐾
-
-> A small Android app for rating albums and tracks, writing reviews, reading local credits and lyrics, and inspecting audio quality.
-
-[Đọc README tiếng Việt](README.vi.md)
-
-[![Platform: Android](https://img.shields.io/badge/platform-Android-3DDC84.svg)](https://developer.android.com/)
-[![minSdk: 26](https://img.shields.io/badge/minSdk-26-blue.svg)](app/build.gradle.kts)
-[![Kotlin: 2.4.10](https://img.shields.io/badge/Kotlin-2.4.10-7F52FF.svg)](gradle/libs.versions.toml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
+<div align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/logo_paw.png">
+    <img src="docs/images/logo_paw.png" width="140" alt="Youneko Rate paw logo">
+  </picture>
+  <h1>Youneko Rate!</h1>
+  <p>Rate your local music library privately, clearly, and offline.</p>
+  <p>
+    <a href="README.vi.md">Đọc README tiếng Việt</a>
+  </p>
+  <p>
+    <a href="https://developer.android.com/"><img src="https://img.shields.io/badge/platform-Android-3DDC84.svg" alt="Platform Android"></a>
+    <a href="app/build.gradle.kts"><img src="https://img.shields.io/badge/minSdk-26-blue.svg" alt="minSdk 26"></a>
+    <a href="gradle/libs.versions.toml"><img src="https://img.shields.io/badge/Kotlin-2.4.10-7F52FF.svg" alt="Kotlin 2.4.10"></a>
+    <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-yellow.svg" alt="License MIT"></a>
+    <img src="https://img.shields.io/badge/100%25%20Offline-6750A4?style=flat&logoColor=white" alt="100% Offline">
+  </p>
+</div>
 
 Youneko Rate! is a personal, offline-first companion for people who like to keep thoughtful album notes. It reads the local audio library, stores ratings and reviews in Room, and provides analysis and organization tools without becoming another music player.
 
