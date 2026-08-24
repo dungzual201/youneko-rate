@@ -397,6 +397,10 @@ class ScoreSettingsViewModel @Inject constructor(
     fun testDiscogsToken(token: String) = viewModelScope.launch(Dispatchers.IO) { _tokenTestResult.value = _tokenTestResult.value + ("discogs" to discogsService.testToken(token)) }
     fun testGeniusToken(token: String) = viewModelScope.launch(Dispatchers.IO) { _tokenTestResult.value = _tokenTestResult.value + ("genius" to geniusService.testToken(token)) }
     fun clearMetadataCache() = viewModelScope.launch(Dispatchers.IO) { remoteMetadataCacheDao.deleteAll() }
+    fun reextractArtwork() = viewModelScope.launch(Dispatchers.IO) {
+        startScan(context, trigger = "settings-reextract-artwork", artworkOnly = true)
+    }
+
     fun rescanAllMusic() = viewModelScope.launch(Dispatchers.IO) {
         mediaScanStore.reset()
         startScan(context, forceFull = true, trigger = "settings-rescan-all")

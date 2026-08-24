@@ -210,6 +210,7 @@
     <string name="rescan_all_started">Đã bắt đầu quét lại toàn bộ thư viện.</string>
     <string name="rescan_all_progress">Đang quét lại: %1$d/%2$d</string>
     <string name="reload_all_covers">Tải lại toàn bộ ảnh bìa</string>
+    <string name="reextract_artwork">Trích xuất lại ảnh bìa</string>
     <string name="choose_manual_cover">Chọn ảnh bìa</string>
     <string name="collections_title">Bộ sưu tập</string>
     <string name="collection_create">Tạo bộ sưu tập</string>

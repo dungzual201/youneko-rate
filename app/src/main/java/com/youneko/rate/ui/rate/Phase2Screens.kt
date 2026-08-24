@@ -1417,6 +1417,7 @@ fun SettingsScreen(
         }
         TextButton(onClick = viewModel::refreshMusicData) { Text(stringResource(R.string.refresh_music_data)) }
         TextButton(onClick = viewModel::reloadAllCovers) { Text(stringResource(R.string.reload_all_covers)) }
+        TextButton(onClick = viewModel::reextractArtwork, enabled = !scanActive) { Text(stringResource(R.string.reextract_artwork)) }
         Button(onClick = { showRescanConfirmation = true }, enabled = !scanActive, modifier = Modifier.fillMaxWidth()) {
             Text(stringResource(R.string.rescan_all_music))
         }

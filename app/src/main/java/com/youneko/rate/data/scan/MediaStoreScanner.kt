@@ -64,6 +64,8 @@ data class MediaStoreAudioRow(
     val dateAddedSeconds: Long,
 )
 
+data class ArtworkPassResult(val total: Int, val missing: Int, val extracted: Int, val failed: Int)
+
 data class MediaScanResult(
     val scanned: Int,
     val added: Int,
@@ -298,6 +300,37 @@ class MediaStoreScanner @Inject constructor(
     }
 
     suspend fun currentCounts(): Pair<Int, Int> = albumDao.findAll().size to trackDao.findAll().size
+
+    suspend fun needsArtworkRecovery(): Boolean {
+        val albums = albumDao.findAll()
+        val missing = albums.count { it.coverUri.isNullOrBlank() }
+        return albums.isNotEmpty() && missing * 2 > albums.size
+    }
+
+    suspend fun reextractMissingArtwork(onProgress: (done: Int, total: Int) -> Unit = { _, _ -> }): ArtworkPassResult {
+        val albums = albumDao.findAll()
+        val missingAlbums = albums.filter { it.coverUri.isNullOrBlank() }
+        val tracksByAlbum = trackDao.findAll().filter { it.albumId != null }.groupBy { it.albumId }
+        var extracted = 0
+        var failed = 0
+        missingAlbums.forEachIndexed { index, album ->
+            val track = tracksByAlbum[album.id].orEmpty().firstOrNull { !it.sourceUri.isNullOrBlank() }
+            val cover = track?.sourceUri?.let { source ->
+                runCatching { tagReader.extractArtwork(Uri.parse(source), album.id, track.mediaStoreId) }.getOrNull()
+            }
+            if (cover == null) {
+                failed++
+            } else if (albumDao.findById(album.id)?.coverUri.isNullOrBlank()) {
+                val now = System.currentTimeMillis()
+                albumDao.update(album.copy(coverUri = File(cover.path).toURI().toString(), coverThumbUri = File(cover.path).toURI().toString(), coverSource = cover.source, coverWidth = cover.width, coverHeight = album.coverHeight, coverUpdatedAt = now, updatedAt = now))
+                extracted++
+            }
+            onProgress(index + 1, missingAlbums.size)
+        }
+        val result = ArtworkPassResult(total = missingAlbums.size, missing = missingAlbums.size, extracted = extracted, failed = failed)
+        Log.d(SCAN_TAG, "artwork pass: total=${result.total} missing=${result.missing} extracted=${result.extracted} failed=${result.failed}")
+        return result
+    }
 
     suspend fun dedupeIfNeeded(): ScanDedupeStats {
         if (scanStore.dedupeCompleted.first()) {

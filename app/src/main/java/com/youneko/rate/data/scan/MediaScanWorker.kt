@@ -92,6 +92,17 @@ class MediaStoreScanWorker(appContext: Context, params: WorkerParameters) : Coro
                 runCatching {
                     scanner.dedupeIfNeeded()
                     val forceFull = inputData.getBoolean(KEY_FORCE_FULL, false)
+                    val artworkOnly = inputData.getBoolean(KEY_ARTWORK_ONLY, false)
+                    if (artworkOnly || (!forceFull && scanner.needsArtworkRecovery())) {
+                        var done = 0
+                        val recovery = scanner.reextractMissingArtwork { current, total ->
+                            done = current
+                            setProgressAsync(progressData(ScanPhase.ARTWORK, current, total))
+                        }
+                        val counts = scanner.currentCounts()
+                        Log.i(SCAN_TAG, "SCAN: artwork recovery completed done=$done/${recovery.total}")
+                        return@runCatching Result.success(workDataOf(KEY_SCANNED to 0, KEY_ADDED to recovery.extracted, KEY_MISSING to recovery.failed, KEY_SKIPPED to false, KEY_SKIPPED_FILES to recovery.failed, KEY_ALBUMS to counts.first, KEY_TRACKS to counts.second))
+                    }
                     var phase = ScanPhase.METADATA
                     setProgressAsync(progressData(phase, 0, 0))
                     val result = scanner.scan(
@@ -173,6 +184,7 @@ class MediaStoreScanWorker(appContext: Context, params: WorkerParameters) : Coro
     companion object {
         private val PROCESS_GATE = AtomicBoolean(false)
         const val KEY_FORCE_FULL = "force_full"
+        const val KEY_ARTWORK_ONLY = "artwork_only"
         const val KEY_PHASE = "phase"
         const val KEY_DONE = "done"
         const val KEY_TOTAL = "total"
@@ -187,7 +199,7 @@ class MediaStoreScanWorker(appContext: Context, params: WorkerParameters) : Coro
     }
 }
 
-fun startScan(context: Context, forceFull: Boolean = false, trigger: String) {
+fun startScan(context: Context, forceFull: Boolean = false, trigger: String, artworkOnly: Boolean = false) {
     val alreadyRunning = runCatching {
         WorkManager.getInstance(context).getWorkInfosForUniqueWork(UNIQUE_ON_RESUME).get(250L, TimeUnit.MILLISECONDS)
             .any { it.state == androidx.work.WorkInfo.State.RUNNING || it.state == androidx.work.WorkInfo.State.ENQUEUED }
@@ -195,7 +207,7 @@ fun startScan(context: Context, forceFull: Boolean = false, trigger: String) {
     Log.d(SCAN_TAG, "startScan called, alreadyRunning=$alreadyRunning, trigger=$trigger")
     if (alreadyRunning) return
     val request = OneTimeWorkRequestBuilder<MediaStoreScanWorker>()
-        .setInputData(workDataOf(MediaStoreScanWorker.KEY_FORCE_FULL to forceFull))
+        .setInputData(workDataOf(MediaStoreScanWorker.KEY_FORCE_FULL to forceFull, MediaStoreScanWorker.KEY_ARTWORK_ONLY to artworkOnly))
         .build()
     WorkManager.getInstance(context).enqueueUniqueWork(UNIQUE_ON_RESUME, ExistingWorkPolicy.KEEP, request)
 }
