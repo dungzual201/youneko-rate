@@ -17,7 +17,7 @@ Chỉ thị mới nhất yêu cầu bảo toàn 8 preview đã tạo. Khi kiểm
 
 Không thiếu file nào trong số các PNG đã tồn tại ở workspace. Tuy nhiên đây là các ảnh GPT raster initial, chưa phải asset chính thức: chúng vẫn có thể có nền/biên hoặc chi tiết lệch reference và **chưa được duyệt**. Batch image-editing v2 chưa chạy được vì quota tạo ảnh đã hết; thư mục `variation-v2/` chưa có ảnh hoàn chỉnh.
 
-Paw-mark seasonal **chưa làm**. SVG master **chưa áp màu/geometry mới**. README **chưa sửa trong bước này**. App, PDF, Google Drive và vector trong app **chưa sửa**.
+Paw-mark seasonal **chưa làm**. SVG master **chưa áp màu/geometry mới**. README và `README.vi.md` đã được cập nhật trong bốn commit tài liệu của chỉ thị này, chỉ dùng asset đã có. App, PDF, Google Drive và vector trong app **chưa sửa**.
 
 ## Chỉ thị đã chốt cho bước tiếp theo
 

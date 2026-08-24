@@ -28,36 +28,42 @@
 - [⚠️ Giới hạn](#️-giới-hạn)
 - [🐾 Cảm ơn](#-cảm-ơn)
 
-Youneko Rate! là một người bạn đồng hành **offline-first** dành cho những ai thích lưu lại cảm nhận về album một cách có hệ thống. App đọc thư viện audio local, lưu điểm và review vào Room, đồng thời cung cấp công cụ phân tích và sắp xếp dữ liệu mà không biến thành một trình phát nhạc khác.
+Youneko Rate! là một người bạn đồng hành **offline-first** để lưu lại cảm nhận về album một cách có hệ thống. App đọc thư viện audio local, lưu rating và review trên thiết bị, đồng thời cung cấp công cụ sắp xếp và kiểm tra dữ liệu mà không giả định các phần beta chưa hoàn tất là đã xong.
+
+<hr>
 
 ## ✨ Tính năng
 
 <img src="docs/images/cat_peek.png" width="90" align="right" alt="Mèo chibi ló lên">
 
-Bốn tab chính trong code hiện tại là:
+App hiện có bốn khu vực chính:
 
-| Tab | App làm gì |
+| Khu vực | Khả năng hiện tại |
 |---|---|
-| **Library** | Quét MediaStore và thư mục SAF tùy chọn theo hai pha, kèm banner tiến trình. Pha đầu đọc metadata local, sau đó enrichment artwork; lúc scan không tự tải cover từ mạng. |
-| **Rate** | Cho phép chấm điểm thủ công từng bài, review album/bài, quản lý tag và listening log, đồng thời hiển thị gradient album lấy từ dữ liệu Palette. |
-| **Analyze** | Chỉ decode audio để phân tích. STFT/FFT báo codec, bitrate, sample rate, bit depth và các chỉ số phổ khi dữ liệu đủ, sau đó đưa ra verdict heuristic về chất lượng codec. |
-| **Stats** | Tổng hợp rating và kết quả phân tích đã lưu, hiển thị phân phối/xếp hạng, rồi render ảnh chia sẻ 1080×1350 với preview, nút chia sẻ và lưu cục bộ. |
+| **Library** | Quét audio local qua MediaStore và thư mục SAF tùy chọn, sau đó enrichment metadata và artwork local. Có hiển thị tiến trình quét. |
+| **Rate** | Chấm điểm thủ công cho bài và album, viết review, quản lý tag, listening log và bộ lọc rating local. |
+| **Analyze** | Kiểm tra audio theo chế độ decode-only và dữ liệu STFT/FFT, hiển thị sample rate, bit depth, bitrate cùng chỉ số phổ khi đủ dữ liệu nguồn. |
+| **Stats** | Tổng hợp rating và kết quả phân tích đã lưu bằng phân phối, xếp hạng và trình render ảnh chia sẻ local. |
 
-App còn có trình đọc credits và lyrics local, collections, tìm kiếm nâng cao và trang nghệ sĩ. Với ảnh bìa, **Find cover** dùng luồng hai bước: mở website COV bằng trình duyệt ngoài để người dùng tự tìm/tải ảnh, sau đó chọn ảnh từ thư viện Android. App không gọi API riêng của COV. Sao lưu/khôi phục dùng ZIP `.younekorate` gồm database, cover, settings và dữ liệu JSON/CSV. App có resource tiếng Việt và tiếng Anh, theme Material 3/Material You, icon chân mèo và splash screen.
+Giao diện xoay quanh dữ liệu local, Material 3, resource song ngữ, nhận diện launcher/splash hình chân mèo và artwork được lưu trong vùng riêng của app.
+
+<hr>
 
 ## 📸 Ảnh chụp màn hình
 
 Repository vẫn đang ở giai đoạn beta và chưa có ảnh chụp trên thiết bị thật. Không ảnh nào được tạo, tải từ ngoài hoặc giả mạo. Khi có ảnh, mỗi ô đã dành sẵn cho ảnh rộng 250 pixel kèm chú thích.
 
-| Library | Rate |
+| Library | Chi tiết album |
 |---|---|
-| **Library**<br>**THIẾU ẢNH:** `docs/images/screenshot_library.png`<br><sub>Cần ảnh chụp trên thiết bị thật</sub> | **Rate**<br>**THIẾU ẢNH:** `docs/images/screenshot_rate.png`<br><sub>Cần ảnh chụp trên thiết bị thật</sub> |
-| Chi tiết album | Analyze |
+| **Library**<br>**THIẾU ẢNH:** `docs/images/screenshot_library.png`<br><sub>Cần ảnh chụp trên thiết bị thật</sub> | **Chi tiết album**<br>**THIẾU ẢNH:** `docs/images/screenshot_album_detail.png`<br><sub>Cần ảnh chụp trên thiết bị thật</sub> |
+| Rate | Analyze |
 |---|---|
-| **Chi tiết album**<br>**THIẾU ẢNH:** `docs/images/screenshot_album_detail.png`<br><sub>Cần ảnh chụp trên thiết bị thật</sub> | **Analyze**<br>**THIẾU ẢNH:** `docs/images/screenshot_analyze.png`<br><sub>Cần ảnh chụp trên thiết bị thật</sub> |
+| **Rate**<br>**THIẾU ẢNH:** `docs/images/screenshot_rate.png`<br><sub>Cần ảnh chụp trên thiết bị thật</sub> | **Analyze**<br>**THIẾU ẢNH:** `docs/images/screenshot_analyze.png`<br><sub>Cần ảnh chụp trên thiết bị thật</sub> |
 | Stats | — |
 |---|---|
 | **Stats**<br>**THIẾU ẢNH:** `docs/images/screenshot_stats.png`<br><sub>Cần ảnh chụp trên thiết bị thật</sub> | **THIẾU ẢNH:** ô thứ hai được để trống có chủ đích |
+
+Hiện chỉ có một ảnh chân mèo. **THIẾU ẢNH:** `docs/images/logo_paw_light.png`, `docs/images/logo_paw_dark.png`, `docs/images/cat_peek_light.png`, `docs/images/cat_peek_dark.png`, `docs/images/cat_sit_light.png`, `docs/images/cat_sit_dark.png`. Trước khi có đủ cặp ảnh, phần `<picture>` dùng `logo_paw.png` hiện có cho cả hai theme.
 
 <hr>
 
@@ -65,19 +71,18 @@ Repository vẫn đang ở giai đoạn beta và chưa có ảnh chụp trên th
 
 Các phiên bản dưới đây được đọc trực tiếp từ `gradle/libs.versions.toml` và `app/build.gradle.kts`.
 
-| Nhóm | Thành phần thực tế |
+| Nhóm | Triển khai thực tế |
 |---|---|
 | Ngôn ngữ và UI | Kotlin `2.4.10`, Jetpack Compose, Compose BOM `2026.08.00`, Material 3 |
 | Android build | Android Gradle Plugin `9.3.1`, Gradle wrapper `9.5.0`, compile SDK `37`, min SDK `26`, target SDK `36` |
 | Dữ liệu local | Room `2.8.4` dùng KSP và exported schema; DataStore Preferences `1.2.1` |
-| Dependency injection | Hilt `2.60.1` và Hilt Navigation Compose `1.4.0`, không dùng Koin |
-| Tác vụ nền | WorkManager `2.11.2`; scan, phân tích và backup dài đều chạy qua worker khi phù hợp |
-| HTTP và JSON | Retrofit `2.11.0`, OkHttp `4.12.0`, kotlinx.serialization JSON `1.11.0` |
+| Dependency injection | Hilt `2.60.1` và Hilt Navigation Compose `1.4.0` |
+| Tác vụ nền | WorkManager `2.11.2` cho scan và các tác vụ local dài hơn |
 | Ảnh và artwork | Coil `2.7.0`, AndroidX Palette `1.0.0`, AndroidX ExifInterface `1.3.7` |
 | Audio và tag | MediaExtractor, MediaCodec, MediaMetadataRetriever, jaudiotagger `3.0.1`, JTransforms `3.1` |
 | AndroidX chính | core-ktx `1.19.0`, core-splashscreen `1.0.1`, Activity Compose `1.13.0`, Navigation Compose `2.9.8` |
 
-Kiến trúc hiện tại là MVVM thực dụng theo hướng repository/data layer. Composable quan sát `StateFlow` từ ViewModel; DAO cung cấp dữ liệu Room, Hilt cấp dependency, DataStore lưu preference/trạng thái scan, còn WorkManager xử lý các tác vụ dài. Đây không phải một triển khai Clean Architecture tách package tuyệt đối.
+Kiến trúc hiện tại là MVVM thực dụng theo hướng repository/data layer. Composable quan sát `StateFlow` từ ViewModel; DAO cung cấp dữ liệu Room, Hilt cấp dependency, DataStore lưu preference/trạng thái scan, còn WorkManager xử lý các tác vụ dài.
 
 <hr>
 
@@ -91,9 +96,26 @@ Kiến trúc hiện tại là MVVM thực dụng theo hướng repository/data l
 | Java/JDK | 17 |
 | Kotlin | 2.4.10 |
 
+<details>
+<summary>Quyền Android</summary>
+
+| Quyền | Lý do cần quyền |
+|---|---|
+| `READ_MEDIA_AUDIO` trên Android 13+ | Đọc metadata audio local từ MediaStore. |
+| `READ_EXTERNAL_STORAGE` trên Android 12 trở xuống | Đọc thư viện audio local tương ứng trên Android cũ. |
+| `INTERNET` | Hỗ trợ các thao tác trực tuyến tùy chọn đã có trong bản beta khi người dùng chủ động yêu cầu. |
+| `FOREGROUND_SERVICE` và `FOREGROUND_SERVICE_DATA_SYNC` | Giữ tác vụ dữ liệu local dài có notification rõ ràng. |
+
+App không dùng `MANAGE_EXTERNAL_STORAGE`.
+
+</details>
+
 <hr>
 
 ## 🔨 Build
+
+<details open>
+<summary>Các bước build</summary>
 
 ```bash
 git clone https://github.com/dungzual201/youneko-rate.git
@@ -109,71 +131,58 @@ APK debug được tạo tại:
 app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Có thể chạy toàn bộ kiểm tra local bằng:
+Chạy toàn bộ bộ kiểm tra local:
 
 ```bash
 ./gradlew assembleDebug testDebugUnitTest lintDebug compileDebugAndroidTestKotlin
 ```
 
-<hr>
+</details>
 
-### Quyền Android
-
-| Quyền | Lý do cần quyền |
-|---|---|
-| `READ_MEDIA_AUDIO` trên Android 13+ | Đọc metadata audio từ MediaStore. |
-| `READ_EXTERNAL_STORAGE` trên Android 12 trở xuống | Đọc thư viện audio local trên Android cũ. |
-| `INTERNET` | Truy cập provider metadata/credits online khi người dùng chủ động yêu cầu. |
-| `FOREGROUND_SERVICE` và `FOREGROUND_SERVICE_DATA_SYNC` | Giữ scan và tác vụ đồng bộ dữ liệu dài có notification rõ ràng. |
-
-App không dùng `MANAGE_EXTERNAL_STORAGE`.
-
-<hr>
-
-### Cấu trúc thư mục
+<details>
+<summary>Cấu trúc thư mục</summary>
 
 ```text
 app/src/main/java/com/youneko/rate/
 ├── data/          # Entity/DAO Room, repository, import, scan, artwork và worker
-├── di/            # Wiring dependency cho Hilt, HTTP và database
+├── di/            # Wiring dependency cho Hilt và database
 ├── navigation/    # Navigation graph và route Compose
 ├── ui/
-│   ├── analyze/   # Phân tích audio decode-only và spectrogram
-│   ├── artwork/   # Hiển thị cover, palette và cache-aware image loading
-│   ├── components/ # Component Material 3 dùng chung và design token
-│   ├── coversearch/ # Luồng mở COV ngoài app và import từ gallery
-│   ├── export/    # Màn hình backup/export/restore
+│   ├── analyze/   # Phân tích audio decode-only và giao diện spectrogram
+│   ├── artwork/   # Hiển thị cover, palette và image loading có cache
+│   ├── components/ # Component Material 3 dùng chung
 │   ├── importer/  # Preview và lưu import audio local
-│   ├── phase12/   # Collections, tìm kiếm nâng cao và trang nghệ sĩ
 │   ├── rate/      # Library, Rate, chi tiết album, Settings và editor
 │   └── stats/     # Thống kê và render ảnh chia sẻ
 └── res/           # String song ngữ, theme, launcher/splash và vector asset
 ```
 
+</details>
+
 <hr>
 
 ## 🔒 Riêng tư
 
-Youneko Rate! **không phải trình phát nhạc**. App không có luồng playback, không xuất audio, không crawl lyric và không ghi tag vào file audio gốc. Audio chỉ được decode để đọc metadata và phân tích. File nguồn bị mất chỉ được đánh dấu `isMissing`, không xóa rating, review hay credit nhập tay.
+> **Riêng tư theo thiết kế:** rating, review và metadata thư viện local nằm trên thiết bị. App không yêu cầu tài khoản, không có quảng cáo hay analytics, và không cần server cho việc sử dụng local.
 
-Artwork import được lưu riêng trong `filesDir/covers/`, không ghi ngược vào file audio. Backup không chứa file nhạc hoặc token provider. Migration database là migration tường minh; project không dùng `fallbackToDestructiveMigration()`.
+Artwork được import lưu trong thư mục riêng `filesDir/covers/` và không ghi vào file audio gốc. File nguồn bị mất chỉ được đánh dấu `isMissing`, không xóa rating, review hoặc dữ liệu nhập tay. Migration database là migration tường minh; project không dùng `fallbackToDestructiveMigration()`.
 
 <hr>
 
-### Nguồn dữ liệu ngoài
+## ⚠️ Giới hạn
 
-Provider online chỉ được dùng khi người dùng mở tính năng tương ứng. Với COV, app mở website bằng trình duyệt ngoài để người dùng tự tìm và tải ảnh. App không gọi COV `/api/*`, không dùng WebView, proxy request hay giả header. Hãy tôn trọng điều khoản và giới hạn tốc độ của từng nguồn.
+Đây là dự án beta. App **không phát nhạc**, không ghi tag audio gốc, không lấy lời bài hát và không có chức năng sao lưu. Đây là các ranh giới có chủ đích, không nên hiểu là cam kết về tính năng tương lai.
+
+Repository chưa có screenshot thiết bị thật, chưa có số đo hiệu năng trên thiết bị trong workspace này và không tuyên bố các giai đoạn đang thực hiện là đã hoàn tất. Xem `docs/PROGRESS.md` để đọc sổ trạng thái thận trọng của dự án.
 
 <hr>
 
 ## 🐾 Cảm ơn
 
-Cảm ơn hệ sinh thái Android mã nguồn mở và dự án COV vì website công khai để người dùng có thể mở trong trình duyệt. Đây là một dự án beta cá nhân; hành vi, provider và chi tiết UI có thể còn thay đổi.
+Cảm ơn hệ sinh thái Android mã nguồn mở và mọi người đã thử nghiệm dự án beta cá nhân này. Hành vi, luồng dữ liệu local và chi tiết UI có thể thay đổi khi các giai đoạn chưa hoàn tất được đánh giá tiếp.
 
 <p align="center">
   <img src="docs/images/cat_sit.png" width="120" alt="Mèo chibi đang ngồi">
 </p>
-
-<p align="center"><sub>Made with 🐾 and too much coffee.</sub></p>
 
 Project được phát hành theo [MIT License](LICENSE).
