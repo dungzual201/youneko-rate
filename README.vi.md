@@ -17,6 +17,17 @@
   </p>
 </div>
 
+## Mục lục
+
+- [✨ Tính năng](#-tính-năng)
+- [📸 Ảnh chụp màn hình](#-ảnh-chụp-màn-hình)
+- [🛠️ Công nghệ](#️-công-nghệ)
+- [📋 Yêu cầu](#-yêu-cầu)
+- [🔨 Build](#-build)
+- [🔒 Riêng tư](#-riêng-tư)
+- [⚠️ Giới hạn](#️-giới-hạn)
+- [🐾 Cảm ơn](#-cảm-ơn)
+
 Youneko Rate! là một người bạn đồng hành **offline-first** dành cho những ai thích lưu lại cảm nhận về album một cách có hệ thống. App đọc thư viện audio local, lưu điểm và review vào Room, đồng thời cung cấp công cụ phân tích và sắp xếp dữ liệu mà không biến thành một trình phát nhạc khác.
 
 ## ✨ Tính năng
@@ -46,7 +57,9 @@ Repository vẫn đang ở giai đoạn beta nên không chứa screenshot thi�
 |---|---|
 | <!-- ![Chi tiết album](docs/images/screenshot_album_detail.png) --> <!-- TODO: bổ sung screenshot thiết bị thật --> | <!-- ![Stats](docs/images/screenshot_stats.png) --> <!-- TODO: bổ sung screenshot thiết bị thật --> |
 
-## 🛠️ Công nghệ và kiến trúc
+<hr>
+
+## 🛠️ Công nghệ
 
 Các phiên bản dưới đây được đọc trực tiếp từ `gradle/libs.versions.toml` và `app/build.gradle.kts`.
 
@@ -64,7 +77,9 @@ Các phiên bản dưới đây được đọc trực tiếp từ `gradle/libs.
 
 Kiến trúc hiện tại là MVVM thực dụng theo hướng repository/data layer. Composable quan sát `StateFlow` từ ViewModel; DAO cung cấp dữ liệu Room, Hilt cấp dependency, DataStore lưu preference/trạng thái scan, còn WorkManager xử lý các tác vụ dài. Đây không phải một triển khai Clean Architecture tách package tuyệt đối.
 
-## 📱 Yêu cầu hệ thống
+<hr>
+
+## 📋 Yêu cầu
 
 | Thiết lập | Giá trị |
 |---|---:|
@@ -74,7 +89,9 @@ Kiến trúc hiện tại là MVVM thực dụng theo hướng repository/data l
 | Java/JDK | 17 |
 | Kotlin | 2.4.10 |
 
-## 🚀 Build từ source
+<hr>
+
+## 🔨 Build
 
 ```bash
 git clone https://github.com/dungzual201/youneko-rate.git
@@ -96,7 +113,9 @@ Có thể chạy toàn bộ kiểm tra local bằng:
 ./gradlew assembleDebug testDebugUnitTest lintDebug compileDebugAndroidTestKotlin
 ```
 
-## 🔐 Quyền Android
+<hr>
+
+### Quyền Android
 
 | Quyền | Lý do cần quyền |
 |---|---|
@@ -107,7 +126,9 @@ Có thể chạy toàn bộ kiểm tra local bằng:
 
 App không dùng `MANAGE_EXTERNAL_STORAGE`.
 
-## 📂 Cấu trúc thư mục
+<hr>
+
+### Cấu trúc thư mục
 
 ```text
 app/src/main/java/com/youneko/rate/
@@ -127,17 +148,23 @@ app/src/main/java/com/youneko/rate/
 └── res/           # String song ngữ, theme, launcher/splash và vector asset
 ```
 
-## ⚠️ Giới hạn và an toàn dữ liệu
+<hr>
+
+## 🔒 Riêng tư
 
 Youneko Rate! **không phải trình phát nhạc**. App không có luồng playback, không xuất audio, không crawl lyric và không ghi tag vào file audio gốc. Audio chỉ được decode để đọc metadata và phân tích. File nguồn bị mất chỉ được đánh dấu `isMissing`, không xóa rating, review hay credit nhập tay.
 
 Artwork import được lưu riêng trong `filesDir/covers/`, không ghi ngược vào file audio. Backup không chứa file nhạc hoặc token provider. Migration database là migration tường minh; project không dùng `fallbackToDestructiveMigration()`.
 
-## 🌐 Nguồn dữ liệu ngoài
+<hr>
+
+### Nguồn dữ liệu ngoài
 
 Provider online chỉ được dùng khi người dùng mở tính năng tương ứng. Với COV, app mở website bằng trình duyệt ngoài để người dùng tự tìm và tải ảnh. App không gọi COV `/api/*`, không dùng WebView, proxy request hay giả header. Hãy tôn trọng điều khoản và giới hạn tốc độ của từng nguồn.
 
-## 🐾 Cảm ơn và disclaimer
+<hr>
+
+## 🐾 Cảm ơn
 
 Cảm ơn hệ sinh thái Android mã nguồn mở và dự án COV vì website công khai để người dùng có thể mở trong trình duyệt. Đây là một dự án beta cá nhân; hành vi, provider và chi tiết UI có thể còn thay đổi.
 

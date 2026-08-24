@@ -17,6 +17,17 @@
   </p>
 </div>
 
+## Contents
+
+- [✨ Features](#-features)
+- [📸 Screenshots](#-screenshots)
+- [🛠️ Technology](#️-technology)
+- [📋 Requirements](#-requirements)
+- [🔨 Build](#-build)
+- [🔒 Privacy](#-privacy)
+- [⚠️ Limits](#️-limits)
+- [🐾 Thanks](#-thanks)
+
 Youneko Rate! is a personal, offline-first companion for people who like to keep thoughtful album notes. It reads the local audio library, stores ratings and reviews in Room, and provides analysis and organization tools without becoming another music player.
 
 ## ✨ Features
@@ -46,7 +57,9 @@ The repository is still in beta and does not include fabricated device screensho
 |---|---|
 | <!-- ![Album detail](docs/images/screenshot_album_detail.png) --> <!-- TODO: add a real device screenshot --> | <!-- ![Stats](docs/images/screenshot_stats.png) --> <!-- TODO: add a real device screenshot --> |
 
-## 🛠️ Technology and architecture
+<hr>
+
+## 🛠️ Technology
 
 The versions below are read from `gradle/libs.versions.toml` and `app/build.gradle.kts` rather than guessed from the UI.
 
@@ -64,7 +77,9 @@ The versions below are read from `gradle/libs.versions.toml` and `app/build.grad
 
 The code follows a practical MVVM and repository/data-layer structure. Compose screens observe `StateFlow` from ViewModels; DAOs provide Room data, Hilt supplies dependencies, DataStore stores preferences and scan state, and WorkManager handles longer operations. It is intentionally not presented as a perfectly separated Clean Architecture implementation.
 
-## 📱 Requirements
+<hr>
+
+## 📋 Requirements
 
 The project currently pins the following Android build targets:
 
@@ -76,7 +91,9 @@ The project currently pins the following Android build targets:
 | Java/JDK | 17 |
 | Kotlin | 2.4.10 |
 
-## 🚀 Build from source
+<hr>
+
+## 🔨 Build
 
 ```bash
 git clone https://github.com/dungzual201/youneko-rate.git
@@ -98,7 +115,9 @@ A full local verification can also run:
 ./gradlew assembleDebug testDebugUnitTest lintDebug compileDebugAndroidTestKotlin
 ```
 
-## 🔐 Permissions
+<hr>
+
+### Permissions
 
 | Permission | Why the app requests it |
 |---|---|
@@ -109,7 +128,9 @@ A full local verification can also run:
 
 The app does not request `MANAGE_EXTERNAL_STORAGE`.
 
-## 📂 Project structure
+<hr>
+
+### Project structure
 
 ```text
 app/src/main/java/com/youneko/rate/
@@ -129,17 +150,23 @@ app/src/main/java/com/youneko/rate/
 └── res/           # Bilingual strings, themes, launcher/splash and vector assets
 ```
 
-## ⚠️ Boundaries and data safety
+<hr>
+
+## 🔒 Privacy
 
 Youneko Rate! is **not a music player**. There is no playback flow, no audio output, no lyric crawling and no original audio tag writing. Audio is decoded only for metadata and analysis. A missing source file is marked `isMissing` rather than deleting its rating, review or manual credit.
 
 Imported artwork is stored privately under `filesDir/covers/`; it is not written back into the original audio file. Backups do not include audio files or provider tokens. Database migrations are explicit; the project does not use `fallbackToDestructiveMigration()`.
 
-## 🌐 External data sources
+<hr>
+
+### External data sources
 
 Online providers are used only when the corresponding feature is requested. Credits and metadata providers are configured in the app, while COV is opened as an external website so the user can search and download the image themselves. The app does not call COV `/api/*`, use a WebView, proxy requests or spoof headers. Please respect each provider's terms and rate limits.
 
-## 🐾 Thanks and disclaimer
+<hr>
+
+## 🐾 Thanks
 
 Thanks to the open-source Android ecosystem and to the COV project for the public website that users can open in their browser. This is a personal beta project: behavior, provider availability and UI details may change.
 
