@@ -226,6 +226,7 @@ class MediaStoreScanner @Inject constructor(
             onProgress(index + 1, rows.size)
         }
         var skippedRecords = 0
+        var skippedInsertRecords = 0
         inserts.chunked(SCAN_BATCH_SIZE).forEachIndexed { batchIndex, batch ->
             var batchInserted = 0
             var batchSkipped = 0
@@ -237,6 +238,7 @@ class MediaStoreScanner @Inject constructor(
                         if (insertedId == -1L) {
                             batchSkipped++
                             skippedRecords++
+                            skippedInsertRecords++
                             logDuplicateKey(track)
                         } else {
                             ftsDao.upsert(LibrarySearchFtsEntity(track.id, "track", "${track.title} ${track.fileName.orEmpty()}"))
@@ -245,6 +247,7 @@ class MediaStoreScanner @Inject constructor(
                     } catch (error: SQLiteConstraintException) {
                         batchSkipped++
                         skippedRecords++
+                        skippedInsertRecords++
                         firstError = firstError ?: error.message
                         logDuplicateKey(track)
                     } catch (error: Exception) {
@@ -283,14 +286,18 @@ class MediaStoreScanner @Inject constructor(
         Log.i(SCAN_TAG, "SCAN: inserted=${inserts.size} updated=${updates.size} albums=${albumDao.findAll().size}")
         onPhaseChanged(ScanPhase.ARTWORK)
         val phase2StartedAt = System.currentTimeMillis()
-        val enriched = enrichRows(rows, onProgress)
+        val enriched = runCatching { enrichRows(rows, onProgress) }
+            .onFailure { Log.e(SCAN_TAG, "SCAN: artwork phase failed; metadata retained", it) }
+            .getOrDefault(0)
         Log.i(SCAN_TAG, "SCAN: phase2 durationMs=${System.currentTimeMillis() - phase2StartedAt} enriched=$enriched")
         scanStore.save(System.currentTimeMillis(), generation ?: -1L, MediaScanPolicy.PROVIDER_VERSION)
         val albumCount = albumDao.findAll().size
         val trackCount = trackDao.findAll().size
         Log.i(SCAN_TAG, "SCAN: db tracks=$trackCount albums=$albumCount")
-        return MediaScanResult(rows.size, inserts.size - skippedRecords, updates.size, missing, skippedRecords = skippedRecords)
+        return MediaScanResult(rows.size, inserts.size - skippedInsertRecords, updates.size, missing, skippedRecords = skippedRecords)
     }
+
+    suspend fun currentCounts(): Pair<Int, Int> = albumDao.findAll().size to trackDao.findAll().size
 
     suspend fun dedupeIfNeeded(): ScanDedupeStats {
         if (scanStore.dedupeCompleted.first()) {
@@ -314,6 +321,7 @@ class MediaStoreScanner @Inject constructor(
         val existing = trackDao.findAll().toMutableList()
         var added = 0
         var updated = 0
+        var skippedRecords = 0
         tags.forEachIndexed { index, tag ->
             val uri = Uri.parse(tag.uri)
             val size = StableMediaKey.sizeBytes(context, uri)
@@ -348,8 +356,9 @@ class MediaStoreScanner @Inject constructor(
                 dateModifiedSeconds = 0L,
                 dateAddedSeconds = 0L,
             )
-            val albumId = resolveAlbumId(row, tag)
-            if (current == null) {
+            try {
+                val albumId = resolveAlbumId(row, tag)
+                if (current == null) {
                 val now = System.currentTimeMillis()
                 val created = TrackEntity(
                     id = UUID.randomUUID().toString(), albumId = albumId,
@@ -368,17 +377,29 @@ class MediaStoreScanner @Inject constructor(
                     sourceUri = tag.uri, fileName = tag.fileName, createdAt = now, updatedAt = now,
                     stableKey = stableKey, fileSizeBytes = size, fileHash64k = hash,
                 )
-                trackDao.insert(created)
-                existing += created
-                ftsDao.upsert(LibrarySearchFtsEntity(created.id, "track", "${created.title} ${tag.artist.orEmpty()}"))
-                added++
-            } else {
-                trackDao.update(current.copy(sourceUri = tag.uri, fileName = tag.fileName, scanNaturalKey = ScanNaturalKey.track(mediaStoreId = null, normalizedPath = tag.uri, sizeBytes = size ?: current.fileSizeBytes, albumId = albumId ?: current.albumId, title = title, durationMs = tag.durationMs ?: current.durationMs), stableKey = stableKey ?: current.stableKey, fileSizeBytes = size ?: current.fileSizeBytes, fileHash64k = hash ?: current.fileHash64k, isMissing = false, missingSince = null, updatedAt = System.currentTimeMillis()))
-                updated++
+                val insertedId = trackDao.insert(created)
+                if (insertedId == -1L) {
+                    skippedRecords++
+                    logDuplicateKey(created)
+                } else {
+                    existing += created
+                    ftsDao.upsert(LibrarySearchFtsEntity(created.id, "track", "${created.title} ${tag.artist.orEmpty()}"))
+                    added++
+                }
+                } else {
+                    trackDao.update(current.copy(sourceUri = tag.uri, fileName = tag.fileName, scanNaturalKey = ScanNaturalKey.track(mediaStoreId = null, normalizedPath = tag.uri, sizeBytes = size ?: current.fileSizeBytes, albumId = albumId ?: current.albumId, title = title, durationMs = tag.durationMs ?: current.durationMs), stableKey = stableKey ?: current.stableKey, fileSizeBytes = size ?: current.fileSizeBytes, fileHash64k = hash ?: current.fileHash64k, isMissing = false, missingSince = null, updatedAt = System.currentTimeMillis()))
+                    updated++
+                }
+            } catch (error: SQLiteConstraintException) {
+                skippedRecords++
+                Log.w(SCAN_TAG, "SCAN: SAF row skipped due to constraint key=$trackNaturalKey", error)
+            } catch (error: Exception) {
+                skippedRecords++
+                Log.w(SCAN_TAG, "SCAN: SAF row skipped uri=${tag.uri}", error)
             }
             onProgress(index + 1, tags.size)
         }
-        return MediaScanResult(tags.size, added, updated, 0)
+        return MediaScanResult(tags.size, added, updated, 0, skippedRecords = skippedRecords)
     }
 
     private suspend fun logDuplicateKey(incoming: TrackEntity) {

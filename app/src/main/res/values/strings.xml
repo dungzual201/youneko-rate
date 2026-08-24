@@ -589,4 +589,5 @@
     <string name="no_crash_log">No crash log is available.</string>
     <string name="crash_log_share_title">Share crash log</string>
     <string name="scan_failed">Scan failed: %1$s</string>
+    <string name="scan_summary">Scanned %1$d albums, %2$d tracks (skipped %3$d problematic files)</string>
 </resources>

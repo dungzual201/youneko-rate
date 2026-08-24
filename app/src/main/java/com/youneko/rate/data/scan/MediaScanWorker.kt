@@ -111,8 +111,10 @@ class MediaStoreScanWorker(appContext: Context, params: WorkerParameters) : Coro
                         runCatching { setForegroundAsync(createForegroundInfo(done, total)) }
                             .onFailure { Log.w(SCAN_TAG, "SCAN: progress notification skipped: ${it.message}") }
                     }
+                    val counts = scanner.currentCounts()
+                    val skippedFiles = result.skippedRecords + safResult.skippedRecords
                     Log.i(SCAN_TAG, "SCAN: WorkInfo.State=SUCCEEDED exception=null")
-                    Result.success(workDataOf(KEY_SCANNED to result.scanned + safResult.scanned, KEY_ADDED to result.added + safResult.added, KEY_MISSING to result.missing + safResult.missing, KEY_SKIPPED to (result.skipped && safResult.scanned == 0)))
+                    Result.success(workDataOf(KEY_SCANNED to result.scanned + safResult.scanned, KEY_ADDED to result.added + safResult.added, KEY_MISSING to result.missing + safResult.missing, KEY_SKIPPED to (result.skipped && safResult.scanned == 0), KEY_SKIPPED_FILES to skippedFiles, KEY_ALBUMS to counts.first, KEY_TRACKS to counts.second))
                 }.getOrElse { throwable ->
                     val nextState = if (runAttemptCount < 2) "RETRY" else "FAILED"
                     Log.e(SCAN_TAG, "SCAN: WorkInfo.State=$nextState exception=${throwable::class.java.simpleName}: ${throwable.message}", throwable)
@@ -179,6 +181,9 @@ class MediaStoreScanWorker(appContext: Context, params: WorkerParameters) : Coro
         const val KEY_MISSING = "missing"
         const val KEY_SKIPPED = "skipped"
         const val KEY_ERROR = "error"
+        const val KEY_SKIPPED_FILES = "skipped_files"
+        const val KEY_ALBUMS = "albums"
+        const val KEY_TRACKS = "tracks"
     }
 }
 

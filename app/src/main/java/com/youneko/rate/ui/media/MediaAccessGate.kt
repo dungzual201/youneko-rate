@@ -77,6 +77,8 @@ import kotlinx.coroutines.launch
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 
+data class ScanCompletionSummary(val albums: Int, val tracks: Int, val skippedFiles: Int)
+
 private fun requiredAudioPermission(): String = if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_AUDIO else Manifest.permission.READ_EXTERNAL_STORAGE
 
 fun hasAudioPermission(context: Context): Boolean = ContextCompat.checkSelfPermission(context, requiredAudioPermission()) == PackageManager.PERMISSION_GRANTED
@@ -106,6 +108,17 @@ class MediaAccessViewModel @Inject constructor(
     val scanError = scanInfos
         .map { infos -> infos.firstOrNull()?.takeIf { it.state == WorkInfo.State.FAILED }?.outputData?.getString(MediaStoreScanWorker.KEY_ERROR) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    val scanSummary = scanInfos
+        .map { infos ->
+            infos.firstOrNull()?.takeIf { it.state == WorkInfo.State.SUCCEEDED && !it.outputData.getBoolean(MediaStoreScanWorker.KEY_SKIPPED, false) }?.outputData?.let { data ->
+                ScanCompletionSummary(
+                    albums = data.getInt(MediaStoreScanWorker.KEY_ALBUMS, 0),
+                    tracks = data.getInt(MediaStoreScanWorker.KEY_TRACKS, 0),
+                    skippedFiles = data.getInt(MediaStoreScanWorker.KEY_SKIPPED_FILES, 0),
+                )
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     fun cancelScan() = workManager.cancelUniqueWork(UNIQUE_ON_RESUME)
 
@@ -129,10 +142,15 @@ fun MediaAccessGate(
     val roots by viewModel.scanRoots.collectAsStateWithLifecycle()
     val scanState by viewModel.scanState.collectAsStateWithLifecycle()
     val scanError by viewModel.scanError.collectAsStateWithLifecycle()
+    val scanSummary by viewModel.scanSummary.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val scanFailedMessage = stringResource(R.string.scan_failed)
+    val scanSummaryMessage = scanSummary?.let { summary -> stringResource(R.string.scan_summary, summary.albums, summary.tracks, summary.skippedFiles) }
     LaunchedEffect(scanError) {
         scanError?.takeIf { it.isNotBlank() }?.let { snackbarHostState.showSnackbar(scanFailedMessage.format(it)) }
+    }
+    LaunchedEffect(scanSummaryMessage) {
+        scanSummaryMessage?.let { message -> snackbarHostState.showSnackbar(message) }
     }
     var permissionGranted by rememberSaveable { mutableStateOf(hasAudioPermission(context)) }
     var showEducation by rememberSaveable { mutableStateOf(!permissionGranted) }
