@@ -36,10 +36,15 @@ jobs:
 
       - name: Decode release keystore
         env:
-          KEYSTORE_HEX: ${{ secrets.KEYSTORE_HEX }}
+          KEYSTORE_HEX_00: ${{ secrets.KEYSTORE_HEX_00 }}
+          KEYSTORE_HEX_01: ${{ secrets.KEYSTORE_HEX_01 }}
+          KEYSTORE_HEX_02: ${{ secrets.KEYSTORE_HEX_02 }}
+          KEYSTORE_HEX_03: ${{ secrets.KEYSTORE_HEX_03 }}
+          KEYSTORE_HEX_04: ${{ secrets.KEYSTORE_HEX_04 }}
+          KEYSTORE_HEX_05: ${{ secrets.KEYSTORE_HEX_05 }}
         run: |
-          test -n "$KEYSTORE_HEX"
-          CLEAN_HEX=$(printf '%s' "$KEYSTORE_HEX" | tr -d '[:space:]')
+          CLEAN_HEX="${KEYSTORE_HEX_00}${KEYSTORE_HEX_01}${KEYSTORE_HEX_02}${KEYSTORE_HEX_03}${KEYSTORE_HEX_04}${KEYSTORE_HEX_05}"
+          test -n "$CLEAN_HEX"
           printf 'keystore_hex_chars=%s\n' "${#CLEAN_HEX}"
           printf '%s' "$CLEAN_HEX" | xxd -r -p > "$RUNNER_TEMP/youneko-rate-release.jks"
           printf 'keystore_decoded_bytes=%s\n' "$(stat -c '%s' "$RUNNER_TEMP/youneko-rate-release.jks")"
