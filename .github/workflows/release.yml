@@ -42,6 +42,8 @@ jobs:
           KEYSTORE_HEX_03: ${{ secrets.KEYSTORE_HEX_03 }}
           KEYSTORE_HEX_04: ${{ secrets.KEYSTORE_HEX_04 }}
           KEYSTORE_HEX_05: ${{ secrets.KEYSTORE_HEX_05 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
           CLEAN_HEX="${KEYSTORE_HEX_00}${KEYSTORE_HEX_01}${KEYSTORE_HEX_02}${KEYSTORE_HEX_03}${KEYSTORE_HEX_04}${KEYSTORE_HEX_05}"
           test -n "$CLEAN_HEX"
