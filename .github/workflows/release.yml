@@ -39,8 +39,10 @@ jobs:
           KEYSTORE_HEX: ${{ secrets.KEYSTORE_HEX }}
         run: |
           test -n "$KEYSTORE_HEX"
+          test "${#KEYSTORE_HEX}" -eq 4378
           printf '%s' "$KEYSTORE_HEX" | tr -d '[:space:]' | xxd -r -p > "$RUNNER_TEMP/youneko-rate-release.jks"
-          keytool -list -keystore "$RUNNER_TEMP/youneko-rate-release.jks" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
+          test "$(stat -c '%s' "$RUNNER_TEMP/youneko-rate-release.jks")" -eq 2189
+          keytool -list -keystore "$RUNNER_TEMP/youneko-rate-release.jks" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS"
 
       - name: Assemble signed release APK
         env:
