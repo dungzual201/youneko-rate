@@ -19,7 +19,7 @@ android {
         targetSdk = 36
         resourceConfigurations += listOf("en", "vi")
         versionCode = 1
-        versionName = "0.1.0"
+        versionName = "20.01.07"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
