@@ -36,10 +36,11 @@ jobs:
 
       - name: Decode release keystore
         env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_HEX: ${{ secrets.KEYSTORE_HEX }}
         run: |
-          test -n "$KEYSTORE_BASE64"
-          printf '%s' "$KEYSTORE_BASE64" | tr -d '[:space:]' | base64 --decode > "$RUNNER_TEMP/youneko-rate-release.jks"
+          test -n "$KEYSTORE_HEX"
+          printf '%s' "$KEYSTORE_HEX" | tr -d '[:space:]' | xxd -r -p > "$RUNNER_TEMP/youneko-rate-release.jks"
+          keytool -list -keystore "$RUNNER_TEMP/youneko-rate-release.jks" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
 
       - name: Assemble signed release APK
         env:
