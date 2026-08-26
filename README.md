@@ -1,8 +1,5 @@
 <div align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/images/logo_paw.png">
-    <img src="docs/images/logo_paw.png" width="140" alt="Youneko Rate paw logo">
-  </picture>
+  <img src="docs/images/logo_paw_purple.png" width="140" alt="Youneko Rate paw logo in brand purple">
   <h1>Youneko Rate!</h1>
   <p>Rate your local music library privately, clearly, and offline.</p>
   <p>
@@ -51,19 +48,19 @@ The interface is built around local data, Material 3, bilingual resources, a paw
 
 ## 📸 Screenshots
 
-The repository is still in beta and contains no real device screenshots. No screenshot was generated, fetched, or represented by a fabricated image. When captures become available, each image cell is reserved for a 250-pixel-wide image and a caption.
+The six screenshots below are the supplied project captures, embedded directly from the repository so they remain available in both light and dark GitHub themes. The first five files retain neutral names because their original upload names do not identify the screen reliably; the final file is the supplied Stats capture.
 
-| Library | Album detail |
+| App screen 01 | App screen 02 |
 |---|---|
-| **Library**<br>**THIẾU ẢNH:** `docs/images/screenshot_library.png`<br><sub>Real-device capture required</sub> | **Album detail**<br>**THIẾU ẢNH:** `docs/images/screenshot_album_detail.png`<br><sub>Real-device capture required</sub> |
-| Rate | Analyze |
+| <img src="docs/images/screenshot_app_01.png" width="250" alt="Youneko Rate app screen 01"><br><sub>App screen 01</sub> | <img src="docs/images/screenshot_app_02.png" width="250" alt="Youneko Rate app screen 02"><br><sub>App screen 02</sub> |
+| App screen 03 | App screen 04 |
 |---|---|
-| **Rate**<br>**THIẾU ẢNH:** `docs/images/screenshot_rate.png`<br><sub>Real-device capture required</sub> | **Analyze**<br>**THIẾU ẢNH:** `docs/images/screenshot_analyze.png`<br><sub>Real-device capture required</sub> |
-| Stats | — |
+| <img src="docs/images/screenshot_app_03.png" width="250" alt="Youneko Rate app screen 03"><br><sub>App screen 03</sub> | <img src="docs/images/screenshot_app_04.png" width="250" alt="Youneko Rate app screen 04"><br><sub>App screen 04</sub> |
+| App screen 05 | Stats |
 |---|---|
-| **Stats**<br>**THIẾU ẢNH:** `docs/images/screenshot_stats.png`<br><sub>Real-device capture required</sub> | **THIẾU ẢNH:** second cell is intentionally unused |
+| <img src="docs/images/screenshot_app_05.png" width="250" alt="Youneko Rate app screen 05"><br><sub>App screen 05</sub> | <img src="docs/images/screenshot_stats.png" width="250" alt="Youneko Rate Stats screen"><br><sub>Stats</sub> |
 
-Only one paw image is currently present. **THIẾU ẢNH:** `docs/images/logo_paw_light.png`, `docs/images/logo_paw_dark.png`, `docs/images/cat_peek_light.png`, `docs/images/cat_peek_dark.png`, `docs/images/cat_sit_light.png`, `docs/images/cat_sit_dark.png`. Until those paired assets exist, the `<picture>` fallback uses the existing `logo_paw.png` in both themes.
+The documentation banner intentionally uses one brand-purple paw logo for both GitHub themes, avoiding the previous low-contrast dark logo and broken light/dark asset pair.
 
 <hr>
 
@@ -173,7 +170,7 @@ Artwork imported into the app is stored under its private `filesDir/covers/` dir
 
 This is a beta project. The app has **no playback**, does not write original audio tags, does not retrieve lyrics, and does not provide backup. These boundaries are intentional and should not be read as promises of future functionality.
 
-The repository has no real-device screenshots, no device-side performance measurements in this workspace, and no claim that the in-progress phases are complete. See `docs/PROGRESS.md` for the conservative phase ledger.
+This workspace contains no device-side performance measurements and makes no claim that in-progress phases are complete. See `docs/PROGRESS.md` for the conservative phase ledger.
 
 <hr>
 

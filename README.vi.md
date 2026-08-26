@@ -1,8 +1,5 @@
 <div align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/images/logo_paw.png">
-    <img src="docs/images/logo_paw.png" width="140" alt="Logo chân mèo Youneko Rate">
-  </picture>
+  <img src="docs/images/logo_paw_purple.png" width="140" alt="Logo chân mèo Youneko Rate màu tím thương hiệu">
   <h1>Youneko Rate!</h1>
   <p>Chấm điểm thư viện nhạc local riêng tư, rõ ràng và offline.</p>
   <p>
@@ -51,19 +48,19 @@ Giao diện xoay quanh dữ liệu local, Material 3, resource song ngữ, nhậ
 
 ## 📸 Ảnh chụp màn hình
 
-Repository vẫn đang ở giai đoạn beta và chưa có ảnh chụp trên thiết bị thật. Không ảnh nào được tạo, tải từ ngoài hoặc giả mạo. Khi có ảnh, mỗi ô đã dành sẵn cho ảnh rộng 250 pixel kèm chú thích.
+Sáu ảnh dưới đây là các ảnh chụp dự án do người dùng cung cấp, được nhúng trực tiếp từ repository để hiển thị ổn định trên cả theme sáng và tối của GitHub. Năm file đầu giữ tên trung tính vì tên upload ban đầu không xác định chắc chắn màn hình; file cuối là ảnh Stats đã được nhận diện rõ từ tên file.
 
-| Library | Chi tiết album |
+| Màn hình app 01 | Màn hình app 02 |
 |---|---|
-| **Library**<br>**THIẾU ẢNH:** `docs/images/screenshot_library.png`<br><sub>Cần ảnh chụp trên thiết bị thật</sub> | **Chi tiết album**<br>**THIẾU ẢNH:** `docs/images/screenshot_album_detail.png`<br><sub>Cần ảnh chụp trên thiết bị thật</sub> |
-| Rate | Analyze |
+| <img src="docs/images/screenshot_app_01.png" width="250" alt="Màn hình Youneko Rate 01"><br><sub>Màn hình app 01</sub> | <img src="docs/images/screenshot_app_02.png" width="250" alt="Màn hình Youneko Rate 02"><br><sub>Màn hình app 02</sub> |
+| Màn hình app 03 | Màn hình app 04 |
 |---|---|
-| **Rate**<br>**THIẾU ẢNH:** `docs/images/screenshot_rate.png`<br><sub>Cần ảnh chụp trên thiết bị thật</sub> | **Analyze**<br>**THIẾU ẢNH:** `docs/images/screenshot_analyze.png`<br><sub>Cần ảnh chụp trên thiết bị thật</sub> |
-| Stats | — |
+| <img src="docs/images/screenshot_app_03.png" width="250" alt="Màn hình Youneko Rate 03"><br><sub>Màn hình app 03</sub> | <img src="docs/images/screenshot_app_04.png" width="250" alt="Màn hình Youneko Rate 04"><br><sub>Màn hình app 04</sub> |
+| Màn hình app 05 | Stats |
 |---|---|
-| **Stats**<br>**THIẾU ẢNH:** `docs/images/screenshot_stats.png`<br><sub>Cần ảnh chụp trên thiết bị thật</sub> | **THIẾU ẢNH:** ô thứ hai được để trống có chủ đích |
+| <img src="docs/images/screenshot_app_05.png" width="250" alt="Màn hình Youneko Rate 05"><br><sub>Màn hình app 05</sub> | <img src="docs/images/screenshot_stats.png" width="250" alt="Màn hình Stats của Youneko Rate"><br><sub>Stats</sub> |
 
-Hiện chỉ có một ảnh chân mèo. **THIẾU ẢNH:** `docs/images/logo_paw_light.png`, `docs/images/logo_paw_dark.png`, `docs/images/cat_peek_light.png`, `docs/images/cat_peek_dark.png`, `docs/images/cat_sit_light.png`, `docs/images/cat_sit_dark.png`. Trước khi có đủ cặp ảnh, phần `<picture>` dùng `logo_paw.png` hiện có cho cả hai theme.
+Banner tài liệu cố ý dùng một logo chân mèo màu tím thương hiệu cho cả hai theme GitHub, tránh lỗi tương phản thấp của logo tối và lỗi thiếu cặp asset sáng/tối trước đây.
 
 <hr>
 
@@ -173,7 +170,7 @@ Artwork được import lưu trong thư mục riêng `filesDir/covers/` và khô
 
 Đây là dự án beta. App **không phát nhạc**, không ghi tag audio gốc, không lấy lời bài hát và không có chức năng sao lưu. Đây là các ranh giới có chủ đích, không nên hiểu là cam kết về tính năng tương lai.
 
-Repository chưa có screenshot thiết bị thật, chưa có số đo hiệu năng trên thiết bị trong workspace này và không tuyên bố các giai đoạn đang thực hiện là đã hoàn tất. Xem `docs/PROGRESS.md` để đọc sổ trạng thái thận trọng của dự án.
+Workspace này chưa có số đo hiệu năng trên thiết bị và không tuyên bố các giai đoạn đang thực hiện là đã hoàn tất. Xem `docs/PROGRESS.md` để đọc sổ trạng thái thận trọng của dự án.
 
 <hr>
 
