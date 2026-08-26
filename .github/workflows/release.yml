@@ -62,7 +62,8 @@ jobs:
           KEYSTORE_FILE: ${{ runner.temp }}/youneko-rate-release.jks
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          # This keystore was generated with identical store/key passwords.
+          KEY_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         run: ./gradlew assembleRelease
 
       - name: Create or update GitHub Release and upload signed APK
