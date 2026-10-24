@@ -13,7 +13,7 @@ class UiRound3ContractTest {
 
     @Test
     fun libraryOnlineKeepsSharedHeaderAndFourBodyStates() {
-        val library = File(root(), "app/src/main/java/com/youneko/rate/ui/rate/Phase2Screens.kt").readText()
+        val library = File(root(), "app/src/main/java/com/youneko/rate/ui/rate/LibraryScreen.kt").readText()
         val online = File(root(), "app/src/main/java/com/youneko/rate/ui/musicbrainz/MusicBrainzSearchPanel.kt").readText()
         assertTrue(library.indexOf("LibraryListHeader(") < library.indexOf("when {") )
         assertTrue(online.contains("YounekoShimmer"))

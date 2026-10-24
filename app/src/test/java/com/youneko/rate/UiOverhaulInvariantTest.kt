@@ -31,7 +31,7 @@ class UiOverhaulInvariantTest {
 
     @Test
     fun round2EvidenceFixContractsArePresent() {
-        val phase2 = File(root(), "app/src/main/java/com/youneko/rate/ui/rate/Phase2Screens.kt").readText()
+        val phase2 = File(root(), "app/src/main/java/com/youneko/rate/ui/rate/LibraryScreen.kt").readText()
         val components = File(root(), "app/src/main/java/com/youneko/rate/ui/components/YnComponents.kt").readText()
         val analyze = File(root(), "app/src/main/java/com/youneko/rate/ui/analyze/AudioAnalysisScreen.kt").readText()
         val access = File(root(), "app/src/main/java/com/youneko/rate/ui/media/MediaAccessGate.kt").readText()
@@ -39,7 +39,7 @@ class UiOverhaulInvariantTest {
         assertTrue("Album cover slot must remain square", components.contains("aspectRatio(1f)"))
         assertTrue("Album titles must reserve two lines", components.contains("minLines = 2"))
         assertTrue("Bitrate note must be a caption", analyze.contains("metricCaptionIndent"))
-        assertTrue("Analyze content must reserve bottom space", analyze.contains("navigationSafe"))
+        assertTrue("Analyze content must reserve bottom space", analyze.contains("bottom = 28.dp"))
         assertTrue("Permission callback must start labeled indexing", access.contains("startScan(context, forceFull = true, trigger = \"permission-result\")"))
     }
 

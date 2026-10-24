@@ -2,7 +2,7 @@
 <resources>
     <plurals name="library_count">
         <item quantity="one">%d album</item>
-        <item quantity="other">%d album</item>
+        <item quantity="other">%d albums</item>
     </plurals>
     <plurals name="online_result_count">
         <item quantity="one">%1$d result</item>

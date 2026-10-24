@@ -271,6 +271,7 @@
     <string name="media_permission_title">Cho phép truy cập file nhạc</string>
     <string name="media_permission_explanation">YounekoRate đọc metadata và lời nhúng trong file âm thanh để xây dựng thư viện. Ứng dụng không bao giờ phát âm thanh.</string>
     <string name="media_permission_continue">Tiếp tục</string>
+    <string name="media_permission_later">Để sau</string>
     <string name="media_permission_grant">Cho phép truy cập file nhạc</string>
     <string name="media_permission_open_settings">Mở cài đặt ứng dụng</string>
     <string name="media_permission_empty_title">Chưa bật quyền đọc file nhạc</string>
@@ -591,4 +592,31 @@
     <string name="crash_log_share_title">Chia sẻ log lỗi</string>
     <string name="scan_failed">Quét thất bại: %1$s</string>
     <string name="scan_summary">Đã quét %1$d album, %2$d bài hát (bỏ qua %3$d tệp lỗi)</string>
+
+    <string name="validation_album_title">Tên album không được để trống</string>
+    <string name="manual_score_invalid">Nhập điểm từ 0,5 đến 5,0</string>
+    <string name="remove_track_body">Xoá bài này khỏi album? Điểm và nhận xét của bài sẽ bị xoá.</string>
+    <string name="remove_cover">Xoá ảnh bìa</string>
+    <string name="cover_picker_hint">Ảnh vuông, tối thiểu 300 × 300 px</string>
+    <string name="unfinished_only_body">Chỉ hiện album còn bài chưa chấm.</string>
+    <string name="rating_scale_five_stars">5 sao</string>
+    <string name="rating_scale_ten_points">10 điểm</string>
+    <string name="rating_scale_hundred_points">100 điểm</string>
+    <string name="library_and_scanning">Thư viện &amp; quét nhạc</string>
+    <string name="online_metadata">Metadata trực tuyến</string>
+    <string name="provider_settings">Tài khoản nhà cung cấp</string>
+    <string name="provider_settings_body">Thêm API token cho Discogs, Last.fm và Genius.</string>
+    <string name="about">Giới thiệu</string>
+    <string name="settings_version">Phiên bản %1$s</string>
+    <string name="settings_auto_saved">Thay đổi được lưu tự động trên thiết bị này.</string>
+    <string name="stats_tracks_rated">Bài đã chấm</string>
+    <string name="stats_tracks_analyzed">Bài đã phân tích</string>
+    <string name="stats_share_save_failed">Không thể lưu ảnh vào thư viện.</string>
+    <string name="stats_local_note">Mọi thống kê được tính từ điểm lưu trên thiết bị này.</string>
+    <string name="rating_settings">Chấm điểm</string>
+    <string name="add_standalone_short">Bài lẻ</string>
+    <string name="search_short">Tìm album, nghệ sĩ, bài hát…</string>
+    <string name="cover_art">Ảnh bìa</string>
+    <string name="album_info">Thông tin album</string>
+    <string name="rate_helper">Chạm vào album để chấm điểm từng bài và ghi lại cảm nhận.</string>
 </resources>

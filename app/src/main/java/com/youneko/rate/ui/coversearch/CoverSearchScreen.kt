@@ -60,6 +60,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import coil.compose.AsyncImage
 import com.youneko.rate.R
+import com.youneko.rate.ui.adaptive.rememberYnPagePadding
 import com.youneko.rate.data.AlbumRepository
 import com.youneko.rate.data.artwork.CoverApplyService
 import com.youneko.rate.data.artwork.CoverDownloadResult
@@ -142,6 +143,7 @@ class CoverSearchViewModel @Inject constructor(
 @Composable
 fun CoverSearchScreen(onBack: () -> Unit, viewModel: CoverSearchViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val pagePadding = rememberYnPagePadding()
     val context = androidx.compose.ui.platform.LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     val importSuccessMessage = stringResource(R.string.cover_import_success)
@@ -178,7 +180,7 @@ fun CoverSearchScreen(onBack: () -> Unit, viewModel: CoverSearchViewModel = hilt
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .padding(padding)
-                .padding(16.dp),
+                .padding(start = pagePadding, end = pagePadding, top = 8.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {

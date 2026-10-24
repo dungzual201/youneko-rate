@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.youneko.rate.R
 import com.youneko.rate.data.AlbumDraft
 import com.youneko.rate.data.AlbumRepository
 import com.youneko.rate.data.artwork.ArtworkStore
@@ -48,8 +49,10 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -80,6 +83,7 @@ data class LibraryUiState(
     val sort: LibrarySort = LibrarySort.NEWEST,
     val unfinishedOnly: Boolean = false,
     val error: String? = null,
+    val loading: Boolean = true,
 )
 
 @OptIn(FlowPreview::class)
@@ -90,8 +94,12 @@ class LibraryViewModel @Inject constructor(
 ) : ViewModel() {
     private val query = MutableStateFlow("")
     private val error = MutableStateFlow<String?>(null)
+    private val loaded = MutableStateFlow(false)
     private val scoreMode = settings.scoreMode.map { if (it == "WEIGHTED_BY_DURATION") ScoreMode.WEIGHTED_BY_DURATION else ScoreMode.SIMPLE }
-    private val rawAlbums = scoreMode.flatMapLatest { repository.observeAlbums(it) }.distinctUntilChanged()
+    private val rawAlbums = scoreMode
+        .flatMapLatest { repository.observeAlbums(it) }
+        .onEach { loaded.value = true }
+        .distinctUntilChanged()
     private val searchIds = query
         .debounce(400)
         .distinctUntilChanged()
@@ -105,13 +113,13 @@ class LibraryViewModel @Inject constructor(
         QuadPrefs(grid, runCatching { LibrarySort.valueOf(sort) }.getOrDefault(LibrarySort.NEWEST), unfinished)
     }
 
-    val uiState: StateFlow<LibraryUiState> = combine(rawAlbums, query, searchIds, prefs) { albums, text, ids, pref ->
+    val uiState: StateFlow<LibraryUiState> = combine(rawAlbums, query, searchIds, prefs, loaded) { albums, text, ids, pref, isLoaded ->
         val filtered = albums.asSequence()
             .filter { text.isBlank() || it.album.id in ids || it.tracks.any { track -> track.id in ids } }
             .filter { !pref.unfinished || (it.tracks.isNotEmpty() && it.score?.ratedCount != it.tracks.size) }
             .sortedWith(sortComparator(pref.sort))
             .toList()
-        LibraryUiState(filtered, text, pref.grid, pref.sort, pref.unfinished, error.value)
+        LibraryUiState(filtered, text, pref.grid, pref.sort, pref.unfinished, error.value, loading = !isLoaded)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LibraryUiState())
 
     private data class QuadPrefs(val grid: Boolean, val sort: LibrarySort, val unfinished: Boolean)
@@ -231,7 +239,8 @@ data class EditorState(
     val listenedDate: String = "",
     val coverUri: String? = null,
     val tracks: List<String> = listOf(""),
-    val error: String? = null,
+    val errorRes: Int? = null,
+    val isEditing: Boolean = false,
 )
 
 @HiltViewModel
@@ -249,17 +258,38 @@ class AlbumEditorViewModel @Inject constructor(
     private val listenedDate = savedStateHandle.getStateFlow("listenedDate", "")
     private val coverUri = savedStateHandle.getStateFlow<String?>("coverUri", null)
     private val trackTitles = savedStateHandle.getStateFlow("trackTitles", "")
-    private val error = savedStateHandle.getStateFlow<String?>("error", null)
+    private val errorRes = savedStateHandle.getStateFlow<Int?>("errorRes", null)
+    private val albumId: String? = savedStateHandle.get<String>("albumId")
+
+    init {
+        if (albumId != null) {
+            viewModelScope.launch(Dispatchers.IO) {
+                val existing = repository.observeAlbum(albumId).first() ?: return@launch
+                val tracks = existing.tracks.sortedBy { it.trackNumber ?: Int.MAX_VALUE }
+                savedStateHandle["title"] = existing.album.title
+                savedStateHandle["artist"] = existing.artist?.name.orEmpty()
+                savedStateHandle["year"] = existing.album.releaseYear?.toString().orEmpty()
+                savedStateHandle["albumType"] = existing.album.albumType
+                savedStateHandle["genres"] = existing.album.genreTags.joinToString(", ")
+                savedStateHandle["listenedDate"] = existing.album.listenedDate.orEmpty()
+                savedStateHandle["coverUri"] = existing.album.coverUri
+                savedStateHandle["trackTitles"] = tracks.joinToString("\u001f") { it.title }
+                savedStateHandle["trackIds"] = tracks.joinToString("\u001f") { it.id }
+            }
+        }
+    }
 
     private val firstFields = combine(title, artist, year, albumType, genres) { t, a, y, type, g ->
         arrayOf(t, a, y, type, g)
     }
-    val state: StateFlow<EditorState> = combine(firstFields, listenedDate, coverUri, trackTitles, error) { values, date, cover, tracks, message ->
+    val state: StateFlow<EditorState> = combine(firstFields, listenedDate, coverUri, trackTitles, errorRes) { values, date, cover, tracks, message ->
         EditorState(
             title = values[0], artist = values[1], year = values[2], albumType = values[3], genres = values[4],
-            listenedDate = date, coverUri = cover, tracks = tracks.split("\u001f").ifEmpty { listOf("") }, error = message,
+            listenedDate = date, coverUri = cover, tracks = tracks.split("\u001f").ifEmpty { listOf("") },
+            errorRes = message,
+            isEditing = albumId != null,
         )
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), EditorState())
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), EditorState(isEditing = albumId != null))
 
     fun setTitle(value: String) { savedStateHandle["title"] = value }
     fun setArtist(value: String) { savedStateHandle["artist"] = value }
@@ -274,53 +304,94 @@ class AlbumEditorViewModel @Inject constructor(
         values[index] = value
         savedStateHandle["trackTitles"] = values.joinToString("\u001f")
     }
-    fun addTrack() { savedStateHandle["trackTitles"] = (currentTracks() + "").joinToString("\u001f") }
-    fun removeTrack(index: Int) { savedStateHandle["trackTitles"] = currentTracks().filterIndexed { i, _ -> i != index }.ifEmpty { listOf("") }.joinToString("\u001f") }
+    fun addTrack() {
+        savedStateHandle["trackTitles"] = (currentTracks() + "").joinToString("\u001f")
+        savedStateHandle["trackIds"] = (currentTrackIds() + "").joinToString("\u001f")
+    }
+    fun removeTrack(index: Int) {
+        savedStateHandle["trackTitles"] = currentTracks().filterIndexed { i, _ -> i != index }.ifEmpty { listOf("") }.joinToString("\u001f")
+        savedStateHandle["trackIds"] = currentTrackIds().filterIndexed { i, _ -> i != index }.ifEmpty { listOf("") }.joinToString("\u001f")
+    }
     fun moveTrack(from: Int, to: Int) {
         val values = currentTracks().toMutableList()
+        val ids = currentTrackIds().toMutableList()
         if (from !in values.indices || to !in values.indices || from == to) return
         val moved = values.removeAt(from)
         values.add(to, moved)
+        val movedId = ids.removeAt(from)
+        ids.add(to, movedId)
         savedStateHandle["trackTitles"] = values.joinToString("\u001f")
+        savedStateHandle["trackIds"] = ids.joinToString("\u001f")
     }
-    fun addQuick(count: Int) { savedStateHandle["trackTitles"] = (currentTracks() + List(count.coerceIn(1, 50)) { "" }).joinToString("\u001f") }
+    fun addQuick(count: Int) {
+        val safe = count.coerceIn(1, 50)
+        savedStateHandle["trackTitles"] = (currentTracks() + List(safe) { "" }).joinToString("\u001f")
+        savedStateHandle["trackIds"] = (currentTrackIds() + List(safe) { "" }).joinToString("\u001f")
+    }
 
     fun save() = viewModelScope.launch(Dispatchers.IO) {
         val current = state.value
         val yearValue = current.year.toIntOrNull()
         if (current.title.isBlank() || current.artist.isBlank()) {
-            savedStateHandle["error"] = "Tên album và nghệ sĩ không được để trống"
+            savedStateHandle["errorRes"] = if (current.title.isBlank()) R.string.validation_album_title else R.string.validation_artist
             return@launch
         }
         if (yearValue != null && yearValue !in 1800..2100) {
-            savedStateHandle["error"] = "Năm phát hành phải trong khoảng 1800–2100"
+            savedStateHandle["errorRes"] = R.string.year_invalid
             return@launch
         }
-        val validTracks = current.tracks
+        val validTracks = current.tracks.map(String::trim)
         if (validTracks.isEmpty() || validTracks.any { it.isBlank() }) {
-            savedStateHandle["error"] = "Tên bài không được để trống"
+            savedStateHandle["errorRes"] = R.string.validation_title
             return@launch
         }
+        val genres = current.genres.split(',').map(String::trim).filter(String::isNotEmpty)
         runCatching {
-            repository.saveAlbum(
-                AlbumDraft(
+            if (albumId == null) {
+                repository.saveAlbum(
+                    AlbumDraft(
+                        title = current.title,
+                        artistName = current.artist,
+                        releaseYear = yearValue,
+                        albumType = current.albumType,
+                        genreTags = genres,
+                        listenedDate = current.listenedDate.ifBlank { null },
+                        coverUri = current.coverUri,
+                        coverSource = current.coverUri?.let { "Manual" },
+                        coverUpdatedAt = current.coverUri?.let { System.currentTimeMillis() },
+                        tracks = validTracks.map { track -> TrackDraft(title = track, discNumber = 1) },
+                    ),
+                )
+            } else {
+                val ids = currentTrackIds()
+                repository.updateAlbumDetails(
+                    albumId = albumId,
                     title = current.title,
                     artistName = current.artist,
                     releaseYear = yearValue,
                     albumType = current.albumType,
-                    genreTags = current.genres.split(',').map(String::trim),
+                    genreTags = genres,
                     listenedDate = current.listenedDate.ifBlank { null },
                     coverUri = current.coverUri,
-                    coverSource = current.coverUri?.let { "Manual" },
-                    coverUpdatedAt = current.coverUri?.let { System.currentTimeMillis() },
-                    tracks = validTracks.map { track -> TrackDraft(title = track, discNumber = 1) },
-                ),
-            )
-        }.onSuccess { albumId -> eventsChannel.trySend(AlbumEditorEvent.OpenAlbum(albumId)) }
-            .onFailure { savedStateHandle["error"] = it.message ?: "Không thể lưu album" }
+                    tracks = validTracks.mapIndexed { index, trackTitle ->
+                        ids.getOrNull(index)?.ifBlank { null } to trackTitle
+                    },
+                )
+                albumId
+            }
+        }.onSuccess { savedAlbumId ->
+            savedStateHandle["errorRes"] = null
+            eventsChannel.trySend(AlbumEditorEvent.OpenAlbum(savedAlbumId))
+        }.onFailure {
+            savedStateHandle["errorRes"] = R.string.error_generic
+        }
     }
 
-    private fun currentTracks(): List<String> = savedStateHandle.get<String>("trackTitles")?.split("\u001f")?.ifEmpty { listOf("") } ?: listOf("")
+    private fun currentTracks(): List<String> =
+        savedStateHandle.get<String>("trackTitles")?.split("\u001f")?.ifEmpty { listOf("") } ?: listOf("")
+
+    private fun currentTrackIds(): List<String> =
+        savedStateHandle.get<String>("trackIds")?.split("\u001f")?.takeIf { it.isNotEmpty() } ?: List(currentTracks().size) { "" }
 }
 
 @HiltViewModel

@@ -170,10 +170,10 @@ interface StatsDao {
     @Query("SELECT verdict AS label, COUNT(*) AS count FROM audio_analysis GROUP BY verdict ORDER BY count DESC")
     suspend fun qualityDistribution(): List<StatsCountRow>
 
-    @Query("SELECT COALESCE(substr(listenedDate, 1, 4), '—') AS label, AVG(stars) AS value FROM tracks WHERE stars IS NOT NULL GROUP BY substr(listenedDate, 1, 4) ORDER BY label")
+    @Query("SELECT COALESCE(substr(albums.listenedDate, 1, 4), '—') AS label, AVG(tracks.stars) AS value FROM tracks JOIN albums ON albums.id = tracks.albumId WHERE tracks.stars IS NOT NULL AND albums.listenedDate IS NOT NULL AND albums.listenedDate != '' GROUP BY substr(albums.listenedDate, 1, 4) ORDER BY label")
     suspend fun averageByYear(): List<StatsValueRow>
 
-    @Query("SELECT COALESCE(substr(listenedDate, 1, 7), '—') AS label, AVG(stars) AS value FROM tracks WHERE stars IS NOT NULL GROUP BY substr(listenedDate, 1, 7) ORDER BY label")
+    @Query("SELECT COALESCE(substr(albums.listenedDate, 1, 7), '—') AS label, AVG(tracks.stars) AS value FROM tracks JOIN albums ON albums.id = tracks.albumId WHERE tracks.stars IS NOT NULL AND albums.listenedDate IS NOT NULL AND albums.listenedDate != '' GROUP BY substr(albums.listenedDate, 1, 7) ORDER BY label")
     suspend fun averageByMonth(): List<StatsValueRow>
 }
 

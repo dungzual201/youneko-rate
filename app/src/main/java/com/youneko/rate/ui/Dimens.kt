@@ -22,7 +22,10 @@ object YnDimens {
     val minTouchTarget: Dp = 48.dp
     val coverSmall: Dp = 64.dp
     val ratingStarSize: Dp = 32.dp
+    val ratingStarCompact: Dp = 22.dp
     val coverDetail: Dp = 220.dp
+    val coverHero: Dp = 248.dp
+    val coverHeroWide: Dp = 300.dp
     val coverHeroHeight: Dp = 420.dp
     val coverHeroContentHeight: Dp = 360.dp
     val coverBlur: Dp = 40.dp
@@ -32,4 +35,13 @@ object YnDimens {
     val metricRowMinHeight: Dp = 48.dp
     val metricHelpIcon: Dp = 20.dp
     val metricCaptionIndent: Dp = 40.dp
+
+    val screenPadding: Dp = 16.dp
+    val contentMaxWidth: Dp = 1100.dp
+    val readingMaxWidth: Dp = 760.dp
+    val gridMinCell: Dp = 168.dp
+    val albumRowCover: Dp = 60.dp
+    val cardCorner: Dp = 20.dp
+    val sectionGap: Dp = 20.dp
+    val listBottomPadding: Dp = 28.dp
 }

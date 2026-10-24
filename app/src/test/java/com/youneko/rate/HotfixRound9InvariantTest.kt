@@ -51,7 +51,7 @@ class HotfixRound9InvariantTest {
         val nav = repoFile("src/main/java/com/youneko/rate/navigation/AppNavigation.kt").readText()
         assertTrue(nav.contains("popUpTo(\"importTags\") { inclusive = true }"))
         assertTrue(nav.contains("launchSingleTop = true"))
-        assertTrue(nav.contains("Log.d(\"NAVSTACK\""))
+        assertFalse(nav.contains("Log.d(\"NAVSTACK\""))
     }
 
     @Test

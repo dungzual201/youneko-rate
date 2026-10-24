@@ -78,6 +78,17 @@ interface AlbumRepository {
     suspend fun saveStandalone(title: String, artistName: String, listenedDate: String?, sourceUri: String? = null, fileName: String? = null, embeddedCredits: List<com.youneko.rate.data.musicbrainz.CreditCandidate> = emptyList()): String
     suspend fun updateTrack(track: TrackEntity)
     suspend fun updateAlbum(album: AlbumEntity)
+    suspend fun updateAlbumDetails(
+        albumId: String,
+        title: String,
+        artistName: String,
+        releaseYear: Int?,
+        albumType: String,
+        genreTags: List<String>,
+        listenedDate: String?,
+        coverUri: String?,
+        tracks: List<Pair<String?, String>>,
+    )
     suspend fun deleteAlbum(id: String)
     suspend fun findMatchingAlbum(group: ImportGroup): String?
     suspend fun appendImportedTracks(albumId: String, tracks: List<ImportedTrack>): Int
@@ -346,6 +357,74 @@ class RateRepository @Inject constructor(
 
     override suspend fun updateAlbum(album: AlbumEntity) {
         albumDao.update(album.copy(updatedAt = System.currentTimeMillis()))
+    }
+
+    override suspend fun updateAlbumDetails(
+        albumId: String,
+        title: String,
+        artistName: String,
+        releaseYear: Int?,
+        albumType: String,
+        genreTags: List<String>,
+        listenedDate: String?,
+        coverUri: String?,
+        tracks: List<Pair<String?, String>>,
+    ) {
+        require(title.isNotBlank()) { "Album title must not be blank" }
+        require(artistName.isNotBlank()) { "Artist name must not be blank" }
+        require(tracks.isNotEmpty() && tracks.all { it.second.isNotBlank() }) { "Track titles must not be blank" }
+        val existing = albumDao.findById(albumId) ?: return
+        val now = System.currentTimeMillis()
+        val artist = artistDao.findByName(artistName.trim()) ?: ArtistEntity(
+            id = UUID.randomUUID().toString(),
+            name = artistName.trim(),
+            createdAt = now,
+            updatedAt = now,
+        ).also { artistDao.insert(it) }
+        database.withTransaction {
+            val updated = existing.copy(
+                title = title.trim(),
+                artistId = artist.id,
+                releaseYear = releaseYear,
+                albumType = albumType,
+                genreTags = genreTags.map(String::trim).filter(String::isNotEmpty).distinct(),
+                listenedDate = listenedDate,
+                coverUri = coverUri,
+                coverThumbUri = coverUri,
+                coverSource = if (coverUri != existing.coverUri) coverUri?.let { "Manual" } else existing.coverSource,
+                coverUpdatedAt = if (coverUri != existing.coverUri) now else existing.coverUpdatedAt,
+                updatedAt = now,
+            )
+            albumDao.update(updated)
+            val existingTracks = trackDao.findForAlbum(albumId)
+            val byId = existingTracks.associateBy { it.id }
+            val keptIds = tracks.mapNotNull { it.first }.toSet()
+            existingTracks.filter { it.id !in keptIds }.forEach { stale ->
+                creditDao.deleteTrackCredits(stale.id)
+                ftsDao.deleteForEntity(stale.id)
+                trackDao.deleteById(stale.id)
+            }
+            tracks.forEachIndexed { index, (trackId, rawTitle) ->
+                val trackTitle = rawTitle.trim()
+                val current = trackId?.let(byId::get)
+                if (current != null) {
+                    trackDao.update(current.copy(title = trackTitle, trackNumber = index + 1, updatedAt = now))
+                } else {
+                    trackDao.insert(
+                        TrackEntity(
+                            id = UUID.randomUUID().toString(),
+                            albumId = albumId,
+                            title = trackTitle,
+                            trackNumber = index + 1,
+                            discNumber = 1,
+                            createdAt = now,
+                            updatedAt = now,
+                        ),
+                    )
+                }
+            }
+            rebuildSearchIndex(albumId, updated, artist, trackDao.findForAlbum(albumId))
+        }
     }
 
     override suspend fun deleteAlbum(id: String) {

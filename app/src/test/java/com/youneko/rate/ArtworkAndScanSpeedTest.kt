@@ -22,7 +22,7 @@ class ArtworkAndScanSpeedTest {
         val bitmap = Bitmap.createBitmap(1600, 1200, Bitmap.Config.ARGB_8888)
         val cached = ArtworkStore(context).persistBitmap("album-art-test", bitmap, "embedded")
         assertTrue(cached != null)
-        assertTrue(cached!!.path.endsWith("files/covers/album-art-test.jpg"))
+        assertTrue(cached!!.path.replace('\\', '/').endsWith("files/covers/album-art-test.jpg"))
         assertEquals("embedded", cached.source)
         val decoded = BitmapFactory.decodeFile(cached.path)
         assertTrue(decoded != null)

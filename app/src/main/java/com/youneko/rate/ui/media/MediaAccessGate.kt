@@ -14,15 +14,21 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Pets
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -51,11 +57,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.youneko.rate.R
@@ -145,7 +156,10 @@ fun MediaAccessGate(
     val scanSummary by viewModel.scanSummary.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val scanFailedMessage = stringResource(R.string.scan_failed)
-    val scanSummaryMessage = scanSummary?.let { summary -> stringResource(R.string.scan_summary, summary.albums, summary.tracks, summary.skippedFiles) }
+    val scanSummaryMessage = scanSummary
+        ?.takeIf { it.albums > 0 || it.tracks > 0 || it.skippedFiles > 0 }
+        ?.let { summary -> stringResource(R.string.scan_summary, summary.albums, summary.tracks, summary.skippedFiles) }
+    val window = com.youneko.rate.ui.adaptive.rememberYnWindowInfo()
     LaunchedEffect(scanError) {
         scanError?.takeIf { it.isNotBlank() }?.let { snackbarHostState.showSnackbar(scanFailedMessage.format(it)) }
     }
@@ -153,10 +167,10 @@ fun MediaAccessGate(
         scanSummaryMessage?.let { message -> snackbarHostState.showSnackbar(message) }
     }
     var permissionGranted by rememberSaveable { mutableStateOf(hasAudioPermission(context)) }
-    var showEducation by rememberSaveable { mutableStateOf(!permissionGranted) }
+    var permissionPromptDismissed by rememberSaveable { mutableStateOf(false) }
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
         permissionGranted = hasAudioPermission(context)
-        showEducation = !permissionGranted
+        if (!permissionGranted) permissionPromptDismissed = false
         if (permissionGranted) startScan(context, forceFull = true, trigger = "permission-result")
     }
     val treeLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
@@ -166,64 +180,121 @@ fun MediaAccessGate(
             }
             val name = androidx.documentfile.provider.DocumentFile.fromTreeUri(context, uri)?.name
             viewModel.addScanRoot(uri, name)
+            permissionPromptDismissed = true
             startScan(context, trigger = "tree-added")
         }
     }
-    LaunchedEffect(Unit) { permissionGranted = hasAudioPermission(context) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { permissionGranted = hasAudioPermission(context) }
     Box {
         content()
         AnimatedVisibility(
-            visible = permissionGranted && scanState != null,
+            visible = scanState != null,
             enter = fadeIn(tween(150)),
             exit = fadeOut(tween(150)),
             modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth(),
         ) {
             scanState?.let { current -> ScanProgressBanner(current, onCancel = viewModel::cancelScan) }
         }
-        SnackbarHost(hostState = snackbarHostState, modifier = Modifier.align(Alignment.BottomCenter))
-        if (!permissionGranted) {
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(bottom = if (window.size == com.youneko.rate.ui.adaptive.YnWindowSize.COMPACT) 80.dp else 0.dp),
+        )
+    }
+    if (!permissionGranted && !permissionPromptDismissed && roots.isEmpty()) {
+        MediaPermissionDialog(
+            folders = roots.map { it.displayName ?: it.uri },
+            onAllow = { permissionLauncher.launch(requiredAudioPermission()) },
+            onChooseFolder = { treeLauncher.launch(null) },
+            onOpenSettings = {
+                context.startActivity(
+                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}")),
+                )
+            },
+            onLater = { permissionPromptDismissed = true },
+        )
+    }
+}
+
+@Composable
+private fun MediaPermissionDialog(
+    folders: List<String>,
+    onAllow: () -> Unit,
+    onChooseFolder: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onLater: () -> Unit,
+) {
+    Dialog(
+        onDismissRequest = onLater,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
             Card(
-                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                Modifier.fillMaxWidth().widthIn(max = 440.dp),
+                shape = RoundedCornerShape(28.dp),
             ) {
                 Column(
-                    Modifier.padding(16.dp).verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
-                    Text(stringResource(R.string.media_permission_empty_title), style = MaterialTheme.typography.titleMedium)
-                    Text(stringResource(R.string.media_permission_empty_body), style = MaterialTheme.typography.bodyMedium)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { showEducation = true }) { Text(stringResource(R.string.media_permission_grant)) }
-                        OutlinedButton(onClick = { treeLauncher.launch(null) }) { Text(stringResource(R.string.media_scan_add_folder)) }
+                    Box(
+                        Modifier.size(64.dp).background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            Icons.Default.Pets,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.size(32.dp),
+                        )
                     }
-                    TextButton(onClick = {
-                        context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}")))
-                    }) { Text(stringResource(R.string.media_permission_open_settings)) }
-                    if (roots.isNotEmpty()) {
-                        Text(stringResource(R.string.media_scan_roots), style = MaterialTheme.typography.titleSmall)
-                        roots.forEach { root ->
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text(root.displayName ?: root.uri, modifier = Modifier.weight(1f))
-                                TextButton(onClick = { viewModel.removeScanRoot(root.uri) }) { Text(stringResource(R.string.media_scan_remove_folder)) }
-                            }
+                    Text(
+                        stringResource(R.string.media_permission_title),
+                        style = MaterialTheme.typography.headlineSmall,
+                        textAlign = TextAlign.Center,
+                    )
+                    Text(
+                        stringResource(R.string.media_permission_explanation),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
+                    if (folders.isNotEmpty()) {
+                        Text(
+                            stringResource(R.string.media_scan_roots),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        folders.take(3).forEach { folder ->
+                            Text(
+                                "• $folder",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                    Button(onClick = onAllow, modifier = Modifier.fillMaxWidth()) {
+                        Text(stringResource(R.string.media_permission_grant))
+                    }
+                    OutlinedButton(onClick = onChooseFolder, modifier = Modifier.fillMaxWidth()) {
+                        Text(stringResource(R.string.media_scan_add_folder))
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        TextButton(onClick = onOpenSettings) {
+                            Text(stringResource(R.string.media_permission_open_settings), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        TextButton(onClick = onLater) {
+                            Text(stringResource(R.string.media_permission_later))
                         }
                     }
                 }
             }
         }
-    }
-    if (showEducation && !permissionGranted) {
-        AlertDialog(
-            onDismissRequest = { showEducation = false },
-            title = { Text(stringResource(R.string.media_permission_title)) },
-            text = { Text(stringResource(R.string.media_permission_explanation)) },
-            confirmButton = {
-                Button(onClick = {
-                    showEducation = false
-                    permissionLauncher.launch(requiredAudioPermission())
-                }) { Text(stringResource(R.string.media_permission_continue)) }
-            },
-            dismissButton = { TextButton(onClick = { showEducation = false }) { Text(stringResource(R.string.cancel)) } },
-        )
     }
 }
 

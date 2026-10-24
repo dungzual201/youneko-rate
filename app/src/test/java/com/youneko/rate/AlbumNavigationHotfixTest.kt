@@ -176,6 +176,17 @@ private class FakeAlbumRepository(private val saveResult: String = "id") : Album
     override suspend fun saveStandalone(title: String, artistName: String, listenedDate: String?, sourceUri: String?, fileName: String?, embeddedCredits: List<com.youneko.rate.data.musicbrainz.CreditCandidate>): String = "track-id"
     override suspend fun updateTrack(track: TrackEntity) = Unit
     override suspend fun updateAlbum(album: AlbumEntity) = Unit
+    override suspend fun updateAlbumDetails(
+        albumId: String,
+        title: String,
+        artistName: String,
+        releaseYear: Int?,
+        albumType: String,
+        genreTags: List<String>,
+        listenedDate: String?,
+        coverUri: String?,
+        tracks: List<Pair<String?, String>>,
+    ) = Unit
     override suspend fun deleteAlbum(id: String) { albumFlow.value = null }
     override suspend fun findMatchingAlbum(group: ImportGroup): String? = null
     override suspend fun appendImportedTracks(albumId: String, tracks: List<ImportedTrack>): Int = tracks.size

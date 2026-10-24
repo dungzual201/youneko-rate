@@ -55,6 +55,7 @@ import coil.compose.AsyncImage
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.youneko.rate.R
+import com.youneko.rate.ui.adaptive.rememberYnPagePadding
 import com.youneko.rate.data.importer.ImportGroup
 import com.youneko.rate.data.importer.stableKey
 import com.youneko.rate.ui.importer.ImportEvent
@@ -69,6 +70,7 @@ fun ImportScreen(
     viewModel: ImportViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val pagePadding = rememberYnPagePadding()
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
             when (event) {
@@ -100,7 +102,10 @@ fun ImportScreen(
             )
         },
     ) { innerPadding ->
-    Column(Modifier.fillMaxSize().padding(innerPadding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(
+        Modifier.fillMaxSize().padding(innerPadding).padding(start = pagePadding, end = pagePadding, top = 8.dp, bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
         Text(stringResource(R.string.import_title), style = MaterialTheme.typography.headlineSmall)
         Text(stringResource(R.string.import_body), style = MaterialTheme.typography.bodyMedium)
         if (state.groups.isNotEmpty()) Text(stringResource(R.string.import_preview_note), style = MaterialTheme.typography.bodySmall)

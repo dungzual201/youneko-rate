@@ -342,6 +342,7 @@
     <string name="media_permission_title">Allow access to audio files</string>
     <string name="media_permission_explanation">YounekoRate reads local audio metadata and embedded lyrics to build your library. Audio is never played.</string>
     <string name="media_permission_continue">Continue</string>
+    <string name="media_permission_later">Not now</string>
     <string name="media_permission_grant">Allow audio access</string>
     <string name="media_permission_open_settings">Open app settings</string>
     <string name="media_permission_empty_title">Audio access is not enabled</string>
@@ -591,4 +592,31 @@
     <string name="crash_log_share_title">Share crash log</string>
     <string name="scan_failed">Scan failed: %1$s</string>
     <string name="scan_summary">Scanned %1$d albums, %2$d tracks (skipped %3$d problematic files)</string>
+
+    <string name="validation_album_title">Album title is required</string>
+    <string name="manual_score_invalid">Enter a score from 0.5 to 5.0</string>
+    <string name="remove_track_body">Remove this track from the album? Its rating and review will be deleted.</string>
+    <string name="remove_cover">Remove cover</string>
+    <string name="cover_picker_hint">Square image, at least 300 × 300 px</string>
+    <string name="unfinished_only_body">Show only albums that still have unrated tracks.</string>
+    <string name="rating_scale_five_stars">5 stars</string>
+    <string name="rating_scale_ten_points">10 points</string>
+    <string name="rating_scale_hundred_points">100 points</string>
+    <string name="library_and_scanning">Library &amp; scanning</string>
+    <string name="online_metadata">Online metadata</string>
+    <string name="provider_settings">Provider accounts</string>
+    <string name="provider_settings_body">Add API tokens for Discogs, Last.fm and Genius.</string>
+    <string name="about">About</string>
+    <string name="settings_version">Version %1$s</string>
+    <string name="settings_auto_saved">Changes are saved automatically on this device.</string>
+    <string name="stats_tracks_rated">Tracks rated</string>
+    <string name="stats_tracks_analyzed">Tracks analyzed</string>
+    <string name="stats_share_save_failed">Could not save the image to your gallery.</string>
+    <string name="stats_local_note">All statistics are computed from ratings stored on this device.</string>
+    <string name="rating_settings">Rating</string>
+    <string name="add_standalone_short">Standalone</string>
+    <string name="search_short">Search albums, artists, tracks…</string>
+    <string name="cover_art">Cover art</string>
+    <string name="album_info">Album info</string>
+    <string name="rate_helper">Tap an album to rate its tracks and keep your notes.</string>
 </resources>

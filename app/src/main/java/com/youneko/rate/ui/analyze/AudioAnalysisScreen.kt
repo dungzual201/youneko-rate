@@ -1,6 +1,5 @@
 package com.youneko.rate.ui.analyze
 
-import com.youneko.rate.ui.YounekoEmptyState
 import com.youneko.rate.ui.YounekoErrorState
 import com.youneko.rate.ui.YounekoLoadingState
 import com.youneko.rate.ui.YounekoSpacing
@@ -101,6 +100,7 @@ import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -129,8 +129,7 @@ import com.youneko.rate.data.importer.AudioTag
 import com.youneko.rate.data.importer.LocalAudioTagReader
 import com.youneko.rate.data.local.entity.AudioAnalysisEntity
 import com.youneko.rate.data.local.entity.TrackEntity
-import com.youneko.rate.ui.components.YnSharedTopAppBar
-import com.youneko.rate.ui.components.YnTabTitle
+import com.youneko.rate.ui.components.YnEmptyState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
@@ -187,7 +186,7 @@ private fun WorkInfo?.toAnalyzeUiState(): AnalyzeUiState {
     if (!active) {
         return if (state == WorkInfo.State.FAILED) AnalyzeUiState.Failed(
             progress.getString(AudioAnalysisWorker.KEY_FILE_NAME).orEmpty(),
-            progress.getString(AudioAnalysisWorker.KEY_ERROR).orEmpty().ifBlank { "Không thể phân tích file." },
+            progress.getString(AudioAnalysisWorker.KEY_ERROR).orEmpty(),
         ) else AnalyzeUiState.Idle
     }
     val step = AnalyzeStep.entries.getOrElse(progress.getInt(AudioAnalysisWorker.KEY_STEP, 0)) { AnalyzeStep.READING_HEADER }
@@ -304,7 +303,7 @@ class AudioAnalysisViewModel @Inject constructor(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AudioAnalysisScreen(initialUri: String? = null, viewModel: AudioAnalysisViewModel = hiltViewModel()) {
+fun AudioAnalysisScreen(initialUri: String? = null, onOpenSettings: (() -> Unit)? = null, viewModel: AudioAnalysisViewModel = hiltViewModel()) {
     val analyses by viewModel.analyses.collectAsStateWithLifecycle()
     val workInfos by viewModel.workInfos.collectAsStateWithLifecycle()
     val header by viewModel.header.collectAsStateWithLifecycle()
@@ -350,14 +349,19 @@ fun AudioAnalysisScreen(initialUri: String? = null, viewModel: AudioAnalysisView
             }
         }
     }
+    val pagePadding = com.youneko.rate.ui.adaptive.rememberYnPagePadding()
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         contentWindowInsets = WindowInsets(0),
         topBar = {
-            YnSharedTopAppBar(
-                screenName = "Analyze",
-                windowInsets = WindowInsets(0),
+            com.youneko.rate.ui.components.YnTopBar(
+                title = stringResource(R.string.analyze),
                 actions = {
+                    onOpenSettings?.let { openSettings ->
+                        IconButton(onClick = openSettings) {
+                            Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.settings), modifier = Modifier.size(24.dp))
+                        }
+                    }
                     if (analyzeState is AnalyzeUiState.Idle || analyzeState is AnalyzeUiState.Running || analyzeState is AnalyzeUiState.Failed || latest != null) {
                         TooltipBox(
                             positionProvider = androidx.compose.material3.TooltipDefaults.rememberPlainTooltipPositionProvider(),
@@ -372,16 +376,15 @@ fun AudioAnalysisScreen(initialUri: String? = null, viewModel: AudioAnalysisView
                 },
             )
         },
-        snackbarHost = { SnackbarHost(snackbarHostState, Modifier.navigationBarsPadding()) },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { innerPadding ->
         Box(Modifier.fillMaxSize()) {
             LazyColumn(
                 state = listState,
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(start = YnDimens.space6, top = 0.dp, end = YnDimens.space6, bottom = YnDimens.navigationSafe),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(start = pagePadding, top = 8.dp, end = pagePadding, bottom = 28.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxSize().padding(innerPadding),
             ) {
-                item { YnTabTitle(R.string.analyze) }
                 if (latest != null) {
                     item {
                         androidx.compose.material3.OutlinedButton(
@@ -414,7 +417,10 @@ fun AudioAnalysisScreen(initialUri: String? = null, viewModel: AudioAnalysisView
                 item {
                     when (val state = analyzeState) {
                         is AnalyzeUiState.Running -> AnalyzeRunningCard(state, viewModel::onCancelClicked)
-                        is AnalyzeUiState.Failed -> YounekoErrorState("${state.fileName}: ${state.reason}", onRetry = { picker.launch(arrayOf("audio/*")) }, modifier = Modifier.fillMaxWidth())
+                        is AnalyzeUiState.Failed -> {
+                            val reason = state.reason.ifBlank { stringResource(R.string.analyze_error_invalid_file) }
+                            YounekoErrorState("${state.fileName}: $reason", onRetry = { picker.launch(arrayOf("audio/*")) }, modifier = Modifier.fillMaxWidth())
+                        }
                         else -> Unit
                     }
                 }
@@ -422,21 +428,13 @@ fun AudioAnalysisScreen(initialUri: String? = null, viewModel: AudioAnalysisView
                     when {
                         latest != null -> AnalysisCard(latest, cachedSpectrogram, context, onExplain = { explain = true })
                         analyzeState is AnalyzeUiState.Failed -> Unit
-                        else -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(YnDimens.space4),
-                                modifier = Modifier.fillMaxWidth(),
-                            ) {
-                                YounekoEmptyState(
-                                    stringResource(R.string.audio_analysis_empty),
-                                    actionLabel = stringResource(R.string.audio_analysis_choose_file),
-                                    onAction = { sourceMode = null; showSourceSheet = true },
-                                    modifier = Modifier.fillMaxWidth(),
-                                )
-                                Text(stringResource(R.string.analyze_decode_note), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                        }
+                        else -> YnEmptyState(
+                            title = stringResource(R.string.audio_analysis_empty),
+                            body = stringResource(R.string.analyze_decode_note),
+                            actionLabel = stringResource(R.string.audio_analysis_choose_file),
+                            onAction = { sourceMode = null; showSourceSheet = true },
+                            modifier = Modifier.fillParentMaxHeight(0.7f).fillMaxWidth(),
+                        )
                     }
                 }
                 if (latest != null || analyzeState is AnalyzeUiState.Failed) {

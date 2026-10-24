@@ -51,6 +51,7 @@ import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.workDataOf
 import com.youneko.rate.R
+import com.youneko.rate.ui.adaptive.rememberYnPagePadding
 import com.youneko.rate.data.AutoBackupStore
 import com.youneko.rate.data.export.BACKUP_INPUT_URI
 import com.youneko.rate.data.export.BACKUP_OUTPUT_URI
@@ -115,6 +116,7 @@ fun ExportScreen(
 ) {
     val context = LocalContext.current
     val snapshot by viewModel.snapshot.collectAsStateWithLifecycle()
+    val pagePadding = rememberYnPagePadding()
     val validation by viewModel.validation.collectAsStateWithLifecycle()
     val autoStore = remember { AutoBackupStore(context.applicationContext) }
     val autoEnabled by autoStore.enabled.collectAsStateWithLifecycle(initialValue = false)
@@ -182,7 +184,10 @@ fun ExportScreen(
             )
         },
     ) { innerPadding ->
-    Column(Modifier.fillMaxSize().padding(innerPadding).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(
+        Modifier.fillMaxSize().padding(innerPadding).padding(start = pagePadding, end = pagePadding, top = 8.dp, bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
         activeWork?.takeIf { it.state == WorkInfo.State.RUNNING }?.let { work ->
             val progress = work.progress
             val done = progress.getInt("done", 0)

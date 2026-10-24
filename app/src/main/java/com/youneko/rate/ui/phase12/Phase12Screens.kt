@@ -36,6 +36,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.youneko.rate.R
+import com.youneko.rate.ui.adaptive.rememberYnPagePadding
 import com.youneko.rate.data.local.YounekoDatabase
 import com.youneko.rate.data.local.entity.AlbumEntity
 import com.youneko.rate.data.local.entity.CollectionAlbumEntity
@@ -67,12 +68,16 @@ class CollectionsViewModel @Inject constructor(private val database: YounekoData
 @Composable
 fun CollectionsScreen(onBack: () -> Unit, viewModel: CollectionsViewModel = hiltViewModel()) {
     val collections by viewModel.collections.collectAsStateWithLifecycle()
+    val pagePadding = rememberYnPagePadding()
     var showCreate by rememberSaveable { mutableStateOf(false) }
     var name by rememberSaveable { mutableStateOf("") }
     var description by rememberSaveable { mutableStateOf("") }
     LaunchedEffect(Unit) { viewModel.load() }
     Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.collections)) }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.a11y_back)) } }) }) { innerPadding ->
-    Column(Modifier.fillMaxSize().padding(innerPadding).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(
+        Modifier.fillMaxSize().padding(innerPadding).padding(start = pagePadding, end = pagePadding, top = 8.dp, bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
         Button(onClick = { showCreate = true }) { Text(stringResource(R.string.collection_create)) }
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(collections, key = { it.id }) { collection ->
@@ -108,9 +113,13 @@ data class ArtistAlbum(val album: AlbumEntity, val score: Double?)
 @Composable
 fun ArtistPageScreen(artistId: String, onBack: () -> Unit, viewModel: ArtistPageViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val pagePadding = rememberYnPagePadding()
     LaunchedEffect(artistId) { viewModel.load(artistId) }
     Scaffold(topBar = { TopAppBar(title = { Text(state?.name.orEmpty()) }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.a11y_back)) } }) }) { innerPadding ->
-    Column(Modifier.fillMaxSize().padding(innerPadding).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(
+        Modifier.fillMaxSize().padding(innerPadding).padding(start = pagePadding, end = pagePadding, top = 8.dp, bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
         state?.albums?.let { albums -> LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) { items(albums, key = { it.album.id }) { item -> Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(12.dp)) { Text(item.album.title, style = MaterialTheme.typography.titleMedium); Text(item.score?.let { "%.1f/5".format(it) } ?: stringResource(R.string.not_rated)) } } } } }
     }
     }
@@ -146,6 +155,7 @@ data class AdvancedSearchResult(val album: AlbumEntity, val artist: String, val 
 @Composable
 fun AdvancedSearchScreen(onBack: () -> Unit, viewModel: AdvancedSearchViewModel = hiltViewModel()) {
     val results by viewModel.results.collectAsStateWithLifecycle()
+    val pagePadding = rememberYnPagePadding()
     var query by rememberSaveable { mutableStateOf("") }
     var min by rememberSaveable { mutableStateOf("") }
     var max by rememberSaveable { mutableStateOf("") }
@@ -153,7 +163,10 @@ fun AdvancedSearchScreen(onBack: () -> Unit, viewModel: AdvancedSearchViewModel 
     var credit by rememberSaveable { mutableStateOf("") }
     var verdict by rememberSaveable { mutableStateOf("") }
     Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.advanced_search)) }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.a11y_back)) } }) }) { innerPadding ->
-    Column(Modifier.fillMaxSize().padding(innerPadding).padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(
+        Modifier.fillMaxSize().padding(innerPadding).padding(start = pagePadding, end = pagePadding, top = 8.dp, bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
         OutlinedTextField(query, { query = it }, modifier = Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.search_hint)) })
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedTextField(min, { min = it }, modifier = Modifier.weight(1f), label = { Text(stringResource(R.string.advanced_min_score)) }); OutlinedTextField(max, { max = it }, modifier = Modifier.weight(1f), label = { Text(stringResource(R.string.advanced_max_score)) }) }
         OutlinedTextField(tag, { tag = it }, modifier = Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.advanced_tag)) })
