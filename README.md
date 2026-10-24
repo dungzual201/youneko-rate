@@ -11,6 +11,7 @@
     <a href="gradle/libs.versions.toml"><img src="https://img.shields.io/badge/Kotlin-2.4.10-7F52FF.svg" alt="Kotlin 2.4.10"></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-yellow.svg" alt="License MIT"></a>
     <img src="https://img.shields.io/badge/100%25%20Offline-6750A4?style=flat&logoColor=white" alt="100% Offline">
+    <img src="https://img.shields.io/badge/adaptive-phone%20%26%20tablet-6750A4?style=flat" alt="Adaptive phones and tablets">
   </p>
 </div>
 
@@ -25,7 +26,7 @@
 - [⚠️ Limits](#️-limits)
 - [🐾 Thanks](#-thanks)
 
-Youneko Rate! is a personal, offline-first companion for keeping thoughtful album notes. It reads the local audio library, stores ratings and reviews on the device, and provides organization and inspection tools without pretending that unfinished beta work is complete.
+Youneko Rate! is a private, offline-first companion for rating and keeping notes on your local music library. It scans the audio on your device, stores ratings, reviews, tags and listening logs locally, and adds audio-quality inspection and personal statistics without requiring an account or a server. The Material 3 interface is now built to feel at home on both phones and tablets.
 
 <hr>
 
@@ -33,34 +34,52 @@ Youneko Rate! is a personal, offline-first companion for keeping thoughtful albu
 
 <img src="docs/images/cat_peek.png" width="90" align="right" alt="Chibi cat peeking">
 
-The current app has four principal areas:
+The app is organized around four principal areas plus an adaptive layout layer:
 
 | Area | Current capability |
 |---|---|
-| **Library** | Scans local audio through MediaStore and optional SAF folders, then enriches local metadata and artwork. Scan progress is visible. |
-| **Rate** | Supports manual track and album scores, reviews, tags, listening logs, and local rating filters. |
-| **Analyze** | Uses decode-only inspection and STFT/FFT data to show sample rate, bit depth, bitrate and spectral indicators when the source provides enough data. |
-| **Stats** | Summarizes saved ratings and analyses with distributions, rankings and a local share-card renderer. |
+| **Library** | Scans local audio through MediaStore and optional SAF folders, then enriches local metadata and artwork. Adaptive grid or list, search, filters and six sort modes keep large libraries manageable. |
+| **Rate** | Half-star ratings (or 10/100-point scales), album and track reviews, tags, listening logs, rating progress, and a full album editor for correcting metadata and cover art. |
+| **Analyze** | Decode-only inspection with STFT/FFT data, sample rate, bit depth, bitrate, cutoff and spectral indicators whenever the source provides enough data. |
+| **Stats** | Overview tiles, top-rated album, score distribution, averages by listen date, quality/artist/label/credit rankings, and a locally rendered share card. |
+| **Adaptive UI** | Material 3 layout with bottom navigation on phones, a navigation rail on tablets, a two-pane album detail on large tablets, light/dark themes and complete EN/VI resources. |
 
 The interface is built around local data, Material 3, bilingual resources, a paw launcher/splash identity and artwork kept in the app's private storage.
+
+### Interface refresh
+
+- Library, Rate, Album detail, Analyze, Stats and Settings were rebuilt around the same adaptive layout system.
+- Album detail now keeps ratings inline, handles review/tag/listening tools in focused cards, and switches to a two-pane cover + tracklist layout on large screens.
+- Settings is fully scrollable and grouped; provider tokens, credit sources, backup and diagnostics live in dedicated cards.
+- Stats now groups averages by the album listen date, shows a real distribution chart and renders a brand-consistent share card.
+- All user-facing copy, validation messages and rating-scale labels are localized in English and Vietnamese.
 
 <hr>
 
 ## 📸 Screenshots
 
-The six screenshots below are the supplied project captures, embedded directly from the repository so they remain available in both light and dark GitHub themes. The first five files retain neutral names because their original upload names do not identify the screen reliably; the final file is the supplied Stats capture.
+The previews below are rendered directly from the Compose sources at 411 dp (phone), 800 dp (tablet) and 1200 dp (large tablet). They are UI previews, not physical-device captures; real-device screenshots can replace them at any time.
 
-| App screen 01 | App screen 02 |
+| Phone · Library | Phone · Album detail |
 |---|---|
-| <img src="docs/images/screenshot_app_01.png" width="250" alt="Youneko Rate app screen 01"><br><sub>App screen 01</sub> | <img src="docs/images/screenshot_app_02.png" width="250" alt="Youneko Rate app screen 02"><br><sub>App screen 02</sub> |
-| App screen 03 | App screen 04 |
+| <img src="docs/images/redesign_phone_library.png" width="260" alt="Redesigned Library on a phone"><br><sub>Library · adaptive grid and quick filters</sub> | <img src="docs/images/redesign_phone_album_detail.png" width="260" alt="Redesigned album detail on a phone"><br><sub>Album detail · inline ratings and notes</sub> |
+| Phone · Rate | Phone · Stats |
 |---|---|
-| <img src="docs/images/screenshot_app_03.png" width="250" alt="Youneko Rate app screen 03"><br><sub>App screen 03</sub> | <img src="docs/images/screenshot_app_04.png" width="250" alt="Youneko Rate app screen 04"><br><sub>App screen 04</sub> |
-| App screen 05 | Stats |
+| <img src="docs/images/redesign_phone_rate.png" width="260" alt="Rate tab on a phone"><br><sub>Rate · quick actions and progress</sub> | <img src="docs/images/redesign_phone_stats.png" width="260" alt="Stats tab on a phone"><br><sub>Stats · overview and distribution</sub> |
+| Phone · Analyze | Share card |
 |---|---|
-| <img src="docs/images/screenshot_app_05.png" width="250" alt="Youneko Rate app screen 05"><br><sub>App screen 05</sub> | <img src="docs/images/screenshot_stats.png" width="250" alt="Youneko Rate Stats screen"><br><sub>Stats</sub> |
+| <img src="docs/images/redesign_phone_analyze.png" width="260" alt="Analyze tab on a phone"><br><sub>Analyze · decode-only inspection</sub> | <img src="docs/images/redesign_share_card.png" width="260" alt="Rendered stats share card"><br><sub>Share card · rendered locally</sub> |
+| Phone · Edit album | Phone · Dark theme |
+|---|---|
+| <img src="docs/images/redesign_phone_album_editor.png" width="260" alt="Album editor on a phone"><br><sub>Editor · metadata, cover and tracklist</sub> | <img src="docs/images/redesign_phone_dark_library.png" width="260" alt="Library in dark theme"><br><sub>Dark theme · brand palette</sub> |
+| Tablet · Library | Tablet · Settings |
+|---|---|
+| <img src="docs/images/redesign_tablet_library.png" width="260" alt="Library on a tablet with navigation rail"><br><sub>Tablet · navigation rail</sub> | <img src="docs/images/redesign_tablet_settings.png" width="260" alt="Settings on a tablet"><br><sub>Settings · grouped, scrollable sections</sub> |
 
-The documentation banner intentionally uses one brand-purple paw logo for both GitHub themes, avoiding the previous low-contrast dark logo and broken light/dark asset pair.
+<p align="center">
+  <img src="docs/images/redesign_large_tablet_album_detail.png" width="820" alt="Two-pane album detail on a large tablet"><br>
+  <sub>Large tablet · two-pane album detail with cover, notes and tracklist</sub>
+</p>
 
 <hr>
 
@@ -78,6 +97,7 @@ The versions below are read from `gradle/libs.versions.toml` and `app/build.grad
 | Images and artwork | Coil `2.7.0`, AndroidX Palette `1.0.0`, AndroidX ExifInterface `1.3.7` |
 | Audio and tags | MediaExtractor, MediaCodec, MediaMetadataRetriever, jaudiotagger `3.0.1`, JTransforms `3.1` |
 | Platform support | core-ktx `1.19.0`, core-splashscreen `1.0.1`, Activity Compose `1.13.0`, Navigation Compose `2.9.8` |
+| Adaptive layout | Custom window-width breakpoints, `NavigationRail` from 600 dp, bottom navigation on phones, two-pane album detail from 840 dp |
 
 The code uses a practical MVVM and repository/data-layer structure. Compose screens observe `StateFlow` from ViewModels; DAOs provide Room data, Hilt supplies dependencies, DataStore stores preferences and scan state, and WorkManager handles longer operations.
 
@@ -141,17 +161,23 @@ For the complete local verification suite:
 
 ```text
 app/src/main/java/com/youneko/rate/
-├── data/          # Room entities/DAOs, repositories, import, scan, artwork and workers
-├── di/            # Hilt and database dependency wiring
-├── navigation/    # Compose navigation graph and routes
+├── data/           # Room entities/DAOs, repositories, import, scan, artwork and workers
+├── di/             # Hilt and database dependency wiring
+├── navigation/     # Adaptive Compose navigation graph and routes
 ├── ui/
-│   ├── analyze/   # Decode-only audio analysis and spectrogram UI
-│   ├── artwork/   # Cover display, palette and cache-aware image loading
-│   ├── components/ # Shared Material 3 components
-│   ├── importer/  # Local audio import preview and save flow
-│   ├── rate/      # Library, Rate, album detail, settings and editors
-│   └── stats/     # Statistics and share-card rendering
-└── res/           # Bilingual strings, themes, launcher/splash and vector assets
+│   ├── adaptive/   # Window-size helpers, page padding and responsive columns
+│   ├── analyze/    # Decode-only audio analysis and spectrogram UI
+│   ├── artwork/    # Cover display, palette and cache-aware image loading
+│   ├── components/ # Shared Material 3 top bar, cards, ratings and progress
+│   ├── coversearch/# Cover picker flow
+│   ├── export/     # Backup, restore, CSV/JSON export and share collages
+│   ├── importer/   # Local audio import preview and save flow
+│   ├── media/      # Permission onboarding and scan progress
+│   ├── musicbrainz/# Online metadata search
+│   ├── phase12/    # Collections, artist pages and advanced search
+│   ├── rate/       # Library, Rate, album detail, editor, settings, star rating
+│   └── stats/      # Statistics and share-card rendering
+└── res/            # Bilingual strings, themes, launcher/splash and vector assets
 ```
 
 </details>
@@ -168,9 +194,9 @@ Artwork imported into the app is stored under its private `filesDir/covers/` dir
 
 ## ⚠️ Limits
 
-This is a beta project. The app has **no playback**, does not write original audio tags, does not retrieve lyrics, and does not provide backup. These boundaries are intentional and should not be read as promises of future functionality.
+This is a personal beta project. The app has **no playback**, does not write tags into the original audio file, and does not fetch lyrics online. Embedded lyrics can be read from file tags. Backup/restore covers ratings, reviews, tags, listening logs and manual credits; music files and API tokens are never included.
 
-This workspace contains no device-side performance measurements and makes no claim that in-progress phases are complete. See `docs/PROGRESS.md` for the conservative phase ledger.
+The screenshots above are Compose previews, not physical-device captures, and this workspace contains no device performance measurements. UI behavior may still change as the beta is tested on real hardware. See `docs/PROGRESS.md` for the phase ledger.
 
 <hr>
 
