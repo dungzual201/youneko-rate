@@ -10,6 +10,7 @@
     <a href="app/build.gradle.kts"><img src="https://img.shields.io/badge/minSdk-26-blue.svg" alt="minSdk 26"></a>
     <a href="gradle/libs.versions.toml"><img src="https://img.shields.io/badge/Kotlin-2.4.10-7F52FF.svg" alt="Kotlin 2.4.10"></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-yellow.svg" alt="License MIT"></a>
+    <a href="https://github.com/dungzual201/youneko-rate/releases/latest"><img src="https://img.shields.io/github/v/release/dungzual201/youneko-rate?display_name=release" alt="Latest release"></a>
     <img src="https://img.shields.io/badge/100%25%20Offline-6750A4?style=flat&logoColor=white" alt="100% Offline">
     <img src="https://img.shields.io/badge/adaptive-phone%20%26%20tablet-6750A4?style=flat" alt="Tối ưu điện thoại và máy tính bảng">
   </p>
